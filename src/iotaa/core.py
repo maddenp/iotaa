@@ -32,7 +32,7 @@ class asset:
 _Assets = Union[Dict[str, asset], List[asset]]
 
 
-def configure_logging(verbose: Optional[bool] = False) -> None:
+def configure_logging(verbose: bool) -> None:
     """
     Configure OTAA default logging.
     """
