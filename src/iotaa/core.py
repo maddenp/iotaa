@@ -180,10 +180,13 @@ def _parse_args(raw: List[str]) -> Namespace:
     :param args: Raw command-line arguments.
     :return: Parsed command-line arguments.
     """
-    parser = ArgumentParser(formatter_class=_formatter)
+    parser = ArgumentParser(add_help=False, formatter_class=_formatter)
     parser.add_argument("module", help="application module", type=str)
     parser.add_argument("function", help="task function", type=str)
     parser.add_argument("args", help="function arguments", type=str, nargs="?")
+    optional = parser.add_argument_group("optional arguments")
+    optional.add_argument("-h", "--help", action="help", help="show help and exit")
+    optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
     return parser.parse_args(raw)
 
 
