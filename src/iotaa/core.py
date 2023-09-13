@@ -7,6 +7,7 @@ import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass
 from functools import cache
+from importlib import import_module
 from itertools import chain
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Union
@@ -73,7 +74,8 @@ def main() -> None:
     """
     args = _parse_args(sys.argv[1:])
     configure_logging(verbose=args.verbose)
-    logging.info(args)
+    logging.debug("Calling %s.%s(%s)", args.module, args.function, ", ".join(args.args))
+    getattr(import_module(args.module), args.function)(*args.args)
 
 
 # Decorators
@@ -184,7 +186,7 @@ def _parse_args(raw: List[str]) -> Namespace:
     parser = ArgumentParser(add_help=False, formatter_class=_formatter)
     parser.add_argument("module", help="application module", type=str)
     parser.add_argument("function", help="task function", type=str)
-    parser.add_argument("args", help="function arguments", type=str, nargs="?")
+    parser.add_argument("args", help="function arguments", type=str, nargs="*")
     optional = parser.add_argument_group("optional arguments")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
