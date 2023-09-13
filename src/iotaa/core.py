@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from functools import cache
 from importlib import import_module
 from itertools import chain
+from json import JSONDecodeError, loads
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Union
 
@@ -75,7 +76,8 @@ def main() -> None:
     args = _parse_args(sys.argv[1:])
     configure_logging(verbose=args.verbose)
     logging.debug("Calling %s.%s(%s)", args.module, args.function, ", ".join(args.args))
-    getattr(import_module(args.module), args.function)(*args.args)
+    reified = [_reify(arg) for arg in args.args]
+    getattr(import_module(args.module), args.function)(*reified)
 
 
 # Decorators
@@ -186,7 +188,7 @@ def _parse_args(raw: List[str]) -> Namespace:
     parser = ArgumentParser(add_help=False, formatter_class=_formatter)
     parser.add_argument("module", help="application module", type=str)
     parser.add_argument("function", help="task function", type=str)
-    parser.add_argument("args", help="function arguments", type=str, nargs="*")
+    parser.add_argument("args", help="function arguments", nargs="*")
     optional = parser.add_argument_group("optional arguments")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
@@ -213,6 +215,18 @@ def _readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
+
+
+def _reify(s: str) -> Any:
+    """
+    Convert strings, when possible, to more specifically types.
+
+    :param s: The string to convert.
+    """
+    try:
+        return loads(s)
+    except JSONDecodeError:
+        return loads(f'"{s}"')
 
 
 def _run(g: Generator, taskname: str) -> None:
