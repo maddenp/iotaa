@@ -180,13 +180,10 @@ def _parse_args(raw: List[str]) -> Namespace:
     :param args: Raw command-line arguments.
     :return: Parsed command-line arguments.
     """
-    parser = ArgumentParser(add_help=False, formatter_class=_formatter)
-    parser._positionals.title = "Positional arguments"  # pylint: disable=protected-access
-    parser.add_argument("module", help="Application module", type=str)
-    parser.add_argument("function", help="Task function", type=str)
-    parser.add_argument("args", help="Function arguments", type=str, nargs="*")
-    optional = parser.add_argument_group("Optional arguments")
-    optional.add_argument("-h", "--help", action="help", help="Show help and exit")
+    parser = ArgumentParser(formatter_class=_formatter)
+    parser.add_argument("module", help="application module", type=str)
+    parser.add_argument("function", help="task function", type=str)
+    parser.add_argument("args", help="function arguments", type=str, nargs="?")
     return parser.parse_args(raw)
 
 
