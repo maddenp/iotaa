@@ -72,7 +72,8 @@ def main() -> None:
     Main entry point.
     """
     args = _parse_args(sys.argv[1:])
-    print("@@@", args)
+    configure_logging(verbose=args.verbose)
+    logging.info(args)
 
 
 # Decorators
