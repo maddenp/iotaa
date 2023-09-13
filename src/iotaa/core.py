@@ -1,8 +1,10 @@
 """
-One Thing After Another: A Tiny Workflow Manager
+It's One Thing After Another: A Tiny Workflow Manager.
 """
 
 import logging
+import sys
+from argparse import ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass
 from functools import cache
 from itertools import chain
@@ -28,14 +30,14 @@ class asset:
 _Assets = Union[Dict[str, asset], List[asset]]
 
 
-def configure_logging() -> None:
+def configure_logging(verbose: Optional[bool] = False) -> None:
     """
     Configure OTAA default logging.
     """
     logging.basicConfig(
         datefmt="%Y-%m-%dT%H:%M:%S",
         format="[%(asctime)s] %(levelname)-7s %(message)s",
-        level=logging.INFO,
+        level=logging.DEBUG if verbose else logging.INFO,
     )
 
 
@@ -69,6 +71,8 @@ def main() -> None:
     """
     Main entry point.
     """
+    args = _parse_args(sys.argv[1:])
+    print("@@@", args)
 
 
 # Decorators
@@ -158,6 +162,32 @@ def _extract(assets: _Assets) -> Generator:
     """
     for a in assets if isinstance(assets, list) else assets.values():
         yield a
+
+
+def _formatter(prog: str) -> HelpFormatter:
+    """
+    Help-message formatter.
+
+    :param prog: The program name.
+    """
+    return HelpFormatter(prog, max_help_position=4)
+
+
+def _parse_args(raw: List[str]) -> Namespace:
+    """
+    Parse command-line arguments.
+
+    :param args: Raw command-line arguments.
+    :return: Parsed command-line arguments.
+    """
+    parser = ArgumentParser(add_help=False, formatter_class=_formatter)
+    parser._positionals.title = "Positional arguments"  # pylint: disable=protected-access
+    parser.add_argument("module", help="Application module", type=str)
+    parser.add_argument("function", help="Task function", type=str)
+    parser.add_argument("args", help="Function arguments", type=str, nargs="*")
+    optional = parser.add_argument_group("Optional arguments")
+    optional.add_argument("-h", "--help", action="help", help="Show help and exit")
+    return parser.parse_args(raw)
 
 
 def _readiness(
