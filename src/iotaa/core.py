@@ -17,8 +17,8 @@ class asset:
     """
     Description of a workflow asset.
 
-    :ivar id: The asset itself (e.g. a path string or pathlib Path object).
-    :ivar ready: A function that, when called, indicates whether the asset is ready to use.
+    :ivar id: The asset itself (e.g. a path string or pathlib Path object). :ivar ready: A function
+    that, when called, indicates whether the asset is ready to use.
     """
 
     id: Any
@@ -63,6 +63,12 @@ def ids(assets: _Assets) -> dict:
     if isinstance(assets, dict):
         return {k: a.id for k, a in assets.items()}
     return {i: a.id for i, a in enumerate(assets)}
+
+
+def main() -> None:
+    """
+    Main entry point.
+    """
 
 
 # Decorators

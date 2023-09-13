@@ -27,7 +27,10 @@ ignore_missing_imports = true
 pretty = true
 
 [tool.pylint.messages_control]
-disable = []
+disable = [
+  "consider-using-f-string",
+  "invalid-name",
+]
 recursive = true
 
 [tool.pytest.ini_options]
