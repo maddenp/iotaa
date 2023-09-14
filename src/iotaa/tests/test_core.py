@@ -205,16 +205,18 @@ def test__parse_args():
     pass
 
 
-def test__readiness(caplog):
+@pytest.mark.parametrize(
+    "vals",
+    [
+        (True, False, True, "Initial state: Ready"),
+        (False, True, False, "Final state: Pending (EXTERNAL)"),
+    ],
+)
+def test__readiness(caplog, vals):
+    ready, ext, init, msg = vals
     ic.logging.getLogger().setLevel(ic.logging.INFO)
-    ic._readiness(ready=True, taskname="task", external_=False, initial=True)
-    assert any(re.match(r"^task: Initial state: Ready$", rec.message) for rec in caplog.records)
-    caplog.clear()
-    ic._readiness(ready=False, taskname="task", external_=True, initial=False)
-    assert any(
-        re.match(r"^task: Final state: Pending \(EXTERNAL\)$", rec.message)
-        for rec in caplog.records
-    )
+    ic._readiness(ready=ready, taskname="task", external_=ext, initial=init)
+    assert any(re.match(r"^task: %s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
 
 def test__reify(strs):
