@@ -2,7 +2,7 @@
 
 **It's One Thing After Another**
 
-A [simplest-thing-that-could-possibly-work](https://wiki.c2.com/?DoTheSimplestThingThatCouldPossiblyWork) workflow manager taking semantics cues from [Luigi](https://github.com/spotify/luigi).
+A [simplest-thing-that-could-possibly-work](https://wiki.c2.com/?DoTheSimplestThingThatCouldPossiblyWork) workflow manager taking semantics cues from [Luigi](https://github.com/spotify/luigi) but defining tasks as decorated Python functions.
 
 ## Demo
 
@@ -47,27 +47,42 @@ An `asset` object has two attributes:
 
 Create an `asset` by calling `asset()` -- see below.
 
+## Use
+
+### Installation
+
+### CLI Use
+
+### Programmatic Use
+
+### Dry-Run Mode
+
 ## Helpers
 
 Several public helper callables are available in the `iotaa` module:
 
-- `asset()`
-- `configure_logging()`
-- `disable_dry_run()`
-- `enable_dry_run()`
-- `ids()`
+- `asset()` creates an asset object, to be returned in a `dict` or `list` from task functions.
+- `configure_logging()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs, which could then also make its own `logging` calls.
+- `disable_dry_run()` disables dry-run mode.
+- `enable_dry_run()` enables dry-run mode.
+- `ids()` returns a `dict` 
 
-## Installing
+## Development
 
-TBD
+## Notes
 
-## Developing
-
-TBD
+- `iotaa` workflows can be invoked repeatedly, potentially making further progress in each invocation. Since task functions' assets are checked for readiness before their dependencies are checked or their post-`yield` statements are executed, completed work is never performed twice -- unless the asset becomes un-ready via external means. For example, someone might notice that an asset is incorrect, remove it, fix the application code, then re-run the workflow; `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
+- `iotaa` tasks may be instantiated in statements before the statement `yield`ing them to the framework, but note that control will be passed to them immediately. For example, a task might have, instead of the statement `yield [foo(x)]`, the separate statements `foo_assets = foo(x)` (first) and `yield [foo]` (later). In this case, control would be passed to `foo` (and potentially to a tree of tasks it depends on) immediately upon evaluation of the expression `foo(x)`. This should be fine semantically, but be aware of the order of execution it implies.
+- `iotaa` tasks are cached and only executed once in the lifetime of the Python interpreter, so it is currently assumed that `iotaa` or an application embedding it will be invoked repeatedly (or, in happy cases, just once) to complete all tasks, with the Python interpreter exiting and restarting with each invocation. Support could be added to clear cached tasks to support applications that would run workflows repeatedly inside the same interpreter invocation.
+- `iotaa` is nearly a no-batteries-included solution. For use with e.g. AWS S3, import `boto3` in an appication, alongside `iotaa`, and make calls from within task functions, or write helpful utility functions that task functions can use.
+- `iotaa` is currently single-threaded, so it truly is one thing after another. Concurrency for execution of mutually indepenedent tasks could be added later, but presumably depenencies would still exist between some tasks, so partial ordering and serialization would still exist.
+- `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
+- `iotaa` currently relies on Python's root logger. Support could be added for optional alternative use of a logger supplied by an application.
 
 ## TODO
 
-- only-once caching
-- single threaded
 - cli use
 - library use
+- subprocess helper
+- sys.path extension for abspaths
+- dry-run cli arg
