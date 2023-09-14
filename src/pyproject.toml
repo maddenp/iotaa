@@ -29,6 +29,7 @@ pretty = true
 [tool.pylint.messages_control]
 disable = [
   "consider-using-f-string",
+  "disallowed-name",
   "invalid-name",
 ]
 recursive = true

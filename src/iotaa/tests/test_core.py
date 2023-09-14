@@ -18,6 +18,9 @@ def positional_params():
     return ["foo", "88", "3.14", "true"]
 
 
+# Public API tests
+
+
 def test_asset_args():
     asset = ic.asset("foo", lambda: True)
     assert asset.id == "foo"
@@ -80,3 +83,18 @@ def test_main(positional_params):
             getattr_().assert_called_once_with("foo", 88, 3.14, True)
         mocks["configure_logging"].assert_called_once_with(verbose=True)
         parse_args.assert_called_once()
+
+
+# Decorator tests
+
+
+def test_external_not_ready(tmp_path):
+    @ic.external
+    def foo(path):
+        yield f"File {path}"
+        yield [ic.asset(path, path.is_file)]
+
+    path = tmp_path / "a-file"
+    assets = list(ic._extract(foo(path)))
+    assert ic.ids(assets)[0] == path
+    assert assets[0].ready() is False

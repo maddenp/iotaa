@@ -16,6 +16,9 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Union
 _state = ns(dry_run_enabled=False)
 
 
+# Public API
+
+
 @dataclass
 class asset:
     """
@@ -34,7 +37,7 @@ _Assets = Union[Dict[str, asset], List[asset]]
 
 def configure_logging(verbose: bool) -> None:
     """
-    Configure OTAA default logging.
+    Configure iotaa default logging.
     """
     logging.basicConfig(
         datefmt="%Y-%m-%dT%H:%M:%S",
@@ -45,14 +48,14 @@ def configure_logging(verbose: bool) -> None:
 
 def disable_dry_run() -> None:
     """
-    Enable OTAA's dry-run mode.
+    Enable iotaa's dry-run mode.
     """
     _state.dry_run_enabled = False
 
 
 def enable_dry_run() -> None:
     """
-    Disable OTAA's dry-run mode.
+    Disable iotaa's dry-run mode.
     """
     _state.dry_run_enabled = True
 
@@ -61,7 +64,7 @@ def ids(assets: _Assets) -> dict:
     """
     Extract and return asset identity objects (e.g. paths to files).
 
-    :param assets: A collection of OTAA assets.
+    :param assets: A collection of iotaa assets.
     :return: A dict of asset identity objects.
     """
     if isinstance(assets, dict):
@@ -84,7 +87,7 @@ def main() -> None:
 
 def external(f) -> Callable[..., _Assets]:
     """
-    The @external decorator for assets that OTAA cannot produce.
+    The @external decorator for assets that iotaa cannot produce.
     """
 
     @cache
@@ -102,7 +105,7 @@ def external(f) -> Callable[..., _Assets]:
 
 def task(f) -> Callable[..., _Assets]:
     """
-    The @task decorator for assets that OTAA can produce.
+    The @task decorator for assets that iotaa can produce.
     """
 
     @cache
@@ -162,7 +165,7 @@ def _extract(assets: _Assets) -> Generator:
     """
     Extract and yield individual assets from asset collections.
 
-    :param assets: A collection of OTAA assets.
+    :param assets: A collection of iotaa assets.
     """
     for a in assets if isinstance(assets, list) else assets.values():
         yield a
@@ -198,7 +201,7 @@ def _readiness(
     ready: bool, taskname: str, external_: Optional[bool] = False, initial: Optional[bool] = False
 ) -> None:
     """
-    Log information about the readiness of an OTAA asset.
+    Log information about the readiness of an iotaa asset.
 
     :param ready: Is the asset ready to use?
     :param taskname: The current task's name.
