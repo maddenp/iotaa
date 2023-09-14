@@ -20,7 +20,7 @@ The essential workflow element: A function that `yield`s, in order:
 2. A `list` or `dict` of `asset`(s) (see below) it is responsible for making ready (e.g. creating)
 3. A `list` of tasks it depends on
 
-Arbitrary Python statements may appear before and interspersed between these `yield` statements. All statements following the third and final `yield` will be executed -- if and only if the assets of all tasks it depends on are ready -- with the expectation that they will make ready the task's assets.
+Arbitrary Python statements may appear before and interspersed between these `yield` statements. All statements following the third and final `yield` will be executed -- if and only if the assets of all tasks it depends on are ready to use -- with the expectation that they will make ready the task's assets.
 
 ### `@external`
 
@@ -68,5 +68,6 @@ TBD
 ## TODO
 
 - only-once caching
+- single threaded
 - cli use
 - library use
