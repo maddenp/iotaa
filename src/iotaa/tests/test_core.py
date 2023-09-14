@@ -12,6 +12,32 @@ from pytest import fixture
 
 import iotaa.core as ic
 
+# Fixtures
+
+
+@fixture
+def external_foo():
+    @ic.external
+    def foo(path):
+        f = path / "foo"
+        yield f"foo {f}"
+        yield [ic.asset(f, f.is_file)]
+
+    return foo
+
+
+@fixture
+def task_bar(external_foo, tmp_path):
+    @ic.task
+    def bar(path):
+        f = path / "bar"
+        yield f"bar {f}"
+        yield [ic.asset(f, f.is_file)]
+        yield [external_foo(tmp_path)]
+        f.touch()
+
+    return bar
+
 
 @fixture
 def positional_params():
@@ -88,17 +114,6 @@ def test_main(positional_params):
 # Decorator tests
 
 
-@fixture
-def external_foo():
-    @ic.external
-    def foo(path):
-        f = path / "foo"
-        yield f"foo {f}"
-        yield [ic.asset(f, f.is_file)]
-
-    return foo
-
-
 def test_external_not_ready(external_foo, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
@@ -114,19 +129,6 @@ def test_external_ready(external_foo, tmp_path):
     assets = list(ic._extract(external_foo(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert assets[0].ready()
-
-
-@fixture
-def task_bar(external_foo, tmp_path):
-    @ic.task
-    def bar(path):
-        f = path / "bar"
-        yield f"bar {f}"
-        yield [ic.asset(f, f.is_file)]
-        yield [external_foo(tmp_path)]
-        f.touch()
-
-    return bar
 
 
 def test_task_no_ready(task_bar, tmp_path):
