@@ -88,13 +88,19 @@ def test_main(positional_params):
 # Decorator tests
 
 
-def test_external_not_ready(tmp_path):
+@fixture
+def external_assets(tmp_path):
     @ic.external
     def foo(path):
         yield f"File {path}"
         yield [ic.asset(path, path.is_file)]
 
     path = tmp_path / "a-file"
+    return foo, path
+
+
+def test_external_not_ready(external_assets):
+    foo, path = external_assets
     assets = list(ic._extract(foo(path)))
     assert ic.ids(assets)[0] == path
     assert assets[0].ready() is False
