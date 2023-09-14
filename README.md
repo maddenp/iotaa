@@ -80,8 +80,6 @@ Several public helper callables are available in the `iotaa` module:
 
 ## TODO
 
-- cli use
-- library use
 - subprocess helper
 - sys.path extension for abspaths
 - dry-run cli arg
