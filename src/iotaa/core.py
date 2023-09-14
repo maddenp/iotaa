@@ -145,7 +145,7 @@ def tasks(f) -> Callable[..., _Assets]:
     return d
 
 
-# Private
+# Private functions
 
 
 def _delegate(g: Generator, taskname: str) -> List[asset]:

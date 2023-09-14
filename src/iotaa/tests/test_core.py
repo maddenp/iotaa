@@ -181,3 +181,34 @@ def test_tasks_ready(tasks_baz, tmp_path):
     assert ic.ids(assets)[1] == f_bar
     assert all(x.ready() for x in assets)
     assert all(x.is_file() for x in [f_foo, f_bar])
+
+
+# Private function tests
+
+
+def test__delegate():
+    pass
+
+
+def test__extract():
+    pass
+
+
+def test__formatter():
+    pass
+
+
+def test__parse_args():
+    pass
+
+
+def test__readiness():
+    pass
+
+
+def test__reify():
+    pass
+
+
+def test__run():
+    pass
