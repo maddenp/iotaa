@@ -46,16 +46,9 @@ def configure_logging(verbose: bool) -> None:
     )
 
 
-def disable_dry_run() -> None:
+def dry_run() -> None:
     """
     Enable iotaa's dry-run mode.
-    """
-    _state.dry_run_enabled = False
-
-
-def enable_dry_run() -> None:
-    """
-    Disable iotaa's dry-run mode.
     """
     _state.dry_run_enabled = True
 
@@ -159,6 +152,15 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     assert isinstance(taskname, str)
     logging.info("%s: Evaluating requirements", taskname)
     return list(chain.from_iterable(a.values() if isinstance(a, dict) else a for a in next(g)))
+
+
+def _disable_dry_run() -> None:
+    """
+    Enable iotaa's dry-run mode.
+
+    NOT CURRENTLY SUPPORTED.
+    """
+    _state.dry_run_enabled = False
 
 
 def _extract(assets: _Assets) -> Generator:

@@ -33,17 +33,10 @@ def test_configure_logging(vals):
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_disable_dry_run():
-    with patch.object(ic, "_state", ic.ns(dry_run_enabled=True)):
-        assert ic._state.dry_run_enabled
-        ic.disable_dry_run()
-        assert not ic._state.dry_run_enabled
-
-
-def test_enable_dry_run():
+def test_dry_run():
     with patch.object(ic, "_state", ic.ns(dry_run_enabled=False)):
         assert not ic._state.dry_run_enabled
-        ic.enable_dry_run()
+        ic.dry_run()
         assert ic._state.dry_run_enabled
 
 
@@ -182,6 +175,13 @@ def test__delegate(caplog):
 
     assert ic._delegate(f(), "task") == [1, 2, 3, 4]
     assert any(re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records)
+
+
+def test__disable_dry_run():
+    with patch.object(ic, "_state", ic.ns(dry_run_enabled=True)):
+        assert ic._state.dry_run_enabled
+        ic._disable_dry_run()
+        assert not ic._state.dry_run_enabled
 
 
 def test__extract():

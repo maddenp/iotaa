@@ -11,8 +11,7 @@ def test_import():
     for x in [
         "asset",
         "configure_logging",
-        "disable_dry_run",
-        "enable_dry_run",
+        "dry_run",
         "external",
         "ids",
         "main",
