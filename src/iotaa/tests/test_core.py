@@ -4,6 +4,7 @@ Unit tests for module otaa.core.
 
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
+import re
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
@@ -40,6 +41,11 @@ def task_bar(external_foo):
 
 
 @fixture
+def strs():
+    return ["foo", "88", "3.14", "true"]
+
+
+@fixture
 def tasks_baz(external_foo, task_bar):
     @ic.tasks
     def baz(path):
@@ -47,11 +53,6 @@ def tasks_baz(external_foo, task_bar):
         yield [external_foo(path), task_bar(path)]
 
     return baz
-
-
-@fixture
-def positional_params():
-    return ["foo", "88", "3.14", "true"]
 
 
 # Public API tests
@@ -105,11 +106,11 @@ def test_ids_list():
     assert ids[0] == "bar"
 
 
-def test_main(positional_params):
+def test_main(strs):
     with patch.multiple(ic, _parse_args=D, configure_logging=D, import_module=D) as mocks:
         parse_args = mocks["_parse_args"]
         parse_args.return_value = ic.Namespace(
-            verbose=True, module="a_module", function="a_function", args=positional_params
+            verbose=True, module="a_module", function="a_function", args=strs
         )
         with patch.object(ic, "getattr", create=True) as getattr_:
             ic.main()
@@ -186,8 +187,16 @@ def test_tasks_ready(tasks_baz, tmp_path):
 # Private function tests
 
 
-def test__delegate():
-    pass
+def test__delegate(caplog):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+
+    def g():
+        yield [{"foo": 1, "bar": 2}, [3, 4]]
+
+    assert ic._delegate(g(), "a-task") == [1, 2, 3, 4]
+    assert any(
+        re.match(r"^a-task: Evaluating requirements$", rec.message) for rec in caplog.records
+    )
 
 
 def test__extract():
@@ -206,8 +215,8 @@ def test__readiness():
     pass
 
 
-def test__reify():
-    pass
+def test__reify(strs):
+    assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
 
 
 def test__run():
