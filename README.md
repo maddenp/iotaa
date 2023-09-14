@@ -4,6 +4,10 @@
 
 A [simplest-thing-that-could-possibly-work](https://wiki.c2.com/?DoTheSimplestThingThatCouldPossiblyWork) workflow manager taking semantics cues from [Luigi](https://github.com/spotify/luigi).
 
+## Demo
+
+TBD
+
 ## Tasks
 
 `iotaa` provides three Python decorators to define workflow tasks:
@@ -52,11 +56,6 @@ Several public helper callables are available in the `iotaa` module:
 - `disable_dry_run()`
 - `enable_dry_run()`
 - `ids()`
-
-
-## Demo
-
-TBD
 
 ## Installing
 
