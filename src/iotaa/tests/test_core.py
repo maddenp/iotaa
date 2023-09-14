@@ -205,9 +205,16 @@ def test__parse_args():
     pass
 
 
-# def test__readiness(caplog):
-#     ic.logging.getLogger().setLevel(ic.logging.INFO)
-#     pass
+def test__readiness(caplog):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+    ic._readiness(ready=True, taskname="task", external_=False, initial=True)
+    assert any(re.match(r"^task: Initial state: Ready$", rec.message) for rec in caplog.records)
+    caplog.clear()
+    ic._readiness(ready=False, taskname="task", external_=True, initial=False)
+    assert any(
+        re.match(r"^task: Final state: Pending \(EXTERNAL\)$", rec.message)
+        for rec in caplog.records
+    )
 
 
 def test__reify(strs):
