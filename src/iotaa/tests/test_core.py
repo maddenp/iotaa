@@ -20,23 +20,33 @@ def external_foo():
     @ic.external
     def foo(path):
         f = path / "foo"
-        yield f"foo {f}"
+        yield f"external foo {f}"
         yield [ic.asset(f, f.is_file)]
 
     return foo
 
 
 @fixture
-def task_bar(external_foo, tmp_path):
+def task_bar(external_foo):
     @ic.task
     def bar(path):
         f = path / "bar"
-        yield f"bar {f}"
+        yield f"task bar {f}"
         yield [ic.asset(f, f.is_file)]
-        yield [external_foo(tmp_path)]
+        yield [external_foo(path)]
         f.touch()
 
     return bar
+
+
+@fixture
+def tasks_baz(external_foo, task_bar):
+    @ic.tasks
+    def baz(path):
+        yield "tasks baz"
+        yield [external_foo(path), task_bar(path)]
+
+    return baz
 
 
 @fixture
@@ -131,7 +141,7 @@ def test_external_ready(external_foo, tmp_path):
     assert assets[0].ready()
 
 
-def test_task_no_ready(task_bar, tmp_path):
+def test_task_not_ready(task_bar, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     assets = list(ic._extract(task_bar(tmp_path)))
@@ -149,3 +159,25 @@ def test_task_ready(task_bar, tmp_path):
     assert ic.ids(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
+
+
+def test_tasks_not_ready(tasks_baz, tmp_path):
+    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+    assets = list(ic._extract(tasks_baz(tmp_path)))
+    assert ic.ids(assets)[0] == f_foo
+    assert ic.ids(assets)[1] == f_bar
+    assert not any(x.ready() for x in assets)
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+
+
+def test_tasks_ready(tasks_baz, tmp_path):
+    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+    f_foo.touch()
+    assert f_foo.is_file()
+    assert not f_bar.is_file()
+    assets = list(ic._extract(tasks_baz(tmp_path)))
+    assert ic.ids(assets)[0] == f_foo
+    assert ic.ids(assets)[1] == f_bar
+    assert all(x.ready() for x in assets)
+    assert all(x.is_file() for x in [f_foo, f_bar])
