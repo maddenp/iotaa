@@ -104,3 +104,11 @@ def test_external_not_ready(external_assets):
     assets = list(ic._extract(foo(path)))
     assert ic.ids(assets)[0] == path
     assert assets[0].ready() is False
+
+
+def test_external_ready(external_assets):
+    foo, path = external_assets
+    path.touch()
+    assets = list(ic._extract(foo(path)))
+    assert ic.ids(assets)[0] == path
+    assert assets[0].ready() is True
