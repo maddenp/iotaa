@@ -190,13 +190,18 @@ def test__delegate(caplog):
         yield [{"foo": 1, "bar": 2}, [3, 4]]
 
     assert ic._delegate(g(), "task") == [1, 2, 3, 4]
-    assert any(
-        re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records
-    )
+    assert any(re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records)
 
 
-def test__extract():
-    pass
+@pytest.mark.parametrize(
+    "assets",
+    [
+        {"foo": ic.asset("foo", lambda: True), "bar": ic.asset("bar", lambda: True)},
+        [ic.asset("foo", lambda: True), ic.asset("bar", lambda: True)],
+    ],
+)
+def test__extract(assets):
+    assert ic.ids(list(ic._extract(assets=assets))) == {0: "foo", 1: "bar"}
 
 
 def test__formatter():
