@@ -217,7 +217,8 @@ def test__reify():
     assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
 
 
-def test__run_dry_run(caplog):
+@fixture
+def rungen():
     ic.logging.getLogger().setLevel(ic.logging.INFO)
 
     def f():
@@ -225,21 +226,18 @@ def test__run_dry_run(caplog):
 
     g = f()
     _ = next(g)  # Exhaust generator
+    return g
+
+
+def test__run_dry_run(caplog, rungen):
     with patch.object(ic, "_state", new=ic.ns(dry_run_enabled=True)):
-        ic._run(g=g, taskname="task")
+        ic._run(g=rungen, taskname="task")
     assert any(
         re.match(r"^task: %s$" % re.escape("SKIPPING (DRY RUN ENABLED)"), rec.message)
         for rec in caplog.records
     )
 
 
-def test__run_live(caplog):
-    ic.logging.getLogger().setLevel(ic.logging.INFO)
-
-    def f():
-        yield None
-
-    g = f()
-    _ = next(g)  # Exhaust generator
-    ic._run(g=g, taskname="task")
+def test__run_live(caplog, rungen):
+    ic._run(g=rungen, taskname="task")
     assert any(re.match(r"^task: Executing$", rec.message) for rec in caplog.records)
