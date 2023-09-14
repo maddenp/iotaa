@@ -75,7 +75,6 @@ def main() -> None:
     """
     args = _parse_args(sys.argv[1:])
     configure_logging(verbose=args.verbose)
-    logging.debug("Calling %s.%s(%s)", args.module, args.function, ", ".join(args.args))
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
 
