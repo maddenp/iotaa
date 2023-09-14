@@ -31,6 +31,7 @@ disable = [
   "consider-using-f-string",
   "disallowed-name",
   "invalid-name",
+  "unnecessary-lambda-assignment",
 ]
 recursive = true
 

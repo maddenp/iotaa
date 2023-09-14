@@ -193,15 +193,13 @@ def test__delegate(caplog):
     assert any(re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records)
 
 
-@pytest.mark.parametrize(
-    "assets",
-    [
-        {"foo": ic.asset("foo", lambda: True), "bar": ic.asset("bar", lambda: True)},
-        [ic.asset("foo", lambda: True), ic.asset("bar", lambda: True)],
-    ],
-)
-def test__extract(assets):
-    assert ic.ids(list(ic._extract(assets=assets))) == {0: "foo", 1: "bar"}
+def test__extract():
+    expected = {0: "foo", 1: "bar"}
+    ready = lambda: True
+    assets_dict = {"foo": ic.asset("foo", ready), "bar": ic.asset("bar", ready)}
+    assert ic.ids(list(ic._extract(assets=assets_dict))) == expected
+    assets_list = [ic.asset("foo", ready), ic.asset("bar", ready)]
+    assert ic.ids(list(ic._extract(assets=assets_list))) == expected
 
 
 def test__formatter():
@@ -214,8 +212,9 @@ def test__parse_args():
     pass
 
 
-def test__readiness():
-    pass
+# def test__readiness(caplog):
+#     ic.logging.getLogger().setLevel(ic.logging.INFO)
+#     pass
 
 
 def test__reify(strs):
