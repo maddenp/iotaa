@@ -17,11 +17,6 @@ import iotaa.core as ic
 # Public API tests
 
 
-@fixture
-def strs():
-    return ["foo", "88", "3.14", "true"]
-
-
 @pytest.mark.parametrize(
     "asset", [ic.asset("foo", lambda: True), ic.asset(id="foo", ready=lambda: True)]
 )
@@ -59,7 +54,8 @@ def test_ids_dict():
     assert ic.ids(assets=[asset])[0] == expected
 
 
-def test_main(strs):
+def test_main():
+    strs = ["foo", "88", "3.14", "true"]
     with patch.multiple(ic, _parse_args=D, configure_logging=D, import_module=D) as mocks:
         parse_args = mocks["_parse_args"]
         parse_args.return_value = ic.Namespace(
@@ -216,7 +212,8 @@ def test__readiness(caplog, vals):
     assert any(re.match(r"^task: %s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
 
-def test__reify(strs):
+def test__reify():
+    strs = ["foo", "88", "3.14", "true"]
     assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
 
 
