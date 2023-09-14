@@ -14,49 +14,12 @@ from pytest import fixture
 
 import iotaa.core as ic
 
-# Fixtures
-
-
-@fixture
-def external_foo():
-    @ic.external
-    def foo(path):
-        f = path / "foo"
-        yield f"external foo {f}"
-        yield [ic.asset(f, f.is_file)]
-
-    return foo
-
-
-@fixture
-def task_bar(external_foo):
-    @ic.task
-    def bar(path):
-        f = path / "bar"
-        yield f"task bar {f}"
-        yield [ic.asset(f, f.is_file)]
-        yield [external_foo(path)]
-        f.touch()
-
-    return bar
+# Public API tests
 
 
 @fixture
 def strs():
     return ["foo", "88", "3.14", "true"]
-
-
-@fixture
-def tasks_baz(external_foo, task_bar):
-    @ic.tasks
-    def baz(path):
-        yield "tasks baz"
-        yield [external_foo(path), task_bar(path)]
-
-    return baz
-
-
-# Public API tests
 
 
 @pytest.mark.parametrize(
@@ -113,6 +76,40 @@ def test_main(strs):
 
 
 # Decorator tests
+
+
+@fixture
+def task_bar(external_foo):
+    @ic.task
+    def bar(path):
+        f = path / "bar"
+        yield f"task bar {f}"
+        yield [ic.asset(f, f.is_file)]
+        yield [external_foo(path)]
+        f.touch()
+
+    return bar
+
+
+@fixture
+def tasks_baz(external_foo, task_bar):
+    @ic.tasks
+    def baz(path):
+        yield "tasks baz"
+        yield [external_foo(path), task_bar(path)]
+
+    return baz
+
+
+@fixture
+def external_foo():
+    @ic.external
+    def foo(path):
+        f = path / "foo"
+        yield f"external foo {f}"
+        yield [ic.asset(f, f.is_file)]
+
+    return foo
 
 
 def test_external_not_ready(external_foo, tmp_path):
