@@ -10,7 +10,7 @@ from unittest.mock import DEFAULT as D
 from unittest.mock import patch
 
 import pytest
-from pytest import fixture
+from pytest import fixture, raises
 
 import iotaa.core as ic
 
@@ -195,7 +195,28 @@ def test__formatter():
 
 
 def test__parse_args():
-    pass
+    # Specifying module, function, and two args (standard logging):
+    a0 = ic._parse_args(raw="a_module a_function arg1 arg2".split(" "))
+    assert a0.module == "a_module"
+    assert a0.function == "a_function"
+    assert a0.args == ["arg1", "arg2"]
+    assert a0.verbose is False
+    # Specifying module, function, two args (verbose logging):
+    a1 = ic._parse_args(raw="a_module a_function arg1 arg2 --verbose".split(" "))
+    assert a1.module == "a_module"
+    assert a1.function == "a_function"
+    assert a1.args == ["arg1", "arg2"]
+    assert a1.verbose is True
+    # Specifying module, function, but no args (standard logging):
+    a2 = ic._parse_args(raw="a_module a_function".split(" "))
+    assert a2.module == "a_module"
+    assert a2.function == "a_function"
+    assert a2.args == []
+    assert a2.verbose is False
+    # It is an error to specify just a module with no function:
+    with raises(SystemExit) as e:
+        ic._parse_args(raw="just_a_module".split(" "))
+    assert e.value.code == 2
 
 
 @pytest.mark.parametrize(
