@@ -89,17 +89,11 @@ def test_enable_dry_run():
         assert ic._state.dry_run_enabled
 
 
-@pytest.mark.parametrize(
-    "vals",
-    [
-        ({"foo": ic.asset(id="bar", ready=lambda: True)}, "foo"),
-        ([ic.asset(id="bar", ready=lambda: True)], 0),
-    ],
-)
-def test_ids_dict(vals):
-    assets, key = vals
-    ids = ic.ids(assets=assets)
-    assert ids[key] == "bar"
+def test_ids_dict():
+    expected = "bar"
+    asset = ic.asset(id="bar", ready=lambda: True)
+    assert ic.ids(assets={"foo": asset})["foo"] == expected
+    assert ic.ids(assets=[asset])[0] == expected
 
 
 def test_main(strs):
@@ -196,10 +190,9 @@ def test__delegate(caplog):
 def test__extract():
     expected = {0: "foo", 1: "bar"}
     ready = lambda: True
-    assets_dict = {"foo": ic.asset("foo", ready), "bar": ic.asset("bar", ready)}
-    assert ic.ids(list(ic._extract(assets=assets_dict))) == expected
-    assets_list = [ic.asset("foo", ready), ic.asset("bar", ready)]
-    assert ic.ids(list(ic._extract(assets=assets_list))) == expected
+    asset_foo, asset_bar = ic.asset("foo", ready), ic.asset("bar", ready)
+    assert ic.ids(list(ic._extract(assets={"foo": asset_foo, "bar": asset_bar}))) == expected
+    assert ic.ids(list(ic._extract(assets=[asset_foo, asset_bar]))) == expected
 
 
 def test__formatter():
