@@ -205,7 +205,9 @@ def test__extract(assets):
 
 
 def test__formatter():
-    pass
+    formatter = ic._formatter("foo")
+    assert isinstance(formatter, ic.HelpFormatter)
+    assert formatter._prog == "foo"
 
 
 def test__parse_args():
