@@ -47,16 +47,16 @@ def test_configure_logging_verbose():
 
 def test_disable_dry_run():
     with patch.object(ic, "_state", ic.ns(dry_run_enabled=True)):
-        assert ic._state.dry_run_enabled is True
+        assert ic._state.dry_run_enabled
         ic.disable_dry_run()
-        assert ic._state.dry_run_enabled is False
+        assert not ic._state.dry_run_enabled
 
 
 def test_enable_dry_run():
     with patch.object(ic, "_state", ic.ns(dry_run_enabled=False)):
-        assert ic._state.dry_run_enabled is False
+        assert not ic._state.dry_run_enabled
         ic.enable_dry_run()
-        assert ic._state.dry_run_enabled is True
+        assert ic._state.dry_run_enabled
 
 
 def test_ids_dict():
@@ -101,26 +101,49 @@ def external_foo():
 
 def test_external_not_ready(external_foo, tmp_path):
     f = tmp_path / "foo"
+    assert not f.is_file()
     assets = list(ic._extract(external_foo(tmp_path)))
     assert ic.ids(assets)[0] == f
-    assert assets[0].ready() is False
+    assert not assets[0].ready()
 
 
 def test_external_ready(external_foo, tmp_path):
     f = tmp_path / "foo"
     f.touch()
+    assert f.is_file()
     assets = list(ic._extract(external_foo(tmp_path)))
     assert ic.ids(assets)[0] == f
-    assert assets[0].ready() is True
+    assert assets[0].ready()
 
 
 @fixture
-def task_assets(external_foo, tmp_path):
+def task_bar(external_foo, tmp_path):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"bar {f}"
         yield [ic.asset(f, f.is_file)]
         yield [external_foo(tmp_path)]
+        f.touch()
 
     return bar
+
+
+def test_task_no_ready(task_bar, tmp_path):
+    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+    assets = list(ic._extract(task_bar(tmp_path)))
+    assert ic.ids(assets)[0] == f_bar
+    assert not assets[0].ready()
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+
+
+def test_task_ready(task_bar, tmp_path):
+    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+    f_foo.touch()
+    assert f_foo.is_file()
+    assert not f_bar.is_file()
+    assets = list(ic._extract(task_bar(tmp_path)))
+    assert ic.ids(assets)[0] == f_bar
+    assert assets[0].ready()
+    assert all(x.is_file for x in [f_foo, f_bar])
