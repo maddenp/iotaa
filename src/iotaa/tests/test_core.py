@@ -89,26 +89,38 @@ def test_main(positional_params):
 
 
 @fixture
-def external_assets(tmp_path):
+def external_foo():
     @ic.external
     def foo(path):
-        yield f"File {path}"
-        yield [ic.asset(path, path.is_file)]
+        f = path / "foo"
+        yield f"foo {f}"
+        yield [ic.asset(f, f.is_file)]
 
-    path = tmp_path / "a-file"
-    return foo, path
+    return foo
 
 
-def test_external_not_ready(external_assets):
-    foo, path = external_assets
-    assets = list(ic._extract(foo(path)))
-    assert ic.ids(assets)[0] == path
+def test_external_not_ready(external_foo, tmp_path):
+    f = tmp_path / "foo"
+    assets = list(ic._extract(external_foo(tmp_path)))
+    assert ic.ids(assets)[0] == f
     assert assets[0].ready() is False
 
 
-def test_external_ready(external_assets):
-    foo, path = external_assets
-    path.touch()
-    assets = list(ic._extract(foo(path)))
-    assert ic.ids(assets)[0] == path
+def test_external_ready(external_foo, tmp_path):
+    f = tmp_path / "foo"
+    f.touch()
+    assets = list(ic._extract(external_foo(tmp_path)))
+    assert ic.ids(assets)[0] == f
     assert assets[0].ready() is True
+
+
+@fixture
+def task_assets(external_foo, tmp_path):
+    @ic.task
+    def bar(path):
+        f = path / "bar"
+        yield f"bar {f}"
+        yield [ic.asset(f, f.is_file)]
+        yield [external_foo(tmp_path)]
+
+    return bar
