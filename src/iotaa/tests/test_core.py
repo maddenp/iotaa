@@ -180,10 +180,10 @@ def test_tasks_ready(tasks_baz, tmp_path):
 def test__delegate(caplog):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
 
-    def g():
+    def f():
         yield [{"foo": 1, "bar": 2}, [3, 4]]
 
-    assert ic._delegate(g(), "task") == [1, 2, 3, 4]
+    assert ic._delegate(f(), "task") == [1, 2, 3, 4]
     assert any(re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records)
 
 
@@ -223,5 +223,29 @@ def test__reify(strs):
     assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
 
 
-def test__run():
-    pass
+def test__run_dry_run(caplog):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+
+    def f():
+        yield None
+
+    g = f()
+    _ = next(g)  # Exhaust generator
+    with patch.object(ic, "_state", new=ic.ns(dry_run_enabled=True)):
+        ic._run(g=g, taskname="task")
+    assert any(
+        re.match(r"^task: %s$" % re.escape("SKIPPING (DRY RUN ENABLED)"), rec.message)
+        for rec in caplog.records
+    )
+
+
+def test__run_live(caplog):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+
+    def f():
+        yield None
+
+    g = f()
+    _ = next(g)  # Exhaust generator
+    ic._run(g=g, taskname="task")
+    assert any(re.match(r"^task: Executing$", rec.message) for rec in caplog.records)
