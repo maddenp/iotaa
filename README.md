@@ -16,7 +16,7 @@ TBD
 
 The essential workflow element: A function that `yield`s, in order:
 
-1. Its name
+1. Its name, for logging
 2. A `list` or `dict` of `asset`(s) (see below) it is responsible for making ready (e.g. creating)
 3. A `list` of tasks it depends on
 
@@ -26,7 +26,7 @@ Arbitrary Python statements may appear before and interspersed between these `yi
 
 An element representing an `asset` (some observable external state -- typically a file, but maybe something more abstract like a time of day) that `iotaa` cannot make ready, but depends on and must wait for. Such a function `yield`s, in order:
 
-1. Its name
+1. Its name, for logging
 2. A `list` or `dict` of `asset`(s) (see below) that must become ready by external means, deus-ex-machina style
 
 As with `@task` functions, arbitrary Python statements may appear before and interspersed between these `yield` statements. However, no statements should follow the second and final `yield`, as they will never execute.
@@ -35,21 +35,25 @@ As with `@task` functions, arbitrary Python statements may appear before and int
 
 A container for other workflow tasks. Such a function `yield`s, in order:
 
-1. Its name
+1. Its name, for logging
 2. A `list` of tasks it depends on
 
 ## The `asset` Object
 
 An `asset` object has two attributes:
 
-1. An `id` object, of any type, that uniquely identifies the observable state (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
-2. A `ready` function returning a `bool` value indicating whether or not the asset is ready to use
+1. `id`: An object, of any type, that uniquely identifies the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
+2. `ready`: A 0-arity (no-argument) function returning a `bool` value indicating whether or not the asset is ready to use
 
 Create an `asset` by calling `asset()` -- see below.
 
 ## Use
 
 ### Installation
+
+- In a conda environment: `conda install -c maddenp iotaa`.
+- In a Python `venv` environment, from the `src/` directory of an `iotaa` git clone: `pip install --root /path/to/venv .`.
+- Or, copy the `src/iotaa/core.py` module as `iotaa.py` to another project.
 
 ### CLI Use
 
