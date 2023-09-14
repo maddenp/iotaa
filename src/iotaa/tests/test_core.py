@@ -125,16 +125,19 @@ def test_external_ready(external_foo, tmp_path):
     assert assets[0].ready()
 
 
-def test_task_not_ready(task_bar, tmp_path):
+def test_task_not_ready(caplog, task_bar, tmp_path):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     assets = list(ic._extract(task_bar(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
+    assert any(re.match(rf"^task bar {f_bar}: Pending$", rec.message) for rec in caplog.records)
 
 
-def test_task_ready(task_bar, tmp_path):
+def test_task_ready(caplog, task_bar, tmp_path):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
@@ -143,6 +146,7 @@ def test_task_ready(task_bar, tmp_path):
     assert ic.ids(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
+    assert any(re.match(rf"^task bar {f_bar}: Ready$", rec.message) for rec in caplog.records)
 
 
 def test_tasks_not_ready(tasks_baz, tmp_path):

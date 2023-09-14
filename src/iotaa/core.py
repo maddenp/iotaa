@@ -122,7 +122,7 @@ def task(f) -> Callable[..., _Assets]:
                     logging.info("%s: Ready", taskname)
                     _run(g, taskname)
                 else:
-                    logging.info("%s: Not ready", taskname)
+                    logging.info("%s: Pending", taskname)
                 _readiness(ready=a.ready(), taskname=taskname)
         return assets
 
