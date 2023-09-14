@@ -9,6 +9,7 @@ from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
 
+import pytest
 from pytest import fixture
 
 import iotaa.core as ic
@@ -58,28 +59,20 @@ def tasks_baz(external_foo, task_bar):
 # Public API tests
 
 
-def test_asset_args():
-    asset = ic.asset("foo", lambda: True)
+@pytest.mark.parametrize(
+    "asset", [ic.asset("foo", lambda: True), ic.asset(id="foo", ready=lambda: True)]
+)
+def test_asset(asset):
     assert asset.id == "foo"
     assert asset.ready()
 
 
-def test_asset_kwargs():
-    asset = ic.asset(id="foo", ready=lambda: True)
-    assert asset.id == "foo"
-    assert asset.ready()
-
-
-def test_configure_logging_std():
+@pytest.mark.parametrize("vals", [(False, ic.logging.INFO), (True, ic.logging.DEBUG)])
+def test_configure_logging(vals):
+    verbose, level = vals
     with patch.object(ic.logging, "basicConfig") as basicConfig:
-        ic.configure_logging(verbose=False)
-    basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=ic.logging.INFO)
-
-
-def test_configure_logging_verbose():
-    with patch.object(ic.logging, "basicConfig") as basicConfig:
-        ic.configure_logging(verbose=True)
-    basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=ic.logging.DEBUG)
+        ic.configure_logging(verbose=verbose)
+    basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
 def test_disable_dry_run():
@@ -96,14 +89,17 @@ def test_enable_dry_run():
         assert ic._state.dry_run_enabled
 
 
-def test_ids_dict():
-    ids = ic.ids(assets={"foo": ic.asset(id="bar", ready=lambda: True)})
-    assert ids["foo"] == "bar"
-
-
-def test_ids_list():
-    ids = ic.ids(assets=[ic.asset(id="bar", ready=lambda: True)])
-    assert ids[0] == "bar"
+@pytest.mark.parametrize(
+    "vals",
+    [
+        ({"foo": ic.asset(id="bar", ready=lambda: True)}, "foo"),
+        ([ic.asset(id="bar", ready=lambda: True)], 0),
+    ],
+)
+def test_ids_dict(vals):
+    assets, key = vals
+    ids = ic.ids(assets=assets)
+    assert ids[key] == "bar"
 
 
 def test_main(strs):
@@ -193,9 +189,9 @@ def test__delegate(caplog):
     def g():
         yield [{"foo": 1, "bar": 2}, [3, 4]]
 
-    assert ic._delegate(g(), "a-task") == [1, 2, 3, 4]
+    assert ic._delegate(g(), "task") == [1, 2, 3, 4]
     assert any(
-        re.match(r"^a-task: Evaluating requirements$", rec.message) for rec in caplog.records
+        re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records
     )
 
 
