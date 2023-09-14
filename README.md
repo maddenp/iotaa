@@ -68,7 +68,5 @@ TBD
 ## TODO
 
 - only-once caching
-- assets
-- public helper functions
 - cli use
 - library use
