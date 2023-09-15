@@ -101,6 +101,24 @@ def test_ids_dict():
     assert ic.ids(assets=[asset])[0] == expected
 
 
+@fixture
+def module_for_main(tmp_path):
+    func = """
+def hi(x):
+    print(f"hello {x}!")
+""".strip()
+    m = tmp_path / "a.py"
+    with open(m, "w", encoding="utf-8") as f:
+        print(func, file=f)
+    return m
+
+
+def test_main_live_abspath(capsys, module_for_main):
+    with patch.object(ic.sys, "argv", new=["prog", str(module_for_main), "hi", "world"]):
+        ic.main()
+    assert "hello world!" in capsys.readouterr().out
+
+
 def test_main_mocked_up(tmp_path):
     m = tmp_path / "a.py"
     m.touch()
