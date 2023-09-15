@@ -76,13 +76,17 @@ def main() -> None:
     if args.dry_run:
         dry_run()
     reified = [_reify(arg) for arg in args.args]
+    m = Path(args.module)
+    if m.is_file():
+        sys.path.append(str(m.parent.resolve()))
+        args.module = m.stem
     getattr(import_module(args.module), args.function)(*reified)
 
 
 def run(
     taskname: str,
     cmd: str,
-    cwd: Optional[Path] = None,
+    cwd: Optional[Union[Path, str]] = None,
     env: Optional[Dict[str, str]] = None,
     log: Optional[bool] = False,
 ) -> bool:
