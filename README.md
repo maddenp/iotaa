@@ -2,7 +2,7 @@
 
 **It's One Thing After Another**
 
-A micro workflow manager taking semantic cues from [Luigi](https://github.com/spotify/luigi) but defining tasks as decorated Python functions.
+A simple workflow manager taking semantic cues from [Luigi](https://github.com/spotify/luigi) but defining tasks as decorated Python functions.
 
 ## Demo
 
@@ -91,7 +91,3 @@ In a conda environment ([Miniforge](https://github.com/conda-forge/miniforge) fr
 - `iotaa` is currently single-threaded, so it truly is one thing after another. Concurrency for execution of mutually indepenedent tasks could be added later, but presumably depenencies would still exist between some tasks, so partial ordering and serialization would still exist.
 - `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 - `iotaa` currently relies on Python's root logger. Support could be added for optional alternative use of a logger supplied by an application.
-
-## TODO
-
-- sys.path extension for abspaths
