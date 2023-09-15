@@ -57,7 +57,32 @@ Create an `asset` by calling `asset()` -- see below.
 
 ### CLI Use
 
-TBD
+``` bash
+% iotaa --help
+usage: iotaa [-d] [-h] [-v] module function [args ...]
+
+positional arguments:
+  module
+    application module
+  function
+    task function
+  args
+    function arguments
+
+optional arguments:
+  -d, --dry-run
+    run in dry-run mode
+  -h, --help
+    show help and exit
+  -v, --verbose
+    verbose logging
+```
+
+Sepcifying positional arguments `m f hello 88` would call (task) function `f` in module `m`, passing in `str` argument `hello` and `int` argument `88`. The trailing `args` are parsed with Python's `json` library into Python objects and passed to `f` as its parameters.
+
+It is assumed that `m` is importable by Python due to being on `sys.path`, potentially via the `PYTHONPATH` environment varaiable. However, if `m` -- more likely specified as `m.py` or `/path/to/m.py` -- is a valid relative (to the current directory) or absolute path to a file, its parent is added by `iotaa` to `sys.path` so that it can be loaded.
+
+A task tree of arbitry complexity defined in module `m` may be entered at any point by specifying the appropriate task function `f`. Only `f` and its children will be (recursively) processed, resuling in partial execution of a larger workflow graph.
 
 ### Programmatic Use
 
