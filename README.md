@@ -2,7 +2,7 @@
 
 **It's One Thing After Another**
 
-A [simplest-thing-that-could-possibly-work](https://wiki.c2.com/?DoTheSimplestThingThatCouldPossiblyWork) workflow manager taking semantics cues from [Luigi](https://github.com/spotify/luigi) but defining tasks as decorated Python functions.
+A micro workflow manager taking semantic cues from [Luigi](https://github.com/spotify/luigi) but defining tasks as decorated Python functions.
 
 ## Demo
 
