@@ -184,6 +184,20 @@ def test__disable_dry_run():
         assert not ic._state.dry_run_enabled
 
 
+def test__execute_dry_run(caplog, rungen):
+    with patch.object(ic, "_state", new=ic.ns(dry_run_enabled=True)):
+        ic._execute(g=rungen, taskname="task")
+    assert any(
+        re.match(r"^task: %s$" % re.escape("SKIPPING (DRY RUN ENABLED)"), rec.message)
+        for rec in caplog.records
+    )
+
+
+def test__execute_live(caplog, rungen):
+    ic._execute(g=rungen, taskname="task")
+    assert any(re.match(r"^task: Executing$", rec.message) for rec in caplog.records)
+
+
 def test__extract():
     expected = {0: "foo", 1: "bar"}
     ready = lambda: True
@@ -252,17 +266,3 @@ def rungen():
     g = f()
     _ = next(g)  # Exhaust generator
     return g
-
-
-def test__run_dry_run(caplog, rungen):
-    with patch.object(ic, "_state", new=ic.ns(dry_run_enabled=True)):
-        ic._run(g=rungen, taskname="task")
-    assert any(
-        re.match(r"^task: %s$" % re.escape("SKIPPING (DRY RUN ENABLED)"), rec.message)
-        for rec in caplog.records
-    )
-
-
-def test__run_live(caplog, rungen):
-    ic._run(g=rungen, taskname="task")
-    assert any(re.match(r"^task: Executing$", rec.message) for rec in caplog.records)

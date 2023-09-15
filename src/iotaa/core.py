@@ -10,6 +10,8 @@ from functools import cache
 from importlib import import_module
 from itertools import chain
 from json import JSONDecodeError, loads
+from pathlib import Path
+from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Union
 
@@ -75,6 +77,48 @@ def main() -> None:
     getattr(import_module(args.module), args.function)(*reified)
 
 
+def run(
+    taskname: str,
+    cmd: str,
+    cwd: Optional[Path] = None,
+    env: Optional[Dict[str, str]] = None,
+    log: Optional[bool] = False,
+) -> bool:
+    """
+    Run a command in a subshell.
+
+    :param taskname: The name of the task, for logging.
+    :param cmd: The command to run.
+    :param cwd: Change to this directory before running cmd.
+    :param env: Environment variables to set before running cmd.
+    :param log: Log output from successful cmd? (Error output is always logged.)
+    :return: Did cmd exit with 0 (success) status?
+    """
+    logging.info("%s: Running: %s", taskname, cmd)
+    if cwd:
+        logging.info("%s:   in %s", taskname, cwd)
+    if env:
+        logging.info("%s:   with environment variables:")
+        for key, val in env.items():
+            logging.info("%s:     %s=%s", taskname, key, val)
+    try:
+        output = check_output(
+            cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
+        )
+        logfunc = logging.info
+        success = True
+    except CalledProcessError as e:
+        output = ""
+        logging.error("%s:   Failed with status %s", taskname, e.returncode)
+        logfunc = logging.error
+        success = False
+    if output and (log or not success):
+        logfunc("%s:   Command output:", taskname)
+        for line in output.split("\n"):
+            logfunc("%s:     %s", taskname, line)
+    return success
+
+
 # Decorators
 
 
@@ -113,7 +157,7 @@ def task(f) -> Callable[..., _Assets]:
                 req_assets = _delegate(g, taskname)
                 if all(req_asset.ready() for req_asset in req_assets):
                     logging.info("%s: Ready", taskname)
-                    _run(g, taskname)
+                    _execute(g, taskname)
                 else:
                     logging.info("%s: Pending", taskname)
                 _readiness(ready=a.ready(), taskname=taskname)
@@ -161,6 +205,23 @@ def _disable_dry_run() -> None:
     NOT CURRENTLY SUPPORTED.
     """
     _state.dry_run_enabled = False
+
+
+def _execute(g: Generator, taskname: str) -> None:
+    """
+    Execute the body of a decorated function.
+
+    :param g: The current task.
+    :param taskname: The current task's name.
+    """
+    if _state.dry_run_enabled:
+        logging.info("%s: SKIPPING (DRY RUN ENABLED)", taskname)
+        return
+    try:
+        logging.info("%s: Executing", taskname)
+        next(g)
+    except StopIteration:
+        pass
 
 
 def _extract(assets: _Assets) -> Generator:
@@ -231,20 +292,3 @@ def _reify(s: str) -> Any:
         return loads(s)
     except JSONDecodeError:
         return loads(f'"{s}"')
-
-
-def _run(g: Generator, taskname: str) -> None:
-    """
-    Execute the body of a decorated function.
-
-    :param g: The current task.
-    :param taskname: The current task's name.
-    """
-    if _state.dry_run_enabled:
-        logging.info("%s: SKIPPING (DRY RUN ENABLED)", taskname)
-        return
-    try:
-        logging.info("%s: Executing", taskname)
-        next(g)
-    except StopIteration:
-        pass
