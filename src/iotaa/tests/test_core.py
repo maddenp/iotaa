@@ -103,10 +103,16 @@ def test_ids_dict():
 
 def test_main():
     strs = ["foo", "88", "3.14", "true"]
-    with patch.multiple(ic, _parse_args=D, configure_logging=D, import_module=D) as mocks:
+    with patch.multiple(
+        ic, _parse_args=D, configure_logging=D, dry_run=D, import_module=D
+    ) as mocks:
         parse_args = mocks["_parse_args"]
         parse_args.return_value = ic.Namespace(
-            verbose=True, module="a_module", function="a_function", args=strs
+            args=strs,
+            dry_run=True,
+            function="a_function",
+            module="a_module",
+            verbose=True,
         )
         with patch.object(ic, "getattr", create=True) as getattr_:
             ic.main()
@@ -115,6 +121,7 @@ def test_main():
             getattr_.assert_called_once_with(import_module(), "a_function")
             getattr_().assert_called_once_with("foo", 88, 3.14, True)
         mocks["configure_logging"].assert_called_once_with(verbose=True)
+        mocks["dry_run"].assert_called_once()
         parse_args.assert_called_once()
 
 

@@ -94,6 +94,4 @@ In a conda environment ([Miniforge](https://github.com/conda-forge/miniforge) fr
 
 ## TODO
 
-- subprocess helper
 - sys.path extension for abspaths
-- dry-run cli arg
