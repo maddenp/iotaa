@@ -124,7 +124,8 @@ def test_main_live_syspath(capsys, module_for_main):
     with patch.object(ic.sys, "argv", new=["prog", m, "hi", "world"]):
         syspath = list(ic.sys.path) + [module_for_main.parent]
         with patch.object(ic.sys, "path", new=syspath):
-            ic.main()
+            with patch.object(ic.Path, "is_file", return_value=False):
+                ic.main()
     assert "hello world!" in capsys.readouterr().out
 
 
