@@ -71,15 +71,23 @@ def main() -> None:
     """
     Main entry point.
     """
+
+    # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
+    # module-name argument represents a file, append its parent directory to sys.path and remove any
+    # extension (presumably .py) so that it can be imported. If it does not represent a file, assume
+    # that it names a module that can be imported via standard means, maybe via PYTHONPATH. Trailing
+    # positional command-line arguments are then JSON-parsed to Python objects and passed to the
+    # specified function.
+
     args = _parse_args(sys.argv[1:])
     configure_logging(verbose=args.verbose)
     if args.dry_run:
         dry_run()
-    reified = [_reify(arg) for arg in args.args]
     m = Path(args.module)
     if m.is_file():
         sys.path.append(str(m.parent.resolve()))
         args.module = m.stem
+    reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
 
 

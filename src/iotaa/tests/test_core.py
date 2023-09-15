@@ -119,6 +119,15 @@ def test_main_live_abspath(capsys, module_for_main):
     assert "hello world!" in capsys.readouterr().out
 
 
+def test_main_live_syspath(capsys, module_for_main):
+    m = str(module_for_main.name).replace(".py", "")  # i.e. not a path to an actual file
+    with patch.object(ic.sys, "argv", new=["prog", m, "hi", "world"]):
+        syspath = list(ic.sys.path) + [module_for_main.parent]
+        with patch.object(ic.sys, "path", new=syspath):
+            ic.main()
+    assert "hello world!" in capsys.readouterr().out
+
+
 def test_main_mocked_up(tmp_path):
     m = tmp_path / "a.py"
     m.touch()
