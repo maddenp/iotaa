@@ -96,11 +96,11 @@ def run(
     """
     logging.info("%s: Running: %s", taskname, cmd)
     if cwd:
-        logging.info("%s:   in %s", taskname, cwd)
+        logging.info("%s:     in %s", taskname, cwd)
     if env:
-        logging.info("%s:   with environment variables:")
+        logging.info("%s:     with environment variables:", taskname)
         for key, val in env.items():
-            logging.info("%s:     %s=%s", taskname, key, val)
+            logging.info("%s:         %s=%s", taskname, key, val)
     try:
         output = check_output(
             cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
@@ -109,13 +109,13 @@ def run(
         success = True
     except CalledProcessError as e:
         output = ""
-        logging.error("%s:   Failed with status %s", taskname, e.returncode)
+        logging.error("%s:     Failed with status %s", taskname, e.returncode)
         logfunc = logging.error
         success = False
     if output and (log or not success):
-        logfunc("%s:   Command output:", taskname)
+        logfunc("%s:     Output:", taskname)
         for line in output.split("\n"):
-            logfunc("%s:     %s", taskname, line)
+            logfunc("%s:         %s", taskname, line)
     return success
 
 

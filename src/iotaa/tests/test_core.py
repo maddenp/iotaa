@@ -10,9 +10,63 @@ from unittest.mock import DEFAULT as D
 from unittest.mock import patch
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 from pytest import fixture, raises
 
 import iotaa.core as ic
+
+# Fixtures/Helpers
+
+
+@fixture
+def external_foo():
+    @ic.external
+    def foo(path):
+        f = path / "foo"
+        yield f"external foo {f}"
+        yield [ic.asset(f, f.is_file)]
+
+    return foo
+
+
+@fixture
+def rungen():
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+
+    def f():
+        yield None
+
+    g = f()
+    _ = next(g)  # Exhaust generator
+    return g
+
+
+@fixture
+def task_bar(external_foo):
+    @ic.task
+    def bar(path):
+        f = path / "bar"
+        yield f"task bar {f}"
+        yield [ic.asset(f, f.is_file)]
+        yield [external_foo(path)]
+        f.touch()
+
+    return bar
+
+
+@fixture
+def tasks_baz(external_foo, task_bar):
+    @ic.tasks
+    def baz(path):
+        yield "tasks baz"
+        yield [external_foo(path), task_bar(path)]
+
+    return baz
+
+
+def logged(msg: str, caplog: LogCaptureFixture) -> bool:
+    return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
+
 
 # Public API tests
 
@@ -64,41 +118,24 @@ def test_main():
         parse_args.assert_called_once()
 
 
+def test_run_failure():
+    pass
+
+
+def test_run_success(caplog, tmp_path):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+    assert ic.run(
+        taskname="task", cmd="echo hello $FOO", cwd=tmp_path, env={"FOO": "bar"}, log=True
+    )
+    assert logged("task: Running: echo hello $FOO", caplog)
+    assert logged("task:     in %s" % tmp_path, caplog)
+    assert logged("task:     with environment variables:", caplog)
+    assert logged("task:         FOO=bar", caplog)
+    assert logged("task:     Output:", caplog)
+    assert logged("task:         hello bar", caplog)
+
+
 # Decorator tests
-
-
-@fixture
-def task_bar(external_foo):
-    @ic.task
-    def bar(path):
-        f = path / "bar"
-        yield f"task bar {f}"
-        yield [ic.asset(f, f.is_file)]
-        yield [external_foo(path)]
-        f.touch()
-
-    return bar
-
-
-@fixture
-def tasks_baz(external_foo, task_bar):
-    @ic.tasks
-    def baz(path):
-        yield "tasks baz"
-        yield [external_foo(path), task_bar(path)]
-
-    return baz
-
-
-@fixture
-def external_foo():
-    @ic.external
-    def foo(path):
-        f = path / "foo"
-        yield f"external foo {f}"
-        yield [ic.asset(f, f.is_file)]
-
-    return foo
 
 
 def test_external_not_ready(external_foo, tmp_path):
@@ -126,7 +163,7 @@ def test_task_not_ready(caplog, task_bar, tmp_path):
     assert ic.ids(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assert any(re.match(rf"^task bar {f_bar}: Pending$", rec.message) for rec in caplog.records)
+    assert logged(f"task bar {f_bar}: Pending", caplog)
 
 
 def test_task_ready(caplog, task_bar, tmp_path):
@@ -139,7 +176,7 @@ def test_task_ready(caplog, task_bar, tmp_path):
     assert ic.ids(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
-    assert any(re.match(rf"^task bar {f_bar}: Ready$", rec.message) for rec in caplog.records)
+    assert logged(f"task bar {f_bar}: Ready", caplog)
 
 
 def test_tasks_not_ready(tasks_baz, tmp_path):
@@ -174,7 +211,7 @@ def test__delegate(caplog):
         yield [{"foo": 1, "bar": 2}, [3, 4]]
 
     assert ic._delegate(f(), "task") == [1, 2, 3, 4]
-    assert any(re.match(r"^task: Evaluating requirements$", rec.message) for rec in caplog.records)
+    assert logged("task: Evaluating requirements", caplog)
 
 
 def test__disable_dry_run():
@@ -187,15 +224,12 @@ def test__disable_dry_run():
 def test__execute_dry_run(caplog, rungen):
     with patch.object(ic, "_state", new=ic.ns(dry_run_enabled=True)):
         ic._execute(g=rungen, taskname="task")
-    assert any(
-        re.match(r"^task: %s$" % re.escape("SKIPPING (DRY RUN ENABLED)"), rec.message)
-        for rec in caplog.records
-    )
+    assert logged("task: SKIPPING (DRY RUN ENABLED)", caplog)
 
 
 def test__execute_live(caplog, rungen):
     ic._execute(g=rungen, taskname="task")
-    assert any(re.match(r"^task: Executing$", rec.message) for rec in caplog.records)
+    assert logged("task: Executing", caplog)
 
 
 def test__extract():
@@ -248,21 +282,9 @@ def test__readiness(caplog, vals):
     ready, ext, init, msg = vals
     ic.logging.getLogger().setLevel(ic.logging.INFO)
     ic._readiness(ready=ready, taskname="task", external_=ext, initial=init)
-    assert any(re.match(r"^task: %s$" % re.escape(msg), rec.message) for rec in caplog.records)
+    assert logged(f"task: {msg}", caplog)
 
 
 def test__reify():
     strs = ["foo", "88", "3.14", "true"]
     assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
-
-
-@fixture
-def rungen():
-    ic.logging.getLogger().setLevel(ic.logging.INFO)
-
-    def f():
-        yield None
-
-    g = f()
-    _ = next(g)  # Exhaust generator
-    return g
