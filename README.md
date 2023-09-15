@@ -78,11 +78,11 @@ optional arguments:
     verbose logging
 ```
 
-Sepcifying positional arguments `m f hello 88` would call (task) function `f` in module `m`, passing in `str` argument `hello` and `int` argument `88`. The trailing `args` are parsed with Python's `json` library into Python objects and passed to `f` as its parameters.
+Specifying positional arguments `m f hello 88` would call (task) function `f` in module `m`, passing in `str` argument `hello` and `int` argument `88`. The trailing `args` are parsed with Python's `json` library into Python objects and passed to `f` as its parameters.
 
-It is assumed that `m` is importable by Python due to being on `sys.path`, potentially via the `PYTHONPATH` environment varaiable. However, if `m` -- more likely specified as `m.py` or `/path/to/m.py` -- is a valid relative (to the current directory) or absolute path to a file, its parent is added by `iotaa` to `sys.path` so that it can be loaded.
+It is assumed that `m` is importable by Python due to being on `sys.path`, potentially via the `PYTHONPATH` environment variable. However, if `m` -- more likely specified as `m.py` or `/path/to/m.py` -- is a valid relative (to the current directory) or absolute path to a file, its parent is added by `iotaa` to `sys.path` so that it can be loaded.
 
-A task tree of arbitry complexity defined in module `m` may be entered at any point by specifying the appropriate task function `f`. Only `f` and its children will be (recursively) processed, resuling in partial execution of a larger workflow graph.
+A task tree of arbitrary complexity defined in module `m` may be entered at any point by specifying the appropriate task function `f`. Only `f` and its children will be (recursively) processed, resulting in partial execution of a larger workflow graph.
 
 ### Programmatic Use
 
@@ -112,7 +112,7 @@ In a conda environment ([Miniforge](https://github.com/conda-forge/miniforge) fr
 - `iotaa` tasks may be instantiated in statements before the statement `yield`ing them to the framework, but note that control will be passed to them immediately. For example, a task might have, instead of the statement `yield [foo(x)]`, the separate statements `foo_assets = foo(x)` (first) and `yield [foo]` (later). In this case, control would be passed to `foo` (and potentially to a tree of tasks it depends on) immediately upon evaluation of the expression `foo(x)`. This should be fine semantically, but be aware of the order of execution it implies.
 - `iotaa` assumes, for its dry-run mode to work correctly, that no statements that change external state execute before the final `yield` statement in a task-function's body.
 - `iotaa` tasks are cached and only executed once in the lifetime of the Python interpreter, so it is currently assumed that `iotaa` or an application embedding it will be invoked repeatedly (or, in happy cases, just once) to complete all tasks, with the Python interpreter exiting and restarting with each invocation. Support could be added to clear cached tasks to support applications that would run workflows repeatedly inside the same interpreter invocation.
-- `iotaa` is nearly a no-batteries-included solution. For use with e.g. AWS S3, import `boto3` in an appication, alongside `iotaa`, and make calls from within task functions, or write helpful utility functions that task functions can use.
-- `iotaa` is currently single-threaded, so it truly is one thing after another. Concurrency for execution of mutually indepenedent tasks could be added later, but presumably depenencies would still exist between some tasks, so partial ordering and serialization would still exist.
+- `iotaa` is nearly a no-batteries-included solution. For use with e.g. AWS S3, import `boto3` in an application, alongside `iotaa`, and make calls from within task functions, or write helpful utility functions that task functions can use.
+- `iotaa` is currently single-threaded, so it truly is one thing after another. Concurrency for execution of mutually independent tasks could be added later, but presumably dependencies would still exist between some tasks, so partial ordering and serialization would still exist.
 - `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 - `iotaa` currently relies on Python's root logger. Support could be added for optional alternative use of a logger supplied by an application.
