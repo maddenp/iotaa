@@ -101,7 +101,9 @@ def test_ids_dict():
     assert ic.ids(assets=[asset])[0] == expected
 
 
-def test_main():
+def test_main_mocked_up(tmp_path):
+    m = tmp_path / "a.py"
+    m.touch()
     strs = ["foo", "88", "3.14", "true"]
     with patch.multiple(
         ic, _parse_args=D, configure_logging=D, dry_run=D, import_module=D
@@ -111,13 +113,13 @@ def test_main():
             args=strs,
             dry_run=True,
             function="a_function",
-            module="a_module",
+            module=m,
             verbose=True,
         )
         with patch.object(ic, "getattr", create=True) as getattr_:
             ic.main()
             import_module = mocks["import_module"]
-            import_module.assert_called_once_with("a_module")
+            import_module.assert_called_once_with("a")
             getattr_.assert_called_once_with(import_module(), "a_function")
             getattr_().assert_called_once_with("foo", 88, 3.14, True)
         mocks["configure_logging"].assert_called_once_with(verbose=True)
