@@ -108,8 +108,8 @@ def run(
         logfunc = logging.info
         success = True
     except CalledProcessError as e:
-        output = ""
-        logging.error("%s:     Failed with status %s", taskname, e.returncode)
+        output = e.output
+        logging.error("%s:     Failed with status: %s", taskname, e.returncode)
         logfunc = logging.error
         success = False
     if output and (log or not success):

@@ -118,16 +118,21 @@ def test_main():
         parse_args.assert_called_once()
 
 
-def test_run_failure():
-    pass
+def test_run_failure(caplog):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+    cmd = "expr 1 / 0"
+    assert not ic.run(taskname="task", cmd=cmd)
+    assert logged("task: Running: %s" % cmd, caplog)
+    assert logged("task:     Failed with status: 2", caplog)
+    assert logged("task:     Output:", caplog)
+    assert logged("task:         expr: division by zero", caplog)
 
 
 def test_run_success(caplog, tmp_path):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
-    assert ic.run(
-        taskname="task", cmd="echo hello $FOO", cwd=tmp_path, env={"FOO": "bar"}, log=True
-    )
-    assert logged("task: Running: echo hello $FOO", caplog)
+    cmd = "echo hello $FOO"
+    assert ic.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log=True)
+    assert logged("task: Running: %s" % cmd, caplog)
     assert logged("task:     in %s" % tmp_path, caplog)
     assert logged("task:     with environment variables:", caplog)
     assert logged("task:         FOO=bar", caplog)
