@@ -5,7 +5,6 @@
 - Permit scalar assets, dependencies.
 - Permit dependencies as dict as well as list.
 - Permit None as assets, dependencies.
-- Should @external permit return of only a scalar?
 
 **It's One Thing After Another**
 
@@ -31,7 +30,7 @@ Arbitrary Python statements may appear before and interspersed between these `yi
 
 ### `@external`
 
-An element representing an `asset` (some observable external state -- typically a file, but maybe something more abstract like a time of day) that `iotaa` cannot make ready, but depends on and must wait for. Such a function `yield`s, in order:
+An element representing `asset`s (observable external state -- typically files, but maybe more abstract entities like times) that `iotaa` cannot make ready, but depends on and must wait for. Such a function `yield`s, in order:
 
 1. Its name, for logging
 2. A `list` or `dict` of `asset`(s) (see below) that must become ready by external means, deus-ex-machina style
