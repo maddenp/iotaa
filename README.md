@@ -1,5 +1,12 @@
 # iotaa
 
+# TODO
+
+- Permit scalar assets, dependencies.
+- Permit dependencies as dict as well as list.
+- Permit None as assets, dependencies.
+- Should @external permit return of only a scalar?
+
 **It's One Thing After Another**
 
 A simple workflow manager taking semantic cues from [Luigi](https://github.com/spotify/luigi) but defining tasks as decorated Python functions.
