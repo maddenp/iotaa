@@ -14,7 +14,7 @@ def a_cup_of_tea(basedir):
 @task
 def cup(basedir):
     path = Path(basedir) / "cup"
-    yield f"A cup: {path}"
+    yield f"The Cup: {path}"
     yield asset(path, path.exists)
     yield None
     path.mkdir(parents=True)
