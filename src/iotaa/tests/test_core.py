@@ -267,13 +267,61 @@ def test__assets():
     assert ic._assets(x={"a": a}) == {"a": a}
 
 
-def test__delegate(caplog):
+def test__delegate_none(caplog):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
 
     def f():
-        yield [{"foo": 1, "bar": 2}, [3, 4]]
+        yield None
 
-    assert ic._delegate(f(), "task") == [1, 2, 3, 4]
+    assert ic._delegate(f(), "task") == []
+    assert logged("task: Evaluating requirements", caplog)
+
+
+@fixture
+def delegate_assets():
+    return (ic.asset(id=n, ready=lambda: True) for n in range(4))
+
+
+def test__delegate_scalar(caplog, delegate_assets):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+    a1, *_ = delegate_assets
+
+    def f():
+        yield a1
+
+    assert ic._delegate(f(), "task") == [a1]
+    assert logged("task: Evaluating requirements", caplog)
+
+
+def test__delegate_empty_dict_and_empty_list(caplog):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+
+    def f():
+        yield [{}, []]
+
+    assert ic._delegate(f(), "task") == []
+    assert logged("task: Evaluating requirements", caplog)
+
+
+def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+    a1, a2, a3, a4 = delegate_assets
+
+    def f():
+        yield [{"foo": a1, "bar": a2}, [a3, a4]]
+
+    assert ic._delegate(f(), "task") == [a1, a2, a3, a4]
+    assert logged("task: Evaluating requirements", caplog)
+
+
+def test__delegate_none_and_scalar(caplog, delegate_assets):
+    ic.logging.getLogger().setLevel(ic.logging.INFO)
+    a1, *_ = delegate_assets
+
+    def f():
+        yield [None, a1]
+
+    assert ic._delegate(f(), "task") == [a1]
     assert logged("task: Evaluating requirements", caplog)
 
 

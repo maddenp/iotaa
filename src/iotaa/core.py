@@ -215,7 +215,7 @@ def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
 
 def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
-    Delegate execution to the current task's required task(s).
+    Delegate execution to the current task's requirement(s).
 
     :param g: The current task.
     :param taskname: The current task's name.
@@ -223,9 +223,74 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
     assert isinstance(taskname, str)
     logging.info("%s: Evaluating requirements", taskname)
-    r = next(g)
-    reqs = [] if r is None else [r] if callable(r) else r
-    return list(chain.from_iterable(a.values() if isinstance(a, dict) else a for a in reqs))
+
+    #     # return list(chain.from_iterable(req.values() if isinstance(req, dict) else req for req in reqs))
+
+    #     r = next(g)
+    #     reqs = [] if r is None else [[r]] if isinstance(r, asset) else r
+    #     flat = []
+    #     for x in reqs:
+    #         if x is None:
+    #             continue
+    #         elif isinstance(x, list):
+    #             flat += x
+    #         elif isinstance(x, dict):
+    #             flat += x.values()
+    #         else:
+    #             flat += [x]
+    #     return flat
+
+    # reqs = next(g)
+    # if reqs is None:
+    #     return []
+    # if isinstance(reqs, asset):
+    #     return [reqs]
+    # flat = []
+    # for req in reqs:
+    #     if req is None:
+    #         continue
+    #     elif isinstance(req, list):
+    #         flat += req
+    #     elif isinstance(req, dict):
+    #         flat += req.values()
+    #     else:
+    #         flat += [req]
+    # return flat
+
+    #     assets_from_all_reqs = _assets(next(g))
+    #     flat = []
+    #     for assets_from_one_req in filter(None, assets_from_all_reqs):
+    #         if isinstance(assets_from_one_req, dict):
+    #             flat += assets_from_one_req.values()
+    #         elif isinstance(assets_from_one_req, list):
+    #             flat += assets_from_one_req
+    #         else:
+    #             flat += [assets_from_one_req]  # a scalar
+    #     return flat
+
+    #     assets_from_all_reqs = filter(None, _assets(next(g)))
+    #     x = [a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a] for a in assets_from_all_reqs]
+    #     return list(filter(None, chain(*x)))
+
+    #     assets_from_all_reqs = filter(None, _assets(next(g)))
+    #     return list(filter(None, chain(*[a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a] for a in assets_from_all_reqs])))
+
+    # return list(
+    #     filter(
+    #         None,
+    #         chain(
+    #             *[
+    #                 a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
+    #                 for a in filter(None, _assets(next(g)))
+    #             ]
+    #         ),
+    #     )
+    # )
+
+    assets = []
+    for a in _assets(next(g)):
+        assets += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
+    return list(filter(None, assets))
 
 
 def _disable_dry_run() -> None:
