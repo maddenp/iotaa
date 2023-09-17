@@ -2,9 +2,8 @@
 
 # TODO
 
-- Permit scalar assets, dependencies.
+- Permit scalar, None dependencies.
 - Permit dependencies as dict as well as list.
-- Permit None as assets, dependencies.
 
 **It's One Thing After Another**
 

@@ -19,11 +19,11 @@ import iotaa.core as ic
 
 
 @fixture
-def external_foo_dict():
+def external_foo_scalar_dict():
     @ic.external
     def foo(path):
         f = path / "foo"
-        yield {"path": f"external foo {f}"}
+        yield f"external foo {f}"
         yield ic.asset(f, f.is_file)
 
     return foo
@@ -42,37 +42,37 @@ def rungen():
 
 
 @fixture
-def task_bar_list(external_foo_dict):
+def task_bar_list(external_foo_scalar_dict):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield [ic.asset(f, f.is_file)]
-        yield [external_foo_dict(path)]
+        yield [external_foo_scalar_dict(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def task_bar_scalar(external_foo_dict):
+def task_bar_dict(external_foo_scalar_dict):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
-        yield ic.asset(f, f.is_file)
-        yield [external_foo_dict(path)]
+        yield {"path": ic.asset(f, f.is_file)}
+        yield [external_foo_scalar_dict(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def tasks_baz(external_foo_dict, task_bar_scalar):
+def tasks_baz(external_foo_scalar_dict, task_bar_dict):
     @ic.tasks
     def baz(path):
         yield "tasks baz"
-        yield [external_foo_dict(path), task_bar_scalar(path)]
+        yield [external_foo_scalar_dict(path), task_bar_dict(path)]
 
     return baz
 
@@ -193,28 +193,28 @@ def test_run_success(caplog, tmp_path):
 # Decorator tests
 
 
-def test_external_not_ready(external_foo_dict, tmp_path):
+def test_external_not_ready(external_foo_scalar_dict, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = list(ic._extract(external_foo_dict(tmp_path)))
+    assets = list(ic._extract(external_foo_scalar_dict(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert not assets[0].ready()
 
 
-def test_external_ready(external_foo_dict, tmp_path):
+def test_external_ready(external_foo_scalar_dict, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    assets = list(ic._extract(external_foo_dict(tmp_path)))
+    assets = list(ic._extract(external_foo_scalar_dict(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert assets[0].ready()
 
 
-def test_task_not_ready(caplog, task_bar_scalar, tmp_path):
+def test_task_not_ready(caplog, task_bar_dict, tmp_path):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(ic._extract(task_bar_scalar(tmp_path)))
+    assets = list(ic._extract(task_bar_dict(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
