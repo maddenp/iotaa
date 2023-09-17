@@ -43,7 +43,7 @@ def dryrun() -> None:
     _state.dry_run_enabled = True
 
 
-def ids(assets: Union[_Assets, asset, None]) -> dict:
+def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
     """
     Extract and return asset identity objects (e.g. paths to files).
 
