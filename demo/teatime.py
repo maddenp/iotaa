@@ -22,7 +22,8 @@ def cup(basedir):
 
 @task
 def steeped_tea_with_sugar(cupdir):
-    for x in ingredient(cupdir, "sugar", f"Steeped Tea with Sugar in {cupdir}", steeped_tea):
+    name = f"Steeped Tea with Sugar in {cupdir}"
+    for x in ingredient(cupdir, "sugar", name, steeped_tea):
         yield x
 
 
@@ -43,13 +44,15 @@ def tea(cupdir):
 
 @task
 def tea_leaves(cupdir):
-    for x in ingredient(cupdir, "leaves", f"Tea Leaves in {cupdir}"):
+    name = f"Tea Leaves in {cupdir}"
+    for x in ingredient(cupdir, "leaves", name):
         yield x
 
 
 @task
 def boiling_water(cupdir):
-    for x in ingredient(cupdir, "water", f"Boiling Water in {cupdir}"):
+    name = f"Boiling Water in {cupdir}"
+    for x in ingredient(cupdir, "water", name):
         yield x
 
 
