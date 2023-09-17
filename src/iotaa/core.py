@@ -167,7 +167,7 @@ def task(f) -> Callable[..., _Assets]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _assets(next(g))
-        _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname)
+        _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname, initial=True)
         for a in _extract(assets):
             if not a.ready():
                 req_assets = _delegate(g, taskname)
