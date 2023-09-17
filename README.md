@@ -4,10 +4,6 @@
 
 A simple workflow manager with semantics similar to those of [Luigi](https://github.com/spotify/luigi) but with tasks defined as decorated Python functions. `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 
-## Demo
-
-TBD
-
 ## Workflows
 
 Workflows comprise:
@@ -127,3 +123,7 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 - Tasks are cached and only executed once in the lifetime of the Python interpreter, so it is currently assumed that `iotaa` or an application embedding it will be invoked repeatedly (or, in happy cases, just once) to complete all tasks, with the Python interpreter exiting and restarting with each invocation. Support could be added to clear cached tasks to support applications that would run workflows repeatedly inside the same interpreter invocation. Also note that caching requires all arguments to task functions to be hashable.
 - Currently, `iotaa` is single-threaded, so it truly is "one thing after another". Concurrency for execution of mutually independent tasks could be added later, but presumably requirement relationships would still exist between some tasks, so partial ordering and serialization would still exist.
 - Currently, `iotaa` relies on Python's root logger. Support could be added for optional alternative use of a logger supplied by an application.
+
+## Demo
+
+
