@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 from pathlib import Path
 
 from iotaa import asset, external, ids, task, tasks
@@ -32,8 +33,12 @@ def steeped_tea(cupdir):
     yield f"Steeped Tea in {cupdir}"
     teapath = ids(tea(cupdir))[0]
     tea_time = dt.datetime.fromtimestamp(teapath.stat().st_mtime)
-    ready_time = tea_time + dt.timedelta(seconds=3)
-    yield asset(None, lambda: dt.datetime.now() >= ready_time)
+    ready_time = tea_time + dt.timedelta(seconds=10)
+    now = dt.datetime.now()
+    ready = now >= ready_time
+    if not ready:
+        logging.info("Tea still steeping: Wait %ss" % int((ready_time - now).total_seconds()))
+    yield asset(None, lambda: ready)
 
 
 @tasks
