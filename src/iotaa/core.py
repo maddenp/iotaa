@@ -189,7 +189,7 @@ def tasks(f) -> Callable[..., _Assets]:
     def d(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _assets(_delegate(g, taskname))
+        assets = _delegate(g, taskname)
         _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname)
         return assets
 
@@ -223,21 +223,9 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
     assert isinstance(taskname, str)
     logging.info("%s: Evaluating requirements", taskname)
-    return list(chain.from_iterable(a.values() if isinstance(a, dict) else a for a in next(g)))
-
-
-# def _dependencies(x: Optional[Union[Dict, List, Callable]]) -> List[Callable]:
-#     """
-#     Create a task list when the argument is not already itearble.
-
-#     :param x: A singe task, a None object or a list of tasks.
-#     :return: A possibly empty iterable collecton of tasks.
-#     """
-#     if x is None:
-#         return []
-#     if callable(x):
-#         return [x]
-#     return x
+    r = next(g)
+    reqs = [] if r is None else [r] if callable(r) else r
+    return list(chain.from_iterable(a.values() if isinstance(a, dict) else a for a in reqs))
 
 
 def _disable_dry_run() -> None:
