@@ -68,15 +68,15 @@ def tea_bag(cupdir):
 
 @external
 def box_of_tea_bags(cupdir):
-    path = cupdir.parent / "tea-package"
+    path = Path(cupdir).parent / "box-of-tea"
     yield f"Tea from store: {path}"
     yield asset(path, path.exists)
 
 
 def ingredient(cupdir, fn, name, req=None):
-    path = cupdir / fn
+    path = Path(cupdir) / fn
+    path.parent.mkdir(parents=True, exist_ok=True)
     yield f"{name} in {cupdir}"
     yield asset(path, path.exists)
     yield req(cupdir) if req else None
-    path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
