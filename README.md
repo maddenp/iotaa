@@ -127,3 +127,89 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 ## Demo
 
 Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (poorly).
+
+The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar:
+
+``` python
+@tasks
+def a_cup_of_tea(basedir):
+    yield "A cup of steeped tea with sugar"
+    cupdir = ids(cup(basedir))[0]
+    yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
+```
+
+As described above, a `@tasks` function must yield its name and the assets id requires: In this case, a cup to make the tea in; and then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to the `cup()` function, and the expression `ids(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ids()`, which extracts the unique identifiers for the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) id, which is the cup directory. The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by yielding these task-function calls.
+
+Note that the function could hae equivalently
+
+``` python
+    the_cup = cup(basedir)
+    cupdir = ids(the_cup)[0]
+    yield [the_cup, steeped_tea_with_sugar(cupdir)]
+```
+
+to avoid repeating the `cup(basedir)` call. But since `iotaa` caches task-function calls, repeating the call does not change the workflow's behavior.
+
+The `cup()` `@task` function is straightforward:
+
+``` python
+@task
+def cup(basedir):
+    # Get a cup to make the tea in.
+    path = Path(basedir) / "cup"
+    yield f"The cup: {path}"
+    yield asset(path, path.exists)
+    yield None
+    path.mkdir(parents=True)
+```
+
+It yields its name; the asset it is responsible for making ready; and its requirements (it has none). Following the final `yield`, it does what is necessary to ready its asset: Making the cup directory.
+
+The `steeped_tea_with_sugar()` `@task` function is next:
+
+``` python
+@task
+def steeped_tea_with_sugar(cupdir):
+    # Add sugar to the steeped tea.
+    for x in ingredient(cupdir, "sugar", "Steeped tea with suagar", steeped_tea):
+        yield x
+```
+
+Two new ideas are demonstrated here.
+
+First, a task function can call other non-task logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function, defined as
+
+``` python
+def ingredient(cupdir, fn, name, req=None):
+    path = cupdir / fn
+    yield f"{name} in {cupdir}"
+    yield asset(path, path.exists)
+    yield req(cupdir) if req else None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
+```
+
+This helper is called by other task functions in the workflow. It simulates adding an ingredient (tea leaves, boiling water, sugar) to the tea cup, and handles yielding the necessary values to `iotaa`.
+
+Second, `steeped_tea_with_sugar()` yields (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that passes the function _name_ to be called later; other tasks will `yield` a call rather than a name.
+
+Next up, the `steeped_tea()` `@task` function, which is considerably more complicated:
+
+``` python
+@task
+def steeped_tea(cupdir):
+    # Give tea time to steep.
+    yield f"Steeped tea in {cupdir}"
+    ready = False
+    water = ids(steeping_tea(cupdir))[0]
+    if water.exists():
+        tea_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
+        ready_time = tea_time + dt.timedelta(seconds=10)
+        now = dt.datetime.now()
+        ready = now >= ready_time
+    yield asset(None, lambda: ready)
+    if water.exists() and not ready:
+        logging.info("Tea steeping for %ss more", int((ready_time - now).total_seconds()))
+    yield steeping_tea(cupdir)
+```
+
