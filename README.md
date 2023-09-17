@@ -126,4 +126,4 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 ## Demo
 
-Consider 
+Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (poorly).
