@@ -1,3 +1,9 @@
+"""
+An iotaa demo application.
+"""
+
+# pylint: disable=C0116
+
 import datetime as dt
 import logging
 from pathlib import Path
@@ -7,7 +13,7 @@ from iotaa import asset, external, ids, task, tasks
 
 @tasks
 def a_cup_of_tea(basedir):
-    yield f"A cup of steeped tea with sugar"
+    yield "A cup of steeped tea with sugar"
     cupdir = Path(ids(cup(basedir))[0])
     yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
 
@@ -42,7 +48,7 @@ def steeped_tea(cupdir):
         ready = now >= ready_time
     yield asset(None, lambda: ready)
     if water.exists() and not ready:
-        logging.info("Tea steeping for %ss more" % int((ready_time - now).total_seconds()))
+        logging.info("Tea steeping for %ss more", int((ready_time - now).total_seconds()))
     yield steeping_tea(cupdir)
 
 
@@ -67,11 +73,10 @@ def tea_from_store(cupdir):
     yield asset(path, path.exists)
 
 
-def ingredient(cupdir, fn, name, req = None):
+def ingredient(cupdir, fn, name, req=None):
     path = cupdir / fn
     yield f"{name} in {cupdir}"
     yield asset(path, path.exists)
     yield req(cupdir) if req else None
     path.parent.mkdir(parents=True, exist_ok=True)
-    logging.info(f"Adding {name.lower()} to {cupdir}")
     path.touch()
