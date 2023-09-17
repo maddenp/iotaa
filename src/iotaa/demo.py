@@ -55,19 +55,19 @@ def steeped_tea(cupdir):
 @task
 def steeping_tea(cupdir):
     # Pour boiling water over the tea.
-    for x in ingredient(cupdir, "water", "Boiling water over tea leaves", tea_leaves):
+    for x in ingredient(cupdir, "water", "Boiling water over the tea", tea_bag):
         yield x
 
 
 @task
-def tea_leaves(cupdir):
-    # Place tea leaves in the cup.
-    for x in ingredient(cupdir, "leaves", "Tea leaves", tea_from_store):
+def tea_bag(cupdir):
+    # Place tea bag in the cup.
+    for x in ingredient(cupdir, "tea", "Tea bag", box_of_tea_bags):
         yield x
 
 
 @external
-def tea_from_store(cupdir):
+def box_of_tea_bags(cupdir):
     path = cupdir.parent / "tea-package"
     yield f"Tea from store: {path}"
     yield asset(path, path.exists)

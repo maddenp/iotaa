@@ -126,7 +126,7 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 ## Demo
 
-Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (poorly).
+Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (according to [the official recipe](https://www.google.com/search?q=masters+of+reality+t.u.s.a.+lyrics)).
 
 The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar:
 
@@ -138,7 +138,7 @@ def a_cup_of_tea(basedir):
     yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
 ```
 
-As described above, a `@tasks` function must yield its name and the assets id requires: In this case, a cup to make the tea in; and then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to the `cup()` function, and the expression `ids(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ids()`, which extracts the unique identifiers for the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) id, which is the cup directory. The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by yielding these task-function calls.
+As described above, a `@tasks` function must yield its name and the assets id requires: In this case, a cup to make the tea in; and then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to `cup()`, and the expression `ids(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ids()`, which extracts the unique identifiers for the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) id, which is the cup directory. The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by yielding these task-function calls.
 
 Note that the function could hae equivalently
 
@@ -177,7 +177,7 @@ def steeped_tea_with_sugar(cupdir):
 
 Two new ideas are demonstrated here.
 
-First, a task function can call other non-task logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function, defined as
+First, a task function can call other non-task logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined in this application:
 
 ``` python
 def ingredient(cupdir, fn, name, req=None):
@@ -189,9 +189,9 @@ def ingredient(cupdir, fn, name, req=None):
     path.touch()
 ```
 
-This helper is called by other task functions in the workflow. It simulates adding an ingredient (tea leaves, boiling water, sugar) to the tea cup, and handles yielding the necessary values to `iotaa`.
+This helper is called by other task functions in the workflow. It simulates adding an ingredient (tea, boiling water, sugar) to the tea cup, and handles yielding the necessary values to `iotaa`.
 
-Second, `steeped_tea_with_sugar()` yields (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that passes the function _name_ to be called later; other tasks will `yield` a call rather than a name.
+Second, `steeped_tea_with_sugar()` yields (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that it passes the function _name_ rather than a call (i.e. `steeped_tea` instead of `steeped_tea(cupdir)`) so that it can be called later. More commonly, tasks will `yield` a call rather than a name.
 
 Next up, the `steeped_tea()` `@task` function, which is considerably more complicated:
 
@@ -213,3 +213,34 @@ def steeped_tea(cupdir):
     yield steeping_tea(cupdir)
 ```
 
+Here, the asset being yielded is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, though useful for this demo. Try 3 minutes for black tea.) The path to the `water` file is located by calling `ids()` on the return value of `steeping_tea()` and taking the first element. If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future exeuction of this workflow. The function finaly yields the `steeping_tea` task it requires. There are no post-yield statements, because there's nothing this task can do to make its asset -- time passed -- ready. It can only wait.
+
+The `steeping_tea()` and `tea_bad()` functions are again straightforward `@task` functions, making use of the `ingredient()` helper:
+
+``` python
+@task
+def steeping_tea(cupdir):
+    # Pour boiling water over the tea.
+    for x in ingredient(cupdir, "water", "Boiling water over the tea", tea_bag):
+        yield x
+```
+
+``` python
+@task
+def tea_bag(cupdir):
+    # Place tea bag in the cup.
+    for x in ingredient(cupdir, "tea", "Tea bag", box_of_tea_bags):
+        yield x
+```
+
+Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist, and no action by the workflow can create it:
+
+``` python
+@external
+def box_of_tea_bags(cupdir):
+    path = cupdir.parent / "tea-package"
+    yield f"Tea from store: {path}"
+    yield asset(path, path.exists)
+```
+
+Unlike other task types, the `@external` yields, after its name, only the _assets_ that it represents. It yields no task requirements, and has no executable statements to make the asset ready.
