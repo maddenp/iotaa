@@ -259,6 +259,14 @@ def test_tasks_ready(tasks_baz, tmp_path):
 # Private function tests
 
 
+def test__assets():
+    a = ic.asset(id=None, ready=lambda: True)
+    assert ic._assets(x=None) == []
+    assert ic._assets(x=a) == [a]
+    assert ic._assets(x=[a]) == [a]
+    assert ic._assets(x={"a": a}) == {"a": a}
+
+
 def test__delegate(caplog):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
 
@@ -299,14 +307,6 @@ def test__formatter():
     formatter = ic._formatter("foo")
     assert isinstance(formatter, ic.HelpFormatter)
     assert formatter._prog == "foo"
-
-
-def test__iterable():
-    a = ic.asset(id=None, ready=lambda: True)
-    assert ic._iterable(x=None) == []
-    assert ic._iterable(x=a) == [a]
-    assert ic._iterable(x=[a]) == [a]
-    assert ic._iterable(x={"a": a}) == {"a": a}
 
 
 def test__parse_args():
