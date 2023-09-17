@@ -105,7 +105,7 @@ Several public helper callables are available in the `iotaa` module:
 - `asset()` creates an asset object, to be returned in a `dict` or `list` from task functions.
 - `configure_logging()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs, which could then also make its own `logging` calls.
 - `dry_run()` enables dry-run mode.
-- `ids()` takes a task object and returns a `dict` mapping integer indexes (if the task `yield`s its assets as a `list`) or arbitrary keys (if the task `yield`s its assets as a `dict`) to the `id` attributes of the assets.
+- `ids()` takes a task object and returns a `dict` mapping integer indexes (if the task `yield`s its assets as a `list`) or `str` keys (if the task `yield`s its assets as a `dict`) to the `id` attributes of the assets.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
 
 ## Development

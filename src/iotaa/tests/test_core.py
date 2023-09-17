@@ -19,12 +19,12 @@ import iotaa.core as ic
 
 
 @fixture
-def external_foo():
+def external_foo_dict():
     @ic.external
     def foo(path):
         f = path / "foo"
-        yield f"external foo {f}"
-        yield [ic.asset(f, f.is_file)]
+        yield {"path": f"external foo {f}"}
+        yield ic.asset(f, f.is_file)
 
     return foo
 
@@ -42,24 +42,37 @@ def rungen():
 
 
 @fixture
-def task_bar(external_foo):
+def task_bar_list(external_foo_dict):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield [ic.asset(f, f.is_file)]
-        yield [external_foo(path)]
+        yield [external_foo_dict(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def tasks_baz(external_foo, task_bar):
+def task_bar_scalar(external_foo_dict):
+    @ic.task
+    def bar(path):
+        f = path / "bar"
+        yield f"task bar {f}"
+        yield ic.asset(f, f.is_file)
+        yield [external_foo_dict(path)]
+        f.touch()
+
+    return bar
+
+
+@fixture
+def tasks_baz(external_foo_dict, task_bar_scalar):
     @ic.tasks
     def baz(path):
         yield "tasks baz"
-        yield [external_foo(path), task_bar(path)]
+        yield [external_foo_dict(path), task_bar_scalar(path)]
 
     return baz
 
@@ -180,41 +193,41 @@ def test_run_success(caplog, tmp_path):
 # Decorator tests
 
 
-def test_external_not_ready(external_foo, tmp_path):
+def test_external_not_ready(external_foo_dict, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = list(ic._extract(external_foo(tmp_path)))
+    assets = list(ic._extract(external_foo_dict(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert not assets[0].ready()
 
 
-def test_external_ready(external_foo, tmp_path):
+def test_external_ready(external_foo_dict, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    assets = list(ic._extract(external_foo(tmp_path)))
+    assets = list(ic._extract(external_foo_dict(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert assets[0].ready()
 
 
-def test_task_not_ready(caplog, task_bar, tmp_path):
+def test_task_not_ready(caplog, task_bar_scalar, tmp_path):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(ic._extract(task_bar(tmp_path)))
+    assets = list(ic._extract(task_bar_scalar(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     assert logged(f"task bar {f_bar}: Pending", caplog)
 
 
-def test_task_ready(caplog, task_bar, tmp_path):
+def test_task_ready(caplog, task_bar_list, tmp_path):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = list(ic._extract(task_bar(tmp_path)))
+    assets = list(ic._extract(task_bar_list(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
@@ -286,6 +299,14 @@ def test__formatter():
     formatter = ic._formatter("foo")
     assert isinstance(formatter, ic.HelpFormatter)
     assert formatter._prog == "foo"
+
+
+def test__iterable():
+    a = ic.asset(id=None, ready=lambda: True)
+    assert ic._iterable(x=None) == []
+    assert ic._iterable(x=a) == [a]
+    assert ic._iterable(x=[a]) == [a]
+    assert ic._iterable(x={"a": a}) == {"a": a}
 
 
 def test__parse_args():

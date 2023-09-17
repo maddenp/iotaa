@@ -145,7 +145,7 @@ def external(f) -> Callable[..., _Assets]:
     def d(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = next(g)
+        assets = _iterable(next(g))
         for a in _extract(assets):
             if not a.ready():
                 _readiness(ready=False, taskname=taskname, external_=True)
@@ -163,7 +163,7 @@ def task(f) -> Callable[..., _Assets]:
     def d(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = next(g)
+        assets = _iterable(next(g))
         if not all(a.ready() for a in _extract(assets)):
             _readiness(ready=False, taskname=taskname, initial=True)
         for a in _extract(assets):
@@ -189,7 +189,7 @@ def tasks(f) -> Callable[..., _Assets]:
     def d(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _delegate(g, taskname)
+        assets = _iterable(_delegate(g, taskname))
         _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname)
         return assets
 
@@ -255,6 +255,20 @@ def _formatter(prog: str) -> HelpFormatter:
     :param prog: The program name.
     """
     return HelpFormatter(prog, max_help_position=4)
+
+
+def _iterable(x: Optional[Union[Dict, List, asset]]) -> _Assets:
+    """
+    Create an asset list when the argument is not already itearble.
+
+    :param x: A singe asset, a None object or a dict or list of assets.
+    :return: A possibly empty iterable collecton of assets.
+    """
+    if x is None:
+        return []
+    if isinstance(x, asset):
+        return [x]
+    return x
 
 
 def _parse_args(raw: List[str]) -> Namespace:
