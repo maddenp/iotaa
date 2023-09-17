@@ -220,12 +220,17 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     :param taskname: The current task's name.
     :return: The assets of the required task(s), and the task name.
     """
-    assert isinstance(taskname, str)
+
+    # The next value of the generator is the collection of requirements of the current task. This
+    # may be a dict or list of task-function calls, a single task-function call, or None. The VALUES
+    # of each of those CALLS are asset collections -- also dicts, lists, scalars or None. A flat
+    # list of all the assets, filetered of None objects, is constructed and returned.
+
     logging.info("%s: Evaluating requirements", taskname)
-    assets: list = []
+    flat: list = []
     for a in _assets(next(g)):
-        assets += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
-    return list(filter(None, assets))
+        flat += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
+    return list(filter(None, flat))
 
 
 def _disable_dry_run() -> None:
