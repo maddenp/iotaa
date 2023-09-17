@@ -102,7 +102,7 @@ After installation, `import iotaa` for `from iotaa import ...` to access public 
 
 ### Dry-Run Mode
 
-Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `iotaa` in a mode where no post-`yield` statements in task-function bodies are executed. When applications are written such that no state-changing statements precede the final `yield` statement, dry-mode will report the current condition of the workflow, pointing out pending requirements that block workflow progress.
+Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `iotaa` in a mode where no post-`yield` statements in `@task` bodies are executed. When applications are written such that no state-changing statements precede the final `yield` statement, dry-mode will report the current condition of the workflow, pointing out pending requirements that block workflow progress.
 
 ## Helpers
 
@@ -110,8 +110,9 @@ Several public helper callables are available in the `iotaa` module:
 
 - `asset()` creates an asset, to be returned in a `dict` or `list` from task functions.
 - `dryrun()` enables dry-run mode.
-- `ids()` takes a task object and returns a `dict` mapping integer indexes (if the task `yield`s its assets as a `list`) or `str` keys (if the task `yield`s its assets as a `dict`) to the `id` attributes of the assets.
+- `ids()` accepts a task object and returns a `dict` mapping integer indexes (if the task `yield`s its assets as a `list`) or `str` keys (if the task `yield`s its assets as a `dict`) to the `id` attributes of the assets.
 - `logcfg()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs, which could then also make its own `logging` calls.
+- `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
 
 ## Development
@@ -121,10 +122,10 @@ In a conda environment ([Miniforge](https://github.com/conda-forge/miniforge) fr
 ## Notes
 
 - `iotaa` workflows can be invoked repeatedly, potentially making further progress in each invocation. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never performed twice -- unless the asset becomes un-ready via external means. For example, someone might notice that an asset is incorrect, remove it, fix the application code, then re-run the workflow; `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
-- `iotaa` tasks may be instantiated in statements before the statement `yield`ing them to the framework, but note that control will be passed to them immediately. For example, a task might have, instead of the statement `yield [foo(x)]`, the separate statements `foo_assets = foo(x)` (first) and `yield [foo]` (later). In this case, control would be passed to `foo` (and potentially to a tree of tasks it depends on) immediately upon evaluation of the expression `foo(x)`. This should be fine semantically, but be aware of the order of execution it implies.
+- `iotaa` tasks may be instantiated in statements before the statement `yield`ing them to the framework, but note that control will be passed to them immediately. For example, a task might have, instead of the statement `yield [foo(x)]`, the separate statements `foo_assets = foo(x)` (first) and `yield [foo]` (later). In this case, control would be passed to `foo` (and potentially to a tree of tasks it requires) immediately upon evaluation of the expression `foo(x)`. This should be fine semantically, but be aware of the order of execution it implies.
 - `iotaa` assumes, for its dry-run mode to work correctly, that no statements that change external state execute before the final `yield` statement in a task-function's body.
 - `iotaa` tasks are cached and only executed once in the lifetime of the Python interpreter, so it is currently assumed that `iotaa` or an application embedding it will be invoked repeatedly (or, in happy cases, just once) to complete all tasks, with the Python interpreter exiting and restarting with each invocation. Support could be added to clear cached tasks to support applications that would run workflows repeatedly inside the same interpreter invocation.
 - `iotaa` is nearly a no-batteries-included solution. For use with e.g. AWS S3, import `boto3` in an application, alongside `iotaa`, and make calls from within task functions, or write helpful utility functions that task functions can use.
-- `iotaa` is currently single-threaded, so it truly is one thing after another. Concurrency for execution of mutually independent tasks could be added later, but presumably dependencies would still exist between some tasks, so partial ordering and serialization would still exist.
+- `iotaa` is currently single-threaded, so it truly is one thing after another. Concurrency for execution of mutually independent tasks could be added later, but presumably requirement relationshps would still exist between some tasks, so partial ordering and serialization would still exist.
 - `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 - `iotaa` currently relies on Python's root logger. Support could be added for optional alternative use of a logger supplied by an application.

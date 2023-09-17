@@ -104,6 +104,8 @@ def test_ids_dict():
     asset = ic.asset(id="bar", ready=lambda: True)
     assert ic.ids(assets={"foo": asset})["foo"] == expected
     assert ic.ids(assets=[asset])[0] == expected
+    assert ic.ids(assets=asset)[0] == expected
+    assert ic.ids(assets=None) == {}
 
 
 @pytest.mark.parametrize("vals", [(False, ic.logging.INFO), (True, ic.logging.DEBUG)])

@@ -43,7 +43,7 @@ def dryrun() -> None:
     _state.dry_run_enabled = True
 
 
-def ids(assets: _Assets) -> dict:
+def ids(assets: Union[_Assets, asset, None]) -> dict:
     """
     Extract and return asset identity objects (e.g. paths to files).
 
@@ -51,8 +51,12 @@ def ids(assets: _Assets) -> dict:
     :return: A dict of asset identity objects.
     """
     if isinstance(assets, dict):
-        return {k: a.id for k, a in assets.items()}
-    return {i: a.id for i, a in enumerate(assets)}
+        return {k: v.id for k, v in assets.items()}
+    if isinstance(assets, list):
+        return {i: v.id for i, v in enumerate(assets)}
+    if isinstance(assets, asset):
+        return {0: assets.id}
+    return {}
 
 
 def logcfg(verbose: Optional[bool] = False) -> None:
