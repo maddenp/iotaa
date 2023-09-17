@@ -92,18 +92,10 @@ def test_asset(asset):
     assert asset.ready()
 
 
-@pytest.mark.parametrize("vals", [(False, ic.logging.INFO), (True, ic.logging.DEBUG)])
-def test_configure_logging(vals):
-    verbose, level = vals
-    with patch.object(ic.logging, "basicConfig") as basicConfig:
-        ic.configure_logging(verbose=verbose)
-    basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
-
-
-def test_dry_run():
+def test_dryrun():
     with patch.object(ic, "_state", ic.ns(dry_run_enabled=False)):
         assert not ic._state.dry_run_enabled
-        ic.dry_run()
+        ic.dryrun()
         assert ic._state.dry_run_enabled
 
 
@@ -112,6 +104,14 @@ def test_ids_dict():
     asset = ic.asset(id="bar", ready=lambda: True)
     assert ic.ids(assets={"foo": asset})["foo"] == expected
     assert ic.ids(assets=[asset])[0] == expected
+
+
+@pytest.mark.parametrize("vals", [(False, ic.logging.INFO), (True, ic.logging.DEBUG)])
+def test_logcfg(vals):
+    verbose, level = vals
+    with patch.object(ic.logging, "basicConfig") as basicConfig:
+        ic.logcfg(verbose=verbose)
+    basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
 @fixture
@@ -146,9 +146,7 @@ def test_main_mocked_up(tmp_path):
     m = tmp_path / "a.py"
     m.touch()
     strs = ["foo", "88", "3.14", "true"]
-    with patch.multiple(
-        ic, _parse_args=D, configure_logging=D, dry_run=D, import_module=D
-    ) as mocks:
+    with patch.multiple(ic, _parse_args=D, dryrun=D, import_module=D, logcfg=D) as mocks:
         parse_args = mocks["_parse_args"]
         parse_args.return_value = ic.Namespace(
             args=strs,
@@ -163,8 +161,8 @@ def test_main_mocked_up(tmp_path):
             import_module.assert_called_once_with("a")
             getattr_.assert_called_once_with(import_module(), "a_function")
             getattr_().assert_called_once_with("foo", 88, 3.14, True)
-        mocks["configure_logging"].assert_called_once_with(verbose=True)
-        mocks["dry_run"].assert_called_once()
+        mocks["dryrun"].assert_called_once()
+        mocks["logcfg"].assert_called_once_with(verbose=True)
         parse_args.assert_called_once()
 
 
@@ -323,13 +321,6 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
 
     assert ic._delegate(f(), "task") == [a1]
     assert logged("task: Evaluating requirements", caplog)
-
-
-def test__disable_dry_run():
-    with patch.object(ic, "_state", ic.ns(dry_run_enabled=True)):
-        assert ic._state.dry_run_enabled
-        ic._disable_dry_run()
-        assert not ic._state.dry_run_enabled
 
 
 def test__execute_dry_run(caplog, rungen):

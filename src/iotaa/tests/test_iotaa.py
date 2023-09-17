@@ -10,10 +10,10 @@ import iotaa
 def test_import():
     for x in [
         "asset",
-        "configure_logging",
-        "dry_run",
+        "dryrun",
         "external",
         "ids",
+        "logcfg",
         "main",
         "task",
         "tasks",

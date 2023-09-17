@@ -36,18 +36,7 @@ class asset:
 _Assets = Union[Dict[str, asset], List[asset]]
 
 
-def configure_logging(verbose: Optional[bool] = False) -> None:
-    """
-    Configure iotaa default logging.
-    """
-    logging.basicConfig(
-        datefmt="%Y-%m-%dT%H:%M:%S",
-        format="[%(asctime)s] %(levelname)-7s %(message)s",
-        level=logging.DEBUG if verbose else logging.INFO,
-    )
-
-
-def dry_run() -> None:
+def dryrun() -> None:
     """
     Enable iotaa's dry-run mode.
     """
@@ -66,6 +55,17 @@ def ids(assets: _Assets) -> dict:
     return {i: a.id for i, a in enumerate(assets)}
 
 
+def logcfg(verbose: Optional[bool] = False) -> None:
+    """
+    Configure iotaa default logging.
+    """
+    logging.basicConfig(
+        datefmt="%Y-%m-%dT%H:%M:%S",
+        format="[%(asctime)s] %(levelname)-7s %(message)s",
+        level=logging.DEBUG if verbose else logging.INFO,
+    )
+
+
 def main() -> None:
     """
     Main entry point.
@@ -79,9 +79,9 @@ def main() -> None:
     # specified function.
 
     args = _parse_args(sys.argv[1:])
-    configure_logging(verbose=args.verbose)
+    logcfg(verbose=args.verbose)
     if args.dry_run:
-        dry_run()
+        dryrun()
     m = Path(args.module)
     if m.is_file():
         sys.path.append(str(m.parent.resolve()))
@@ -231,15 +231,6 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     for a in _assets(next(g)):
         flat += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
     return list(filter(None, flat))
-
-
-def _disable_dry_run() -> None:
-    """
-    Enable iotaa's dry-run mode.
-
-    NOT CURRENTLY SUPPORTED.
-    """
-    _state.dry_run_enabled = False
 
 
 def _execute(g: Generator, taskname: str) -> None:
