@@ -273,7 +273,7 @@ def test__delegate_none(caplog):
     def f():
         yield None
 
-    assert ic._delegate(f(), "task") == []
+    assert not ic._delegate(f(), "task")
     assert logged("task: Evaluating requirements", caplog)
 
 
@@ -299,7 +299,7 @@ def test__delegate_empty_dict_and_empty_list(caplog):
     def f():
         yield [{}, []]
 
-    assert ic._delegate(f(), "task") == []
+    assert not ic._delegate(f(), "task")
     assert logged("task: Evaluating requirements", caplog)
 
 
