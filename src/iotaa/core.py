@@ -223,8 +223,21 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
     assert isinstance(taskname, str)
     logging.info("%s: Evaluating requirements", taskname)
-    dependencies = next(g)
-    return list(chain.from_iterable(a.values() if isinstance(a, dict) else a for a in dependencies))
+    return list(chain.from_iterable(a.values() if isinstance(a, dict) else a for a in next(g)))
+
+
+# def _dependencies(x: Optional[Union[Dict, List, Callable]]) -> List[Callable]:
+#     """
+#     Create a task list when the argument is not already itearble.
+
+#     :param x: A singe task, a None object or a list of tasks.
+#     :return: A possibly empty iterable collecton of tasks.
+#     """
+#     if x is None:
+#         return []
+#     if callable(x):
+#         return [x]
+#     return x
 
 
 def _disable_dry_run() -> None:

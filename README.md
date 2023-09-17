@@ -2,8 +2,8 @@
 
 # TODO
 
-- Permit scalar, None dependencies.
-- Permit dependencies as dict as well as list.
+- Permit scalar, None requirements.
+- Permit requirements as dict as well as list.
 
 **It's One Thing After Another**
 
@@ -95,7 +95,7 @@ After installation, `import iotaa` for `from iotaa import ...` to access public 
 
 ### Dry-Run Mode
 
-Use the CLI `--dry-mode` switch (or call `dry_run()` programmatically) to run `iotaa` in a mode where no post-`yield` statements in task-function bodies are executed. When applications are written such that no state-changing statements precede the final `yield` statement, dry-mode will report the current condition of the workflow, pointing out pending dependencies that block workflow progress.
+Use the CLI `--dry-mode` switch (or call `dry_run()` programmatically) to run `iotaa` in a mode where no post-`yield` statements in task-function bodies are executed. When applications are written such that no state-changing statements precede the final `yield` statement, dry-mode will report the current condition of the workflow, pointing out pending requirements that block workflow progress.
 
 ## Helpers
 
@@ -113,7 +113,7 @@ In a conda environment ([Miniforge](https://github.com/conda-forge/miniforge) fr
 
 ## Notes
 
-- `iotaa` workflows can be invoked repeatedly, potentially making further progress in each invocation. Since task functions' assets are checked for readiness before their dependencies are checked or their post-`yield` statements are executed, completed work is never performed twice -- unless the asset becomes un-ready via external means. For example, someone might notice that an asset is incorrect, remove it, fix the application code, then re-run the workflow; `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
+- `iotaa` workflows can be invoked repeatedly, potentially making further progress in each invocation. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never performed twice -- unless the asset becomes un-ready via external means. For example, someone might notice that an asset is incorrect, remove it, fix the application code, then re-run the workflow; `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
 - `iotaa` tasks may be instantiated in statements before the statement `yield`ing them to the framework, but note that control will be passed to them immediately. For example, a task might have, instead of the statement `yield [foo(x)]`, the separate statements `foo_assets = foo(x)` (first) and `yield [foo]` (later). In this case, control would be passed to `foo` (and potentially to a tree of tasks it depends on) immediately upon evaluation of the expression `foo(x)`. This should be fine semantically, but be aware of the order of execution it implies.
 - `iotaa` assumes, for its dry-run mode to work correctly, that no statements that change external state execute before the final `yield` statement in a task-function's body.
 - `iotaa` tasks are cached and only executed once in the lifetime of the Python interpreter, so it is currently assumed that `iotaa` or an application embedding it will be invoked repeatedly (or, in happy cases, just once) to complete all tasks, with the Python interpreter exiting and restarting with each invocation. Support could be added to clear cached tasks to support applications that would run workflows repeatedly inside the same interpreter invocation.
