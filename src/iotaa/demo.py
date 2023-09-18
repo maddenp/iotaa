@@ -41,10 +41,10 @@ def steeped_tea(cupdir):
     yield f"Steeped tea in {cupdir}"
     ready = False
     water = ids(steeping_tea(cupdir))[0]
+    now = dt.datetime.now()
     if water.exists():
-        tea_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
-        ready_time = tea_time + dt.timedelta(seconds=10)
-        now = dt.datetime.now()
+        water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
+        ready_time = water_poured_time + dt.timedelta(seconds=10)
         ready = now >= ready_time
     yield asset(None, lambda: ready)
     if water.exists() and not ready:
