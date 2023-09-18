@@ -1,5 +1,5 @@
 """
-iotaa.core
+iotaa.core.
 """
 
 import logging
@@ -38,7 +38,7 @@ _Assets = Union[Dict[str, asset], List[asset]]
 
 def dryrun() -> None:
     """
-    Enable iotaa's dry-run mode.
+    Enable dry-run mode.
     """
 
     _state.dry_run_enabled = True
@@ -48,7 +48,7 @@ def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
     """
     Extract and return asset identity objects (e.g. paths to files).
 
-    :param assets: A collection of iotaa assets.
+    :param assets: A collection of assets.
     :return: A dict of asset identity objects.
     """
 
@@ -63,7 +63,7 @@ def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
 
 def logcfg(verbose: Optional[bool] = False) -> None:
     """
-    Configure iotaa default logging.
+    Configure default logging.
     """
 
     logging.basicConfig(
@@ -145,7 +145,7 @@ def run(
 
 def external(f) -> Callable[..., _Assets]:
     """
-    The @external decorator for assets that iotaa cannot produce.
+    The @external decorator for assets that cannot be produced by the workflow.
     """
 
     @cache
@@ -163,7 +163,7 @@ def external(f) -> Callable[..., _Assets]:
 
 def task(f) -> Callable[..., _Assets]:
     """
-    The @task decorator for assets that iotaa can produce.
+    The @task decorator for assets that the workflow can produce.
     """
 
     @cache
@@ -283,7 +283,7 @@ def _extract(assets: _Assets) -> Generator:
     """
     Extract and yield individual assets from asset collections.
 
-    :param assets: A collection of iotaa assets.
+    :param assets: A collection of assets.
     """
 
     for a in assets if isinstance(assets, list) else assets.values():
@@ -323,7 +323,7 @@ def _readiness(
     ready: bool, taskname: str, external_: Optional[bool] = False, initial: Optional[bool] = False
 ) -> None:
     """
-    Log information about the readiness of an iotaa asset.
+    Log information about the readiness of an asset.
 
     :param ready: Is the asset ready to use?
     :param taskname: The current task's name.

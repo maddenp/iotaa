@@ -1,5 +1,5 @@
 """
-Unit tests for module otaa.core.
+Tests for module iotaa.core.
 """
 
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
