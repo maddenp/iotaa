@@ -1,0 +1,19 @@
+package:
+  name: iotaa
+  version: 0.1.0
+source:
+  path: ../src
+build:
+  include_recipe: false
+  number: 0
+test:
+  requires:
+    - black
+    - coverage
+    - docformatter
+    - isort
+    - mypy
+    - pylint
+    - pytest
+about:
+  license: APACHE
