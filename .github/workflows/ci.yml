@@ -1,0 +1,24 @@
+name: ci
+env:
+  ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+  GH_TOKEN: ${{ github.token }}
+on:
+  push:
+    branches:
+      - main
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install conda
+        run:  .github/scripts/install-conda
+      - name: Make package
+        run:  .github/scripts/make-package
+      - name: Check tag
+        run:  .github/scripts/tag-check
+      - name: Tag
+        run: .github/scripts/tag-create
+      - name: Release
+        run: .github/scripts/release

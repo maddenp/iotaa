@@ -1,0 +1,7 @@
+#!/bin/bash -eux
+
+f=recipe/meta.json
+tag=v$(jq -r .version $f)-$(jq -r .buildnum $f)
+if git ls-remote --tags origin | grep -q "/$tag$"; then
+  exit 1 # tag already exists, aborting...
+fi
