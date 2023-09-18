@@ -140,7 +140,7 @@ def a_cup_of_tea(basedir):
 
 As described above, a `@tasks` function must yield its name and the assets id requires: In this case, a cup to make the tea in; and then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to `cup()`, and the expression `ids(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ids()`, which extracts the unique identifiers for the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) id, which is the cup directory. The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by yielding these task-function calls.
 
-Note that the function could hae equivalently
+Note that the function could have equivalently
 
 ``` python
     the_cup = cup(basedir)
@@ -171,7 +171,7 @@ The `steeped_tea_with_sugar()` `@task` function is next:
 @task
 def steeped_tea_with_sugar(cupdir):
     # Add sugar to the steeped tea.
-    for x in ingredient(cupdir, "sugar", "Steeped tea with suagar", steeped_tea):
+    for x in ingredient(cupdir, "sugar", "Steeped tea with sugar", steeped_tea):
         yield x
 ```
 
@@ -203,17 +203,19 @@ def steeped_tea(cupdir):
     ready = False
     water = ids(steeping_tea(cupdir))[0]
     if water.exists():
-        tea_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
-        ready_time = tea_time + dt.timedelta(seconds=10)
+        water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
+        ready_time = water_poured_time + dt.timedelta(seconds=10)
         now = dt.datetime.now()
         ready = now >= ready_time
-    yield asset(None, lambda: ready)
-    if water.exists() and not ready:
-        logging.info("Tea steeping for %ss more", int((ready_time - now).total_seconds()))
+        yield asset(None, lambda: ready)
+        if not ready:
+            logging.info("Tea steeping for %ss more", int((ready_time - now).total_seconds()))
+    else:
+        yield asset(None, lambda: False)
     yield steeping_tea(cupdir)
 ```
 
-Here, the asset being yielded is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, though useful for this demo. Try 3 minutes for black tea.) The path to the `water` file is located by calling `ids()` on the return value of `steeping_tea()` and taking the first element. If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future exeuction of this workflow. The function finaly yields the `steeping_tea` task it requires. There are no post-yield statements, because there's nothing this task can do to make its asset -- time passed -- ready. It can only wait.
+Here, the asset being yielded is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, though useful for this demo. Try 3 minutes for black tea.) The path to the `water` file is located by calling `ids()` on the return value of `steeping_tea()` and taking the first element. If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. The function finally yields the `steeping_tea` task it requires. There are no post-yield statements, because there's nothing this task can do to make its asset -- time passed -- ready. It can only wait.
 
 The `steeping_tea()` and `tea_bad()` functions are again straightforward `@task` functions, making use of the `ingredient()` helper:
 
@@ -249,40 +251,41 @@ Let's run this workflow with the `iotaa` command-line tool, requesting that the 
 
 ``` bash
 % iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
-[2023-09-17T21:51:55] INFO    A cup of steeped tea with sugar: Evaluating requirements
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Initial state: Pending
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Evaluating requirements
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Ready
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Executing
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Final state: Ready
-[2023-09-17T21:51:55] INFO    Steeped tea with suagar in teatime/cup: Initial state: Pending
-[2023-09-17T21:51:55] INFO    Steeped tea with suagar in teatime/cup: Evaluating requirements
-[2023-09-17T21:51:55] INFO    Boiling water over the tea in teatime/cup: Initial state: Pending
-[2023-09-17T21:51:55] INFO    Boiling water over the tea in teatime/cup: Evaluating requirements
-[2023-09-17T21:51:55] INFO    Tea bag in teatime/cup: Initial state: Pending
-[2023-09-17T21:51:55] INFO    Tea bag in teatime/cup: Evaluating requirements
-[2023-09-17T21:51:55] WARNING Tea from store: teatime/box-of-tea: Final state: Pending (EXTERNAL)
-[2023-09-17T21:51:55] INFO    Tea bag in teatime/cup: Pending
-[2023-09-17T21:51:55] WARNING Tea bag in teatime/cup: Final state: Pending
-[2023-09-17T21:51:55] INFO    Boiling water over the tea in teatime/cup: Pending
-[2023-09-17T21:51:55] WARNING Boiling water over the tea in teatime/cup: Final state: Pending
-[2023-09-17T21:51:55] INFO    Steeped tea in teatime/cup: Initial state: Pending
-[2023-09-17T21:51:55] INFO    Steeped tea in teatime/cup: Evaluating requirements
-[2023-09-17T21:51:55] INFO    Steeped tea in teatime/cup: Pending
-[2023-09-17T21:51:55] WARNING Steeped tea in teatime/cup: Final state: Pending
-[2023-09-17T21:51:55] INFO    Steeped tea with suagar in teatime/cup: Pending
-[2023-09-17T21:51:55] WARNING Steeped tea with suagar in teatime/cup: Final state: Pending
-[2023-09-17T21:51:55] WARNING A cup of steeped tea with sugar: Final state: Pending
+[2023-09-18T02:33:02] INFO    A cup of steeped tea with sugar: Initial state: Pending
+[2023-09-18T02:33:02] INFO    A cup of steeped tea with sugar: Checking required tasks
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Initial state: Pending
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Checking required tasks
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Ready
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Executing
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Final state: Ready
+[2023-09-18T02:33:02] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
+[2023-09-18T02:33:02] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
+[2023-09-18T02:33:02] INFO    Boiling water over the tea in teatime/cup: Initial state: Pending
+[2023-09-18T02:33:02] INFO    Boiling water over the tea in teatime/cup: Checking required tasks
+[2023-09-18T02:33:02] INFO    Tea bag in teatime/cup: Initial state: Pending
+[2023-09-18T02:33:02] INFO    Tea bag in teatime/cup: Checking required tasks
+[2023-09-18T02:33:02] WARNING Tea from store: teatime/box-of-tea: Final state: Pending (EXTERNAL)
+[2023-09-18T02:33:02] INFO    Tea bag in teatime/cup: Pending
+[2023-09-18T02:33:02] WARNING Tea bag in teatime/cup: Final state: Pending
+[2023-09-18T02:33:02] INFO    Boiling water over the tea in teatime/cup: Pending
+[2023-09-18T02:33:02] WARNING Boiling water over the tea in teatime/cup: Final state: Pending
+[2023-09-18T02:33:02] INFO    Steeped tea in teatime/cup: Initial state: Pending
+[2023-09-18T02:33:02] INFO    Steeped tea in teatime/cup: Checking required tasks
+[2023-09-18T02:33:02] INFO    Steeped tea in teatime/cup: Pending
+[2023-09-18T02:33:02] WARNING Steeped tea in teatime/cup: Final state: Pending
+[2023-09-18T02:33:02] INFO    Steeped tea with sugar in teatime/cup: Pending
+[2023-09-18T02:33:02] WARNING Steeped tea with sugar in teatime/cup: Final state: Pending
+[2023-09-18T02:33:02] WARNING A cup of steeped tea with sugar: Final state: Pending
 ```
 
 There's lots to see during the first invocation. Most of the tasks start and end in a pending state. Only the `cup()` task made progress from pending to ready state:
 
 ``` bash
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Initial state: Pending
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Evaluating requirements
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Ready
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Executing
-[2023-09-17T21:51:55] INFO    The cup: teatime/cup: Final state: Ready
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Initial state: Pending
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Checking required tasks
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Ready
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Executing
+[2023-09-18T02:33:02] INFO    The cup: teatime/cup: Final state: Ready
 ```
 
 The on-disk workflow state is:
@@ -296,7 +299,7 @@ teatime/
 Note the blocker:
 
 ``` bash
-[2023-09-17T21:51:55] WARNING Tea from store: teatime/box-of-tea: Final state: Pending (EXTERNAL)
+[2023-09-18T02:33:02] WARNING Tea from store: teatime/box-of-tea: Final state: Pending (EXTERNAL)
 ```
 
 The file `teatime/box-of-tea` cannot be created by the workflow, as it is declared `@external`. Let's create it externally:
@@ -313,28 +316,29 @@ Now let's iterate the workflow:
 
 ``` bash
 % iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
-[2023-09-17T21:58:52] INFO    A cup of steeped tea with sugar: Evaluating requirements
-[2023-09-17T21:58:52] INFO    Steeped tea with suagar in teatime/cup: Initial state: Pending
-[2023-09-17T21:58:52] INFO    Steeped tea with suagar in teatime/cup: Evaluating requirements
-[2023-09-17T21:58:52] INFO    Boiling water over the tea in teatime/cup: Initial state: Pending
-[2023-09-17T21:58:52] INFO    Boiling water over the tea in teatime/cup: Evaluating requirements
-[2023-09-17T21:58:52] INFO    Tea bag in teatime/cup: Initial state: Pending
-[2023-09-17T21:58:52] INFO    Tea bag in teatime/cup: Evaluating requirements
-[2023-09-17T21:58:52] INFO    Tea bag in teatime/cup: Ready
-[2023-09-17T21:58:52] INFO    Tea bag in teatime/cup: Executing
-[2023-09-17T21:58:52] INFO    Tea bag in teatime/cup: Final state: Ready
-[2023-09-17T21:58:52] INFO    Boiling water over the tea in teatime/cup: Ready
-[2023-09-17T21:58:52] INFO    Boiling water over the tea in teatime/cup: Executing
-[2023-09-17T21:58:52] INFO    Boiling water over the tea in teatime/cup: Final state: Ready
-[2023-09-17T21:58:52] INFO    Steeped tea in teatime/cup: Initial state: Pending
-[2023-09-17T21:58:52] INFO    Steeped tea in teatime/cup: Evaluating requirements
-[2023-09-17T21:58:52] INFO    Tea steeping for 9s more
-[2023-09-17T21:58:52] INFO    Steeped tea in teatime/cup: Ready
-[2023-09-17T21:58:52] INFO    Steeped tea in teatime/cup: Executing
-[2023-09-17T21:58:52] WARNING Steeped tea in teatime/cup: Final state: Pending
-[2023-09-17T21:58:52] INFO    Steeped tea with suagar in teatime/cup: Pending
-[2023-09-17T21:58:52] WARNING Steeped tea with suagar in teatime/cup: Final state: Pending
-[2023-09-17T21:58:52] WARNING A cup of steeped tea with sugar: Final state: Pending
+[2023-09-18T02:34:32] INFO    A cup of steeped tea with sugar: Initial state: Pending
+[2023-09-18T02:34:32] INFO    A cup of steeped tea with sugar: Checking required tasks
+[2023-09-18T02:34:32] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
+[2023-09-18T02:34:32] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
+[2023-09-18T02:34:32] INFO    Boiling water over the tea in teatime/cup: Initial state: Pending
+[2023-09-18T02:34:32] INFO    Boiling water over the tea in teatime/cup: Checking required tasks
+[2023-09-18T02:34:32] INFO    Tea bag in teatime/cup: Initial state: Pending
+[2023-09-18T02:34:32] INFO    Tea bag in teatime/cup: Checking required tasks
+[2023-09-18T02:34:32] INFO    Tea bag in teatime/cup: Ready
+[2023-09-18T02:34:32] INFO    Tea bag in teatime/cup: Executing
+[2023-09-18T02:34:32] INFO    Tea bag in teatime/cup: Final state: Ready
+[2023-09-18T02:34:32] INFO    Boiling water over the tea in teatime/cup: Ready
+[2023-09-18T02:34:32] INFO    Boiling water over the tea in teatime/cup: Executing
+[2023-09-18T02:34:32] INFO    Boiling water over the tea in teatime/cup: Final state: Ready
+[2023-09-18T02:34:32] INFO    Steeped tea in teatime/cup: Initial state: Pending
+[2023-09-18T02:34:32] INFO    Steeped tea in teatime/cup: Checking required tasks
+[2023-09-18T02:34:32] INFO    Tea steeping for 9s more
+[2023-09-18T02:34:32] INFO    Steeped tea in teatime/cup: Ready
+[2023-09-18T02:34:32] INFO    Steeped tea in teatime/cup: Executing
+[2023-09-18T02:34:32] WARNING Steeped tea in teatime/cup: Final state: Pending
+[2023-09-18T02:34:32] INFO    Steeped tea with sugar in teatime/cup: Pending
+[2023-09-18T02:34:32] WARNING Steeped tea with sugar in teatime/cup: Final state: Pending
+[2023-09-18T02:34:32] WARNING A cup of steeped tea with sugar: Final state: Pending
 ```
 
 On-disk workflow state now:
@@ -353,21 +357,22 @@ Since the box of tea became available, the workflow could add tea to the cup and
 ``` bash
 % iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
 ...
-[2023-09-17T22:01:19] INFO    Tea steeping for 5s more
+[2023-09-18T02:34:39] INFO    Tea steeping for 3s more
 ...
 ```
 
-If we wait a few seonds more and iterate again:
+If we wait a few seconds more and iterate again:
 
 ``` bash
 % iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
-[2023-09-17T22:02:10] INFO    A cup of steeped tea with sugar: Evaluating requirements
-[2023-09-17T22:02:10] INFO    Steeped tea with suagar in teatime/cup: Initial state: Pending
-[2023-09-17T22:02:10] INFO    Steeped tea with suagar in teatime/cup: Evaluating requirements
-[2023-09-17T22:02:10] INFO    Steeped tea with suagar in teatime/cup: Ready
-[2023-09-17T22:02:10] INFO    Steeped tea with suagar in teatime/cup: Executing
-[2023-09-17T22:02:10] INFO    Steeped tea with suagar in teatime/cup: Final state: Ready
-[2023-09-17T22:02:10] INFO    A cup of steeped tea with sugar: Final state: Ready
+[2023-09-18T02:35:36] INFO    A cup of steeped tea with sugar: Initial state: Pending
+[2023-09-18T02:35:36] INFO    A cup of steeped tea with sugar: Checking required tasks
+[2023-09-18T02:35:36] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
+[2023-09-18T02:35:36] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
+[2023-09-18T02:35:36] INFO    Steeped tea with sugar in teatime/cup: Ready
+[2023-09-18T02:35:36] INFO    Steeped tea with sugar in teatime/cup: Executing
+[2023-09-18T02:35:36] INFO    Steeped tea with sugar in teatime/cup: Final state: Ready
+[2023-09-18T02:35:36] INFO    A cup of steeped tea with sugar: Final state: Ready
 ```
 
 Now that the tea has steeped long enough, the sugar has been added:
@@ -386,9 +391,12 @@ One more iteration and we see that the workflow has reached its final state and 
 
 ``` bash
 % iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
-[2023-09-17T22:03:30] INFO    A cup of steeped tea with sugar: Evaluating requirements
-[2023-09-17T22:03:30] INFO    A cup of steeped tea with sugar: Final state: Ready
+[2023-09-18T02:35:58] INFO    A cup of steeped tea with sugar: Initial state: Pending
+[2023-09-18T02:35:58] INFO    A cup of steeped tea with sugar: Checking required tasks
+[2023-09-18T02:35:58] INFO    A cup of steeped tea with sugar: Final state: Ready
 ```
+
+Since `a_cup_of_tea()` is a `@tasks` collection, its state is contingent on that of its required tasks, so its readiness check will always involved checking requirements, unlike a non-collection `@task`, which can just check its own assets.
 
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
@@ -407,13 +415,14 @@ Note how the workflow notices the change to the readiness of its assets and reco
 
 ``` bash
 % iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
-[2023-09-17T22:07:34] INFO    A cup of steeped tea with sugar: Evaluating requirements
-[2023-09-17T22:07:34] INFO    Steeped tea with suagar in teatime/cup: Initial state: Pending
-[2023-09-17T22:07:34] INFO    Steeped tea with suagar in teatime/cup: Evaluating requirements
-[2023-09-17T22:07:34] INFO    Steeped tea with suagar in teatime/cup: Ready
-[2023-09-17T22:07:34] INFO    Steeped tea with suagar in teatime/cup: Executing
-[2023-09-17T22:07:34] INFO    Steeped tea with suagar in teatime/cup: Final state: Ready
-[2023-09-17T22:07:34] INFO    A cup of steeped tea with sugar: Final state: Ready
+[2023-09-18T02:36:49] INFO    A cup of steeped tea with sugar: Initial state: Pending
+[2023-09-18T02:36:49] INFO    A cup of steeped tea with sugar: Checking required tasks
+[2023-09-18T02:36:49] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
+[2023-09-18T02:36:49] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
+[2023-09-18T02:36:49] INFO    Steeped tea with sugar in teatime/cup: Ready
+[2023-09-18T02:36:49] INFO    Steeped tea with sugar in teatime/cup: Executing
+[2023-09-18T02:36:49] INFO    Steeped tea with sugar in teatime/cup: Final state: Ready
+[2023-09-18T02:36:49] INFO    A cup of steeped tea with sugar: Final state: Ready
 ```
 
 ``` bash
@@ -445,26 +454,27 @@ Now request tea without sugar (note that task `steeped_tea` expects a path to th
 
 ``` bash
 % iotaa src/iotaa/demo.py steeped_tea ./teatime/cup
-[2023-09-17T22:23:47] INFO    Boiling water over the tea in ./teatime/cup: Initial state: Pending
-[2023-09-17T22:23:47] INFO    Boiling water over the tea in ./teatime/cup: Evaluating requirements
-[2023-09-17T22:23:47] INFO    Tea bag in ./teatime/cup: Initial state: Pending
-[2023-09-17T22:23:47] INFO    Tea bag in ./teatime/cup: Evaluating requirements
-[2023-09-17T22:23:47] INFO    Tea bag in ./teatime/cup: Ready
-[2023-09-17T22:23:47] INFO    Tea bag in ./teatime/cup: Executing
-[2023-09-17T22:23:47] INFO    Tea bag in ./teatime/cup: Final state: Ready
-[2023-09-17T22:23:47] INFO    Boiling water over the tea in ./teatime/cup: Ready
-[2023-09-17T22:23:47] INFO    Boiling water over the tea in ./teatime/cup: Executing
-[2023-09-17T22:23:47] INFO    Boiling water over the tea in ./teatime/cup: Final state: Ready
-[2023-09-17T22:23:47] INFO    Steeped tea in ./teatime/cup: Initial state: Pending
-[2023-09-17T22:23:47] INFO    Steeped tea in ./teatime/cup: Evaluating requirements
-[2023-09-17T22:23:47] INFO    Tea steeping for 9s more
-[2023-09-17T22:23:47] INFO    Steeped tea in ./teatime/cup: Ready
-[2023-09-17T22:23:47] INFO    Steeped tea in ./teatime/cup: Executing
-[2023-09-17T22:23:47] WARNING Steeped tea in ./teatime/cup: Final state: Pending
+[2023-09-18T02:37:41] INFO    Boiling water over the tea in ./teatime/cup: Initial state: Pending
+[2023-09-18T02:37:41] INFO    Boiling water over the tea in ./teatime/cup: Checking required tasks
+[2023-09-18T02:37:41] INFO    Tea bag in ./teatime/cup: Initial state: Pending
+[2023-09-18T02:37:41] INFO    Tea bag in ./teatime/cup: Checking required tasks
+[2023-09-18T02:37:41] INFO    Tea bag in ./teatime/cup: Ready
+[2023-09-18T02:37:41] INFO    Tea bag in ./teatime/cup: Executing
+[2023-09-18T02:37:41] INFO    Tea bag in ./teatime/cup: Final state: Ready
+[2023-09-18T02:37:41] INFO    Boiling water over the tea in ./teatime/cup: Ready
+[2023-09-18T02:37:41] INFO    Boiling water over the tea in ./teatime/cup: Executing
+[2023-09-18T02:37:41] INFO    Boiling water over the tea in ./teatime/cup: Final state: Ready
+[2023-09-18T02:37:41] INFO    Steeped tea in ./teatime/cup: Initial state: Pending
+[2023-09-18T02:37:41] INFO    Steeped tea in ./teatime/cup: Checking required tasks
+[2023-09-18T02:37:41] INFO    Tea steeping for 9s more
+[2023-09-18T02:37:41] INFO    Steeped tea in ./teatime/cup: Ready
+[2023-09-18T02:37:41] INFO    Steeped tea in ./teatime/cup: Executing
+[2023-09-18T02:37:41] WARNING Steeped tea in ./teatime/cup: Final state: Pending
 ```
 
 After waiting for the tea to steep:
 
 ``` bash
-
+% iotaa src/iotaa/demo.py steeped_tea ./teatime/cup
+[2023-09-18T02:38:01] INFO    Steeped tea in ./teatime/cup: Initial state: Ready
 ```
