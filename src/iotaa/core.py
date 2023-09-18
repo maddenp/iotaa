@@ -14,7 +14,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Union
 
-_state = ns(dry_run_enabled=False)
+_state = ns(dry_run_enabled=False, initialized=False)
 
 
 # Public API
@@ -40,6 +40,7 @@ def dryrun() -> None:
     """
     Enable iotaa's dry-run mode.
     """
+
     _state.dry_run_enabled = True
 
 
@@ -50,6 +51,7 @@ def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
     :param assets: A collection of iotaa assets.
     :return: A dict of asset identity objects.
     """
+
     if isinstance(assets, dict):
         return {k: v.id for k, v in assets.items()}
     if isinstance(assets, list):
@@ -63,6 +65,7 @@ def logcfg(verbose: Optional[bool] = False) -> None:
     """
     Configure iotaa default logging.
     """
+
     logging.basicConfig(
         datefmt="%Y-%m-%dT%H:%M:%S",
         format="[%(asctime)s] %(levelname)-7s %(message)s",
@@ -111,6 +114,7 @@ def run(
     :param log: Log output from successful cmd? (Error output is always logged.)
     :return: Did cmd exit with 0 (success) status?
     """
+
     logging.info("%s: Running: %s", taskname, cmd)
     if cwd:
         logging.info("%s:     in %s", taskname, cwd)
@@ -164,10 +168,13 @@ def task(f) -> Callable[..., _Assets]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _Assets:
+        i_am_top_task = _am_i_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _assets(next(g))
-        _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname, initial=True)
+        ready = all(a.ready() for a in _extract(assets))
+        if i_am_top_task or not ready:
+            _readiness(ready=ready, taskname=taskname, initial=True)
         for a in _extract(assets):
             if not a.ready():
                 req_assets = _delegate(g, taskname)
@@ -189,18 +196,33 @@ def tasks(f) -> Callable[..., _Assets]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _Assets:
+        i_am_top_task = _am_i_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
+        _readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
-        _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname)
+        ready = all(a.ready() for a in _extract(assets))
+        if i_am_top_task or not ready:
+            _readiness(ready=ready, taskname=taskname)
         return assets
 
     return decorated_tasks
 
 
-
-
 # Private functions
+
+
+def _am_i_top_task() -> bool:
+    """
+    Is the calling task the first to execute in the workflow?
+
+    :return: Is it?
+    """
+
+    if _state.initialized:
+        return False
+    _state.initialized = True
+    return True
 
 
 def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
@@ -210,6 +232,7 @@ def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
     :param x: A singe asset, a None object or a dict or list of assets.
     :return: A possibly empty iterable collecton of assets.
     """
+
     if x is None:
         return []
     if isinstance(x, asset):
@@ -231,7 +254,7 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     # of each of those CALLS are asset collections -- also dicts, lists, scalars or None. A flat
     # list of all the assets, filetered of None objects, is constructed and returned.
 
-    logging.info("%s: Evaluating requirements", taskname)
+    logging.info("%s: Checking required tasks", taskname)
     flat: list = []
     for a in _assets(next(g)):
         flat += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
@@ -245,6 +268,7 @@ def _execute(g: Generator, taskname: str) -> None:
     :param g: The current task.
     :param taskname: The current task's name.
     """
+
     if _state.dry_run_enabled:
         logging.info("%s: SKIPPING (DRY RUN ENABLED)", taskname)
         return
@@ -261,6 +285,7 @@ def _extract(assets: _Assets) -> Generator:
 
     :param assets: A collection of iotaa assets.
     """
+
     for a in assets if isinstance(assets, list) else assets.values():
         yield a
 
@@ -271,6 +296,7 @@ def _formatter(prog: str) -> HelpFormatter:
 
     :param prog: The program name.
     """
+
     return HelpFormatter(prog, max_help_position=4)
 
 
@@ -281,6 +307,7 @@ def _parse_args(raw: List[str]) -> Namespace:
     :param args: Raw command-line arguments.
     :return: Parsed command-line arguments.
     """
+
     parser = ArgumentParser(add_help=False, formatter_class=_formatter)
     parser.add_argument("module", help="application module", type=str)
     parser.add_argument("function", help="task function", type=str)
@@ -303,6 +330,7 @@ def _readiness(
     :param external_: Is this an @external task?
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
+
     extmsg = " (EXTERNAL)" if external_ and not ready else ""
     logf = logging.info if initial or ready else logging.warning
     logf(
@@ -320,6 +348,7 @@ def _reify(s: str) -> Any:
 
     :param s: The string to convert.
     """
+
     try:
         return loads(s)
     except JSONDecodeError:

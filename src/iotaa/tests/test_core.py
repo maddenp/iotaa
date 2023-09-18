@@ -274,7 +274,7 @@ def test__delegate_none(caplog):
         yield None
 
     assert not ic._delegate(f(), "task")
-    assert logged("task: Evaluating requirements", caplog)
+    assert logged("task: Checking required tasks", caplog)
 
 
 @fixture
@@ -290,7 +290,7 @@ def test__delegate_scalar(caplog, delegate_assets):
         yield a1
 
     assert ic._delegate(f(), "task") == [a1]
-    assert logged("task: Evaluating requirements", caplog)
+    assert logged("task: Checking required tasks", caplog)
 
 
 def test__delegate_empty_dict_and_empty_list(caplog):
@@ -300,7 +300,7 @@ def test__delegate_empty_dict_and_empty_list(caplog):
         yield [{}, []]
 
     assert not ic._delegate(f(), "task")
-    assert logged("task: Evaluating requirements", caplog)
+    assert logged("task: Checking required tasks", caplog)
 
 
 def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
@@ -311,7 +311,7 @@ def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
         yield [{"foo": a1, "bar": a2}, [a3, a4]]
 
     assert ic._delegate(f(), "task") == [a1, a2, a3, a4]
-    assert logged("task: Evaluating requirements", caplog)
+    assert logged("task: Checking required tasks", caplog)
 
 
 def test__delegate_none_and_scalar(caplog, delegate_assets):
@@ -322,7 +322,7 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
         yield [None, a1]
 
     assert ic._delegate(f(), "task") == [a1]
-    assert logged("task: Evaluating requirements", caplog)
+    assert logged("task: Checking required tasks", caplog)
 
 
 def test__execute_dry_run(caplog, rungen):
