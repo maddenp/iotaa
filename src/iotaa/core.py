@@ -145,7 +145,7 @@ def external(f) -> Callable[..., _Assets]:
     """
 
     @cache
-    def d(*args, **kwargs) -> _Assets:
+    def decorated_external(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _assets(next(g))
@@ -154,7 +154,7 @@ def external(f) -> Callable[..., _Assets]:
                 _readiness(ready=False, taskname=taskname, external_=True)
         return assets
 
-    return d
+    return decorated_external
 
 
 def task(f) -> Callable[..., _Assets]:
@@ -163,7 +163,7 @@ def task(f) -> Callable[..., _Assets]:
     """
 
     @cache
-    def d(*args, **kwargs) -> _Assets:
+    def decorated_task(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _assets(next(g))
@@ -179,7 +179,7 @@ def task(f) -> Callable[..., _Assets]:
                 _readiness(ready=a.ready(), taskname=taskname)
         return assets
 
-    return d
+    return decorated_task
 
 
 def tasks(f) -> Callable[..., _Assets]:
@@ -188,14 +188,16 @@ def tasks(f) -> Callable[..., _Assets]:
     """
 
     @cache
-    def d(*args, **kwargs) -> _Assets:
+    def decorated_tasks(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _delegate(g, taskname)
         _readiness(ready=all(a.ready() for a in _extract(assets)), taskname=taskname)
         return assets
 
-    return d
+    return decorated_tasks
+
+
 
 
 # Private functions

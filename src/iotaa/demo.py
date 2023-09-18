@@ -31,7 +31,7 @@ def cup(basedir):
 @task
 def steeped_tea_with_sugar(cupdir):
     # Add sugar to the steeped tea.
-    for x in ingredient(cupdir, "sugar", "Steeped tea with suagar", steeped_tea):
+    for x in ingredient(cupdir, "sugar", "Steeped tea with sugar", steeped_tea):
         yield x
 
 
