@@ -7,5 +7,5 @@ bash $f -bfp conda
   set -e +ux
   source conda/etc/profile.d/conda.sh
   conda activate
-  conda install -qy anaconda-client condev
+  conda install -qy -c maddenp anaconda-client condev
 )
