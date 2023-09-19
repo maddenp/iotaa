@@ -121,8 +121,8 @@ def test_ids_dict():
     asset = ic.asset(id="bar", ready=lambda: True)
     assert ic.ids(assets={"foo": asset})["foo"] == expected
     assert ic.ids(assets=[asset])[0] == expected
-    assert ic.ids(assets=asset)[0] == expected
-    assert ic.ids(assets=None) == {}
+    assert ic.ids(assets=asset) == expected
+    assert ic.ids(assets=None) is None
 
 
 @pytest.mark.parametrize("vals", [(False, ic.logging.INFO), (True, ic.logging.DEBUG)])
@@ -210,9 +210,9 @@ def test_external_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    assets = ic._extract(external_foo_scalar(tmp_path))
-    assert ic.ids(assets)[0] == f
-    assert assets[0].ready()
+    asset = next(ic._extract(external_foo_scalar(tmp_path)))
+    assert ic.ids(asset) == f
+    assert asset.ready()
 
 
 def test_task_not_ready(caplog, task_bar_dict, tmp_path):
@@ -350,10 +350,11 @@ def test__i_am_top_task(val):
 
 def test__iterable():
     a = ic.asset(id=None, ready=lambda: True)
-    assert ic._iterable(x=None) == []
-    assert ic._iterable(x=a) == [a]
-    assert ic._iterable(x=[a]) == [a]
-    assert ic._iterable(x={"a": a}) == [a]
+    assert ic._iterable(assets=None) == []
+    assert ic._iterable(assets=a) == [a]
+    assert ic._iterable(assets=[a]) == [a]
+    assert ic._iterable(assets={"a": a}) == {"a": a}
+    assert ic._iterable(assets={"a": a}, dict_to_list=True) == [a]
 
 
 def test__parse_args():

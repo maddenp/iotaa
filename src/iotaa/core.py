@@ -33,7 +33,8 @@ class asset:
     ready: Callable
 
 
-_Assets = Union[Dict[str, asset], List[asset]]
+_AssetColl = Union[Dict[str, asset], List[asset]]
+_Assets = Optional[Union[_AssetColl, asset]]
 
 
 def dryrun() -> None:
@@ -44,12 +45,12 @@ def dryrun() -> None:
     _state.dry_run_enabled = True
 
 
-def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
+def ids(assets: _Assets) -> Any:
     """
     Extract and return asset identity objects (e.g. paths to files).
 
-    :param assets: A collection of assets.
-    :return: A dict of asset identity objects.
+    :param assets: A collection of assets, one asset, or None.
+    :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
     """
 
     if isinstance(assets, dict):
@@ -57,11 +58,11 @@ def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
     if isinstance(assets, list):
         return {i: v.id for i, v in enumerate(assets)}
     if isinstance(assets, asset):
-        return {0: assets.id}
-    return {}
+        return assets.id
+    return None
 
 
-def logcfg(verbose: Optional[bool] = False) -> None:
+def logcfg(verbose: bool = False) -> None:
     """
     Configure default logging.
     """
@@ -249,12 +250,12 @@ def _execute(g: Generator, taskname: str) -> None:
 
 def _extract(assets: _Assets) -> Generator:
     """
-    Extract and yield individual assets from asset collections.
+    Extract and yield individual assets.
 
-    :param assets: A collection of assets.
+    :param assets: A collection of assets, one asset, or None.
     """
 
-    for a in assets if isinstance(assets, list) else assets.values():
+    for a in _iterable(assets, dict_to_list=True):
         yield a
 
 
@@ -281,21 +282,22 @@ def _i_am_top_task() -> bool:
     return True
 
 
-def _iterable(x: Optional[Union[Dict, List, asset]]) -> _Assets:
+def _iterable(assets: _Assets, dict_to_list: bool = False) -> _AssetColl:
     """
     Create an asset list when the argument is not already itearble.
 
-    :param x: A singe asset, a None object or a dict or list of assets.
+    :param assets: A collection of assets, one asset, or None.
+    :param dict_to_list: Return dict values as a list?
     :return: A possibly empty iterable collecton of assets.
     """
 
-    if x is None:
+    if assets is None:
         return []
-    if isinstance(x, asset):
-        return [x]
-    if isinstance(x, dict):
-        return list(x.values())
-    return x
+    if isinstance(assets, asset):
+        return [assets]
+    if isinstance(assets, dict) and dict_to_list:
+        return list(assets.values())
+    return assets
 
 
 def _parse_args(raw: List[str]) -> Namespace:
