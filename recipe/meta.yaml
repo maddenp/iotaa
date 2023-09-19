@@ -6,6 +6,11 @@ source:
 build:
   include_recipe: false
   number: 0
+requirements:
+  build:
+    - pip
+  host:
+    - python
 test:
   requires:
     - black
