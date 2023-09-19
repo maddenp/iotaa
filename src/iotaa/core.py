@@ -8,6 +8,7 @@ from argparse import ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass
 from functools import cache
 from importlib import import_module
+from itertools import chain
 from json import JSONDecodeError, loads
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
@@ -23,10 +24,10 @@ _state = ns(dry_run_enabled=False, initialized=False)
 @dataclass
 class asset:
     """
-    Description of a workflow asset.
+    A workflow asset (observable external state).
 
-    :ivar id: The asset itself (e.g. a path string or pathlib Path object). :ivar ready: A function
-    that, when called, indicates whether the asset is ready to use.
+    :param id: An object uniquely identifying the asset (e.g. a filesystem path).
+    :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
 
     id: Any
@@ -34,6 +35,7 @@ class asset:
 
 
 _Assets = Union[Dict[str, asset], List[asset]]
+_AssetT = Optional[Union[_Assets, asset]]
 
 
 def dryrun() -> None:
@@ -44,26 +46,32 @@ def dryrun() -> None:
     _state.dry_run_enabled = True
 
 
-def ids(assets: Union[_Assets, asset, None]) -> Dict[Union[int, str], Any]:
+def ids(assets: _AssetT) -> Any:
     """
-    Extract and return asset identity objects (e.g. paths to files).
+    Extract and return asset identity objects.
 
-    :param assets: A collection of assets.
-    :return: A dict of asset identity objects.
+    :param assets: A collection of assets, one asset, or None.
+    :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
+        as the provided assets.
     """
+
+    # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
+    # scalar types are included in a compound type.
 
     if isinstance(assets, dict):
         return {k: v.id for k, v in assets.items()}
     if isinstance(assets, list):
         return {i: v.id for i, v in enumerate(assets)}
     if isinstance(assets, asset):
-        return {0: assets.id}
-    return {}
+        return assets.id
+    return None
 
 
-def logcfg(verbose: Optional[bool] = False) -> None:
+def logcfg(verbose: bool = False) -> None:
     """
     Configure default logging.
+
+    :param bool: Log at the debug level?
     """
 
     logging.basicConfig(
@@ -115,13 +123,14 @@ def run(
     :return: Did cmd exit with 0 (success) status?
     """
 
+    indent = "    "
     logging.info("%s: Running: %s", taskname, cmd)
     if cwd:
-        logging.info("%s:     in %s", taskname, cwd)
+        logging.info("%s: %sin %s", taskname, indent, cwd)
     if env:
-        logging.info("%s:     with environment variables:", taskname)
+        logging.info("%s: %swith environment variables:", taskname, indent)
         for key, val in env.items():
-            logging.info("%s:         %s=%s", taskname, key, val)
+            logging.info("%s: %s%s=%s", taskname, indent * 2, key, val)
     try:
         output = check_output(
             cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
@@ -130,80 +139,81 @@ def run(
         success = True
     except CalledProcessError as e:
         output = e.output
-        logging.error("%s:     Failed with status: %s", taskname, e.returncode)
+        logging.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
         logfunc = logging.error
         success = False
     if output and (log or not success):
-        logfunc("%s:     Output:", taskname)
+        logfunc("%s: %sOutput:", taskname, indent)
         for line in output.split("\n"):
-            logfunc("%s:         %s", taskname, line)
+            logfunc("%s: %s%s", taskname, indent * 2, line)
     return success
 
 
 # Decorators
 
 
-def external(f) -> Callable[..., _Assets]:
+def external(f) -> Callable[..., _AssetT]:
     """
     The @external decorator for assets that cannot be produced by the workflow.
     """
 
     @cache
-    def decorated_external(*args, **kwargs) -> _Assets:
+    def decorated_external(*args, **kwargs) -> _AssetT:
+        top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _assets(next(g))
-        for a in _extract(assets):
-            if not a.ready():
-                _readiness(ready=False, taskname=taskname, external_=True)
+        assets = next(g)
+        ready = all(a.ready() for a in _listify(assets))
+        if not ready or top:
+            _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return assets
 
     return decorated_external
 
 
-def task(f) -> Callable[..., _Assets]:
+def task(f) -> Callable[..., _AssetT]:
     """
     The @task decorator for assets that the workflow can produce.
     """
 
     @cache
-    def decorated_task(*args, **kwargs) -> _Assets:
-        i_am_top_task = _am_i_top_task()
+    def decorated_task(*args, **kwargs) -> _AssetT:
+        top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _assets(next(g))
-        ready = all(a.ready() for a in _extract(assets))
-        if i_am_top_task or not ready:
-            _readiness(ready=ready, taskname=taskname, initial=True)
-        for a in _extract(assets):
-            if not a.ready():
-                req_assets = _delegate(g, taskname)
-                if all(req_asset.ready() for req_asset in req_assets):
-                    logging.info("%s: Ready", taskname)
-                    _execute(g, taskname)
-                else:
-                    logging.info("%s: Pending", taskname)
-                _readiness(ready=a.ready(), taskname=taskname)
+        assets = next(g)
+        ready_initial = all(a.ready() for a in _listify(assets))
+        if not ready_initial or top:
+            _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
+        if not ready_initial:
+            if all(req_asset.ready() for req_asset in _delegate(g, taskname)):
+                logging.info("%s: Ready", taskname)
+                _execute(g, taskname)
+            else:
+                logging.info("%s: Pending", taskname)
+                _report_readiness(ready=False, taskname=taskname)
+        ready_final = all(a.ready() for a in _listify(assets))
+        if ready_final != ready_initial:
+            _report_readiness(ready=ready_final, taskname=taskname)
         return assets
 
     return decorated_task
 
 
-def tasks(f) -> Callable[..., _Assets]:
+def tasks(f) -> Callable[..., _AssetT]:
     """
-    The @tasks decorator for collections of @task functions.
+    The @tasks decorator for collections of @task function calls.
     """
 
     @cache
-    def decorated_tasks(*args, **kwargs) -> _Assets:
-        i_am_top_task = _am_i_top_task()
+    def decorated_tasks(*args, **kwargs) -> _AssetT:
+        top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
-        _readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
-        ready = all(a.ready() for a in _extract(assets))
-        if i_am_top_task or not ready:
-            _readiness(ready=ready, taskname=taskname)
+        ready = all(a.ready() for a in _listify(assets))
+        if not ready or top:
+            _report_readiness(ready=ready, taskname=taskname)
         return assets
 
     return decorated_tasks
@@ -212,58 +222,27 @@ def tasks(f) -> Callable[..., _Assets]:
 # Private functions
 
 
-def _am_i_top_task() -> bool:
-    """
-    Is the calling task the first to execute in the workflow?
-
-    :return: Is it?
-    """
-
-    if _state.initialized:
-        return False
-    _state.initialized = True
-    return True
-
-
-def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
-    """
-    Create an asset list when the argument is not already itearble.
-
-    :param x: A singe asset, a None object or a dict or list of assets.
-    :return: A possibly empty iterable collecton of assets.
-    """
-
-    if x is None:
-        return []
-    if isinstance(x, asset):
-        return [x]
-    return x
-
-
 def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
     Delegate execution to the current task's requirement(s).
 
     :param g: The current task.
     :param taskname: The current task's name.
-    :return: The assets of the required task(s), and the task name.
+    :return: The assets of the required task(s).
     """
 
     # The next value of the generator is the collection of requirements of the current task. This
-    # may be a dict or list of task-function calls, a single task-function call, or None. The VALUES
-    # of each of those CALLS are asset collections -- also dicts, lists, scalars or None. A flat
-    # list of all the assets, filetered of None objects, is constructed and returned.
+    # may be a dict or list of task-function calls, a single task-function call, or None, so convert
+    # it to a list for iteration. The value of each task-function call is a collection of assets,
+    # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     logging.info("%s: Checking required tasks", taskname)
-    flat: list = []
-    for a in _assets(next(g)):
-        flat += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
-    return list(filter(None, flat))
+    return list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
 
 
 def _execute(g: Generator, taskname: str) -> None:
     """
-    Execute the body of a decorated function.
+    Execute the post-yield body of a decorated function.
 
     :param g: The current task.
     :param taskname: The current task's name.
@@ -279,25 +258,60 @@ def _execute(g: Generator, taskname: str) -> None:
         pass
 
 
-def _extract(assets: _Assets) -> Generator:
-    """
-    Extract and yield individual assets from asset collections.
-
-    :param assets: A collection of assets.
-    """
-
-    for a in assets if isinstance(assets, list) else assets.values():
-        yield a
-
-
 def _formatter(prog: str) -> HelpFormatter:
     """
     Help-message formatter.
 
     :param prog: The program name.
+    :return: An argparse help formatter.
     """
 
     return HelpFormatter(prog, max_help_position=4)
+
+
+def _i_am_top_task() -> bool:
+    """
+    Is the calling task the task-tree entry point?
+
+    :return: Is it?
+    """
+
+    if _state.initialized:
+        return False
+    _state.initialized = True
+    return True
+
+
+def _iterable(assets: _AssetT) -> _Assets:
+    """
+    Create an asset list when the argument is not already itearble.
+
+    :param assets: A collection of assets, one asset, or None.
+    :return: A possibly empty iterable collecton of assets.
+    """
+
+    if assets is None:
+        return []
+    if isinstance(assets, asset):
+        return [assets]
+    return assets
+
+
+def _listify(assets: _AssetT) -> List[asset]:
+    """
+    Return a list representation of the provided asset(s).
+
+    :param assets: A collection of assets, one asset, or None.
+    :return: A possibly empty list of assets.
+    """
+
+    if assets is None:
+        return []
+    if isinstance(assets, asset):
+        return [assets]
+    if isinstance(assets, dict):
+        return list(assets.values())
+    return assets
 
 
 def _parse_args(raw: List[str]) -> Namespace:
@@ -319,19 +333,33 @@ def _parse_args(raw: List[str]) -> Namespace:
     return parser.parse_args(raw)
 
 
-def _readiness(
-    ready: bool, taskname: str, external_: Optional[bool] = False, initial: Optional[bool] = False
+def _reify(s: str) -> Any:
+    """
+    Convert strings, when possible, to more specifically typed objects.
+
+    :param s: The string to convert.
+    :return: A more Pythonic represetnation of the input string.
+    """
+
+    try:
+        return loads(s)
+    except JSONDecodeError:
+        return loads(f'"{s}"')
+
+
+def _report_readiness(
+    ready: bool, taskname: str, is_external: Optional[bool] = False, initial: Optional[bool] = False
 ) -> None:
     """
     Log information about the readiness of an asset.
 
     :param ready: Is the asset ready to use?
     :param taskname: The current task's name.
-    :param external_: Is this an @external task?
+    :param is_external: Is this an @external task?
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
 
-    extmsg = " (EXTERNAL)" if external_ and not ready else ""
+    extmsg = " (EXTERNAL)" if is_external and not ready else ""
     logf = logging.info if initial or ready else logging.warning
     logf(
         "%s: %s state: %s%s",
@@ -340,16 +368,3 @@ def _readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
-
-
-def _reify(s: str) -> Any:
-    """
-    Convert strings, when possible, to more specifically types.
-
-    :param s: The string to convert.
-    """
-
-    try:
-        return loads(s)
-    except JSONDecodeError:
-        return loads(f'"{s}"')

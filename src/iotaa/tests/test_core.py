@@ -19,7 +19,12 @@ import iotaa.core as ic
 
 
 @fixture
-def external_foo_scalar_dict():
+def delegate_assets():
+    return (ic.asset(id=n, ready=lambda: True) for n in range(4))
+
+
+@fixture
+def external_foo_scalar():
     @ic.external
     def foo(path):
         f = path / "foo"
@@ -27,6 +32,18 @@ def external_foo_scalar_dict():
         yield ic.asset(f, f.is_file)
 
     return foo
+
+
+@fixture
+def module_for_main(tmp_path):
+    func = """
+def hi(x):
+    print(f"hello {x}!")
+""".strip()
+    m = tmp_path / "a.py"
+    with open(m, "w", encoding="utf-8") as f:
+        print(func, file=f)
+    return m
 
 
 @fixture
@@ -42,37 +59,37 @@ def rungen():
 
 
 @fixture
-def task_bar_list(external_foo_scalar_dict):
+def task_bar_list(external_foo_scalar):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield [ic.asset(f, f.is_file)]
-        yield [external_foo_scalar_dict(path)]
+        yield [external_foo_scalar(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def task_bar_dict(external_foo_scalar_dict):
+def task_bar_dict(external_foo_scalar):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield {"path": ic.asset(f, f.is_file)}
-        yield [external_foo_scalar_dict(path)]
+        yield [external_foo_scalar(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def tasks_baz(external_foo_scalar_dict, task_bar_dict):
+def tasks_baz(external_foo_scalar, task_bar_dict):
     @ic.tasks
     def baz(path):
         yield "tasks baz"
-        yield [external_foo_scalar_dict(path), task_bar_dict(path)]
+        yield [external_foo_scalar(path), task_bar_dict(path)]
 
     return baz
 
@@ -104,8 +121,8 @@ def test_ids_dict():
     asset = ic.asset(id="bar", ready=lambda: True)
     assert ic.ids(assets={"foo": asset})["foo"] == expected
     assert ic.ids(assets=[asset])[0] == expected
-    assert ic.ids(assets=asset)[0] == expected
-    assert ic.ids(assets=None) == {}
+    assert ic.ids(assets=asset) == expected
+    assert ic.ids(assets=None) is None
 
 
 @pytest.mark.parametrize("vals", [(False, ic.logging.INFO), (True, ic.logging.DEBUG)])
@@ -114,18 +131,6 @@ def test_logcfg(vals):
     with patch.object(ic.logging, "basicConfig") as basicConfig:
         ic.logcfg(verbose=verbose)
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
-
-
-@fixture
-def module_for_main(tmp_path):
-    func = """
-def hi(x):
-    print(f"hello {x}!")
-""".strip()
-    m = tmp_path / "a.py"
-    with open(m, "w", encoding="utf-8") as f:
-        print(func, file=f)
-    return m
 
 
 def test_main_live_abspath(capsys, module_for_main):
@@ -193,28 +198,28 @@ def test_run_success(caplog, tmp_path):
 # Decorator tests
 
 
-def test_external_not_ready(external_foo_scalar_dict, tmp_path):
+def test_external_not_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = list(ic._extract(external_foo_scalar_dict(tmp_path)))
+    assets = list(ic._listify(external_foo_scalar(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert not assets[0].ready()
 
 
-def test_external_ready(external_foo_scalar_dict, tmp_path):
+def test_external_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    assets = list(ic._extract(external_foo_scalar_dict(tmp_path)))
-    assert ic.ids(assets)[0] == f
-    assert assets[0].ready()
+    asset = external_foo_scalar(tmp_path)
+    assert ic.ids(asset) == f
+    assert asset.ready()
 
 
 def test_task_not_ready(caplog, task_bar_dict, tmp_path):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(ic._extract(task_bar_dict(tmp_path)))
+    assets = list(ic._listify(task_bar_dict(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
@@ -227,7 +232,7 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = list(ic._extract(task_bar_list(tmp_path)))
+    assets = list(ic._listify(task_bar_list(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
@@ -237,7 +242,7 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
 def test_tasks_not_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(ic._extract(tasks_baz(tmp_path)))
+    assets = list(ic._listify(tasks_baz(tmp_path)))
     assert ic.ids(assets)[0] == f_foo
     assert ic.ids(assets)[1] == f_bar
     assert not any(x.ready() for x in assets)
@@ -249,7 +254,7 @@ def test_tasks_ready(tasks_baz, tmp_path):
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = list(ic._extract(tasks_baz(tmp_path)))
+    assets = list(ic._listify(tasks_baz(tmp_path)))
     assert ic.ids(assets)[0] == f_foo
     assert ic.ids(assets)[1] == f_bar
     assert all(x.ready() for x in assets)
@@ -257,20 +262,6 @@ def test_tasks_ready(tasks_baz, tmp_path):
 
 
 # Private function tests
-
-
-@pytest.mark.parametrize("val", [True, False])
-def test__am_i_top_task(val):
-    with patch.object(ic, "_state", new=ic.ns(initialized=not val)):
-        assert ic._am_i_top_task() == val
-
-
-def test__assets():
-    a = ic.asset(id=None, ready=lambda: True)
-    assert ic._assets(x=None) == []
-    assert ic._assets(x=a) == [a]
-    assert ic._assets(x=[a]) == [a]
-    assert ic._assets(x={"a": a}) == {"a": a}
 
 
 def test__delegate_none(caplog):
@@ -281,11 +272,6 @@ def test__delegate_none(caplog):
 
     assert not ic._delegate(f(), "task")
     assert logged("task: Checking required tasks", caplog)
-
-
-@fixture
-def delegate_assets():
-    return (ic.asset(id=n, ready=lambda: True) for n in range(4))
 
 
 def test__delegate_scalar(caplog, delegate_assets):
@@ -342,18 +328,32 @@ def test__execute_live(caplog, rungen):
     assert logged("task: Executing", caplog)
 
 
-def test__extract():
-    expected = {0: "foo", 1: "bar"}
-    ready = lambda: True
-    asset_foo, asset_bar = ic.asset("foo", ready), ic.asset("bar", ready)
-    assert ic.ids(list(ic._extract(assets={"foo": asset_foo, "bar": asset_bar}))) == expected
-    assert ic.ids(list(ic._extract(assets=[asset_foo, asset_bar]))) == expected
-
-
 def test__formatter():
     formatter = ic._formatter("foo")
     assert isinstance(formatter, ic.HelpFormatter)
     assert formatter._prog == "foo"
+
+
+@pytest.mark.parametrize("val", [True, False])
+def test__i_am_top_task(val):
+    with patch.object(ic, "_state", new=ic.ns(initialized=not val)):
+        assert ic._i_am_top_task() == val
+
+
+def test__iterable():
+    a = ic.asset(id=None, ready=lambda: True)
+    assert ic._iterable(assets=None) == []
+    assert ic._iterable(assets=a) == [a]
+    assert ic._iterable(assets=[a]) == [a]
+    assert ic._iterable(assets={"a": a}) == {"a": a}
+
+
+def test__listify():
+    a = ic.asset(id=None, ready=lambda: True)
+    assert ic._listify(assets=None) == []
+    assert ic._listify(assets=a) == [a]
+    assert ic._listify(assets=[a]) == [a]
+    assert ic._listify(assets={"a": a}) == [a]
 
 
 def test__parse_args():
@@ -381,6 +381,11 @@ def test__parse_args():
     assert e.value.code == 2
 
 
+def test__reify():
+    strs = ["foo", "88", "3.14", "true"]
+    assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
+
+
 @pytest.mark.parametrize(
     "vals",
     [
@@ -388,13 +393,8 @@ def test__parse_args():
         (False, True, False, "Final state: Pending (EXTERNAL)"),
     ],
 )
-def test__readiness(caplog, vals):
+def test__report_readiness(caplog, vals):
     ready, ext, init, msg = vals
     ic.logging.getLogger().setLevel(ic.logging.INFO)
-    ic._readiness(ready=ready, taskname="task", external_=ext, initial=init)
+    ic._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
-
-
-def test__reify():
-    strs = ["foo", "88", "3.14", "true"]
-    assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
