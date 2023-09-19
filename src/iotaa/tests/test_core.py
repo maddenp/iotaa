@@ -259,12 +259,6 @@ def test_tasks_ready(tasks_baz, tmp_path):
 # Private function tests
 
 
-@pytest.mark.parametrize("val", [True, False])
-def test__am_i_top_task(val):
-    with patch.object(ic, "_state", new=ic.ns(initialized=not val)):
-        assert ic._am_i_top_task() == val
-
-
 def test__assets():
     a = ic.asset(id=None, ready=lambda: True)
     assert ic._assets(x=None) == []
@@ -356,6 +350,12 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
+@pytest.mark.parametrize("val", [True, False])
+def test__i_am_top_task(val):
+    with patch.object(ic, "_state", new=ic.ns(initialized=not val)):
+        assert ic._i_am_top_task() == val
+
+
 def test__parse_args():
     # Specifying module, function, and two args (standard logging):
     a0 = ic._parse_args(raw="a_module a_function arg1 arg2".split(" "))
@@ -381,6 +381,11 @@ def test__parse_args():
     assert e.value.code == 2
 
 
+def test__reify():
+    strs = ["foo", "88", "3.14", "true"]
+    assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]
+
+
 @pytest.mark.parametrize(
     "vals",
     [
@@ -388,13 +393,8 @@ def test__parse_args():
         (False, True, False, "Final state: Pending (EXTERNAL)"),
     ],
 )
-def test__readiness(caplog, vals):
+def test__report_readiness(caplog, vals):
     ready, ext, init, msg = vals
     ic.logging.getLogger().setLevel(ic.logging.INFO)
-    ic._readiness(ready=ready, taskname="task", external_=ext, initial=init)
+    ic._report_readiness(ready=ready, taskname="task", external_=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
-
-
-def test__reify():
-    strs = ["foo", "88", "3.14", "true"]
-    assert [ic._reify(s) for s in strs] == ["foo", 88, 3.14, True]

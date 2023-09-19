@@ -155,7 +155,7 @@ def external(f) -> Callable[..., _Assets]:
         assets = _assets(next(g))
         for a in _extract(assets):
             if not a.ready():
-                _readiness(ready=False, taskname=taskname, external_=True)
+                _report_readiness(ready=False, taskname=taskname, external_=True)
         return assets
 
     return decorated_external
@@ -168,22 +168,19 @@ def task(f) -> Callable[..., _Assets]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _Assets:
-        i_am_top_task = _am_i_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _assets(next(g))
         ready = all(a.ready() for a in _extract(assets))
-        if i_am_top_task or not ready:
-            _readiness(ready=ready, taskname=taskname, initial=True)
-        for a in _extract(assets):
-            if not a.ready():
-                req_assets = _delegate(g, taskname)
-                if all(req_asset.ready() for req_asset in req_assets):
-                    logging.info("%s: Ready", taskname)
-                    _execute(g, taskname)
-                else:
-                    logging.info("%s: Pending", taskname)
-                _readiness(ready=a.ready(), taskname=taskname)
+        if not ready or _i_am_top_task():
+            _report_readiness(ready=ready, taskname=taskname, initial=True)
+        if not ready:
+            if all(req_asset.ready() for req_asset in _delegate(g, taskname)):
+                logging.info("%s: Ready", taskname)
+                _execute(g, taskname)
+            else:
+                logging.info("%s: Pending", taskname)
+                _report_readiness(ready=False, taskname=taskname)
         return assets
 
     return decorated_task
@@ -196,33 +193,19 @@ def tasks(f) -> Callable[..., _Assets]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _Assets:
-        i_am_top_task = _am_i_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
-        _readiness(ready=False, taskname=taskname, initial=True)
+        _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
         ready = all(a.ready() for a in _extract(assets))
-        if i_am_top_task or not ready:
-            _readiness(ready=ready, taskname=taskname)
+        if not ready or _i_am_top_task():
+            _report_readiness(ready=ready, taskname=taskname)
         return assets
 
     return decorated_tasks
 
 
 # Private functions
-
-
-def _am_i_top_task() -> bool:
-    """
-    Is the calling task the first to execute in the workflow?
-
-    :return: Is it?
-    """
-
-    if _state.initialized:
-        return False
-    _state.initialized = True
-    return True
 
 
 def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
@@ -237,6 +220,8 @@ def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
         return []
     if isinstance(x, asset):
         return [x]
+    if isinstance(x, dict):
+        return list(x.values())
     return x
 
 
@@ -300,6 +285,19 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
+def _i_am_top_task() -> bool:
+    """
+    Is the calling task the first to execute in the workflow?
+
+    :return: Is it?
+    """
+
+    if _state.initialized:
+        return False
+    _state.initialized = True
+    return True
+
+
 def _parse_args(raw: List[str]) -> Namespace:
     """
     Parse command-line arguments.
@@ -319,7 +317,20 @@ def _parse_args(raw: List[str]) -> Namespace:
     return parser.parse_args(raw)
 
 
-def _readiness(
+def _reify(s: str) -> Any:
+    """
+    Convert strings, when possible, to more specifically types.
+
+    :param s: The string to convert.
+    """
+
+    try:
+        return loads(s)
+    except JSONDecodeError:
+        return loads(f'"{s}"')
+
+
+def _report_readiness(
     ready: bool, taskname: str, external_: Optional[bool] = False, initial: Optional[bool] = False
 ) -> None:
     """
@@ -340,16 +351,3 @@ def _readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
-
-
-def _reify(s: str) -> Any:
-    """
-    Convert strings, when possible, to more specifically types.
-
-    :param s: The string to convert.
-    """
-
-    try:
-        return loads(s)
-    except JSONDecodeError:
-        return loads(f'"{s}"')
