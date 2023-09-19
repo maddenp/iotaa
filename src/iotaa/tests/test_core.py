@@ -264,7 +264,7 @@ def test__assets():
     assert ic._assets(x=None) == []
     assert ic._assets(x=a) == [a]
     assert ic._assets(x=[a]) == [a]
-    assert ic._assets(x={"a": a}) == {"a": a}
+    assert ic._assets(x={"a": a}) == [a]
 
 
 def test__delegate_none(caplog):
