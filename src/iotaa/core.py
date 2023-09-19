@@ -2,13 +2,13 @@
 iotaa.core.
 """
 
-from itertools import chain
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass
 from functools import cache
 from importlib import import_module
+from itertools import chain
 from json import JSONDecodeError, loads
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
@@ -221,7 +221,7 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
 
     :param g: The current task.
     :param taskname: The current task's name.
-    :return: The assets of the required task(s), and the task name.
+    :return: The assets of the required task(s).
     """
 
     # The next value of the generator is the collection of requirements of the current task. This
@@ -231,12 +231,9 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
 
     logging.info("%s: Checking required tasks", taskname)
     assets = next(g)
-    flat = []
-    for a in _extract(assets):
-        flat += _iterable(a, dict_to_list=True)
-    x = filter(None, flat)
-    y = list(x)
-    return y
+    req_assets = list(_extract(assets))
+    b = [_listify(req_asset) for req_asset in req_assets]
+    return list(filter(None, chain(*b)))
 
 
 def _execute(g: Generator, taskname: str) -> None:
@@ -291,12 +288,11 @@ def _i_am_top_task() -> bool:
     return True
 
 
-def _iterable(assets: _AssetT, dict_to_list: bool = False) -> _Assets:
+def _iterable(assets: _AssetT) -> _Assets:
     """
     Create an asset list when the argument is not already itearble.
 
     :param assets: A collection of assets, one asset, or None.
-    :param dict_to_list: Return dict values as a list?
     :return: A possibly empty iterable collecton of assets.
     """
 
@@ -304,7 +300,22 @@ def _iterable(assets: _AssetT, dict_to_list: bool = False) -> _Assets:
         return []
     if isinstance(assets, asset):
         return [assets]
-    if isinstance(assets, dict) and dict_to_list:
+    return assets
+
+
+def _listify(assets: _AssetT) -> List[asset]:
+    """
+    Return a list representation of the provided asset(s).
+
+    :param assets: A collection of assets, one asset, or None.
+    :return: A possibly empty iterable list of assets.
+    """
+
+    if assets is None:
+        return []
+    if isinstance(assets, asset):
+        return [assets]
+    if isinstance(assets, dict):
         return list(assets.values())
     return assets
 

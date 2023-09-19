@@ -354,7 +354,14 @@ def test__iterable():
     assert ic._iterable(assets=a) == [a]
     assert ic._iterable(assets=[a]) == [a]
     assert ic._iterable(assets={"a": a}) == {"a": a}
-    assert ic._iterable(assets={"a": a}, dict_to_list=True) == [a]
+
+
+def test__listify():
+    a = ic.asset(id=None, ready=lambda: True)
+    assert ic._listify(assets=None) == []
+    assert ic._listify(assets=a) == [a]
+    assert ic._listify(assets=[a]) == [a]
+    assert ic._listify(assets={"a": a}) == [a]
 
 
 def test__parse_args():
