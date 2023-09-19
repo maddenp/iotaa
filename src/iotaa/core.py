@@ -182,18 +182,19 @@ def task(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = next(g)
-        ready = all(a.ready() for a in _listify(assets))
-        if not ready or top:
-            _report_readiness(ready=ready, taskname=taskname, initial=True)
-        if not ready:
+        ready_initial = all(a.ready() for a in _listify(assets))
+        if not ready_initial or top:
+            _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
+        if not ready_initial:
             if all(req_asset.ready() for req_asset in _delegate(g, taskname)):
                 logging.info("%s: Ready", taskname)
                 _execute(g, taskname)
             else:
                 logging.info("%s: Pending", taskname)
                 _report_readiness(ready=False, taskname=taskname)
-        ready = all(a.ready() for a in _listify(assets))
-        _report_readiness(ready=ready, taskname=taskname)
+        ready_final = all(a.ready() for a in _listify(assets))
+        if ready_final != ready_initial:
+            _report_readiness(ready=ready_final, taskname=taskname)
         return assets
 
     return decorated_task
