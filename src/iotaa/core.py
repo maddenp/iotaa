@@ -2,6 +2,7 @@
 iotaa.core.
 """
 
+from itertools import chain
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
@@ -229,10 +230,13 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     # list of all the assets, filetered of None objects, is constructed and returned.
 
     logging.info("%s: Checking required tasks", taskname)
-    flat: list = []
-    for a in _iterable(next(g)):
-        flat += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
-    return list(filter(None, flat))
+    assets = next(g)
+    flat = []
+    for a in _extract(assets):
+        flat += _iterable(a, dict_to_list=True)
+    x = filter(None, flat)
+    y = list(x)
+    return y
 
 
 def _execute(g: Generator, taskname: str) -> None:
