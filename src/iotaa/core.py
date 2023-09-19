@@ -192,6 +192,8 @@ def task(f) -> Callable[..., _AssetT]:
             else:
                 logging.info("%s: Pending", taskname)
                 _report_readiness(ready=False, taskname=taskname)
+        ready = all(a.ready() for a in _listify(assets))
+        _report_readiness(ready=ready, taskname=taskname)
         return assets
 
     return decorated_task
