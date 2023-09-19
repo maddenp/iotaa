@@ -159,7 +159,7 @@ def external(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = next(g)
-        ready = all(a.ready() for a in _extract(_iterable(assets)))
+        ready = all(a.ready() for a in _listify(assets))
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, external_=True)
         return assets
@@ -178,7 +178,7 @@ def task(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _iterable(next(g))
-        ready = all(a.ready() for a in _extract(assets))
+        ready = all(a.ready() for a in _listify(assets))
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, initial=True)
         if not ready:
@@ -204,7 +204,7 @@ def tasks(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _delegate(g, taskname)
-        ready = all(a.ready() for a in _extract(assets))
+        ready = all(a.ready() for a in _listify(assets))
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
         return assets
@@ -231,7 +231,7 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
 
     logging.info("%s: Checking required tasks", taskname)
     assets = next(g)
-    req_assets = list(_extract(assets))
+    req_assets = _listify(assets)
     b = [_listify(req_asset) for req_asset in req_assets]
     return list(filter(None, chain(*b)))
 
@@ -252,17 +252,6 @@ def _execute(g: Generator, taskname: str) -> None:
         next(g)
     except StopIteration:
         pass
-
-
-def _extract(assets: _AssetT) -> Generator:
-    """
-    Extract and yield individual assets.
-
-    :param assets: A collection of assets, one asset, or None.
-    """
-
-    for a in _iterable(assets, dict_to_list=True):
-        yield a
 
 
 def _formatter(prog: str) -> HelpFormatter:

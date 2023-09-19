@@ -201,7 +201,7 @@ def test_run_success(caplog, tmp_path):
 def test_external_not_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = list(ic._extract(external_foo_scalar(tmp_path)))
+    assets = list(ic._listify(external_foo_scalar(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert not assets[0].ready()
 
@@ -210,7 +210,7 @@ def test_external_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    asset = next(ic._extract(external_foo_scalar(tmp_path)))
+    asset = external_foo_scalar(tmp_path)
     assert ic.ids(asset) == f
     assert asset.ready()
 
@@ -219,7 +219,7 @@ def test_task_not_ready(caplog, task_bar_dict, tmp_path):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(ic._extract(task_bar_dict(tmp_path)))
+    assets = list(ic._listify(task_bar_dict(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
@@ -232,7 +232,7 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = list(ic._extract(task_bar_list(tmp_path)))
+    assets = list(ic._listify(task_bar_list(tmp_path)))
     assert ic.ids(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
@@ -242,7 +242,7 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
 def test_tasks_not_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(ic._extract(tasks_baz(tmp_path)))
+    assets = list(ic._listify(tasks_baz(tmp_path)))
     assert ic.ids(assets)[0] == f_foo
     assert ic.ids(assets)[1] == f_bar
     assert not any(x.ready() for x in assets)
@@ -254,7 +254,7 @@ def test_tasks_ready(tasks_baz, tmp_path):
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = list(ic._extract(tasks_baz(tmp_path)))
+    assets = list(ic._listify(tasks_baz(tmp_path)))
     assert ic.ids(assets)[0] == f_foo
     assert ic.ids(assets)[1] == f_bar
     assert all(x.ready() for x in assets)
@@ -326,14 +326,6 @@ def test__execute_dry_run(caplog, rungen):
 def test__execute_live(caplog, rungen):
     ic._execute(g=rungen, taskname="task")
     assert logged("task: Executing", caplog)
-
-
-def test__extract():
-    expected = {0: "foo", 1: "bar"}
-    ready = lambda: True
-    asset_foo, asset_bar = ic.asset("foo", ready), ic.asset("bar", ready)
-    assert ic.ids(list(ic._extract(assets={"foo": asset_foo, "bar": asset_bar}))) == expected
-    assert ic.ids(list(ic._extract(assets=[asset_foo, asset_bar]))) == expected
 
 
 def test__formatter():
