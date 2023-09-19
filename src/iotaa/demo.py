@@ -30,7 +30,7 @@ def cup(basedir):
 
 @task
 def steeped_tea_with_sugar(cupdir):
-    # Add sugar to the steeped tea.
+    # Add sugar to the steeped tea. Requires tea to have steeped.
     for x in ingredient(cupdir, "sugar", "Steeped tea with sugar", steeped_tea):
         yield x
 
@@ -48,7 +48,7 @@ def steeped_tea(cupdir):
         ready = now >= ready_time
         yield asset(None, lambda: ready)
         if not ready:
-            logging.info("Tea steeping for %ss more", int((ready_time - now).total_seconds()))
+            logging.info("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
     else:
         yield asset(None, lambda: False)
     yield steeping_tea(cupdir)
@@ -56,14 +56,14 @@ def steeped_tea(cupdir):
 
 @task
 def steeping_tea(cupdir):
-    # Pour boiling water over the tea.
+    # Pour boiling water over the tea. Requires tea bag in cup.
     for x in ingredient(cupdir, "water", "Boiling water over the tea", tea_bag):
         yield x
 
 
 @task
 def tea_bag(cupdir):
-    # Place tea bag in the cup.
+    # Place tea bag in the cup. Requires box of tea bags.
     for x in ingredient(cupdir, "tea", "Tea bag", box_of_tea_bags):
         yield x
 
