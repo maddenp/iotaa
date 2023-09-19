@@ -26,8 +26,8 @@ class asset:
     """
     Description of a workflow asset.
 
-    :ivar id: The asset itself (e.g. a path string or pathlib Path object). :ivar ready: A function
-    that, when called, indicates whether the asset is ready to use.
+    :param id: The asset itself (e.g. a path string or pathlib Path object).
+    :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
 
     id: Any
@@ -225,15 +225,12 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
 
     # The next value of the generator is the collection of requirements of the current task. This
-    # may be a dict or list of task-function calls, a single task-function call, or None. The VALUES
-    # of each of those CALLS are asset collections -- also dicts, lists, scalars or None. A flat
-    # list of all the assets, filetered of None objects, is constructed and returned.
+    # may be a dict or list of task-function calls, a single task-function call, or None, so convert
+    # it to a list for iteration. The value of each task-function call is a collection of assets,
+    # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     logging.info("%s: Checking required tasks", taskname)
-    assets = next(g)
-    req_assets = _listify(assets)
-    b = [_listify(req_asset) for req_asset in req_assets]
-    return list(filter(None, chain(*b)))
+    return list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
 
 
 def _execute(g: Generator, taskname: str) -> None:
