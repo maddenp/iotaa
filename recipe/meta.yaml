@@ -21,4 +21,5 @@ test:
     - pylint
     - pytest
 about:
+  home: https://github.com/maddenp/condev
   license: APACHE
