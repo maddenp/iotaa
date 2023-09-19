@@ -1,5 +1,5 @@
 """
-An iotaa demo application.
+iotaa.demo.
 """
 
 # pylint: disable=C0116

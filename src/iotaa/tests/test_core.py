@@ -396,5 +396,5 @@ def test__reify():
 def test__report_readiness(caplog, vals):
     ready, ext, init, msg = vals
     ic.logging.getLogger().setLevel(ic.logging.INFO)
-    ic._report_readiness(ready=ready, taskname="task", external_=ext, initial=init)
+    ic._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)

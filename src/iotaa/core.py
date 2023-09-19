@@ -24,9 +24,9 @@ _state = ns(dry_run_enabled=False, initialized=False)
 @dataclass
 class asset:
     """
-    Description of a workflow asset.
+    A workflow asset (observable external state).
 
-    :param id: The asset itself (e.g. a path string or pathlib Path object).
+    :param id: An object uniquely identifying the asset (e.g. a filesystem path).
     :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
 
@@ -48,10 +48,11 @@ def dryrun() -> None:
 
 def ids(assets: _AssetT) -> Any:
     """
-    Extract and return asset identity objects (e.g. paths to files).
+    Extract and return asset identity objects.
 
     :param assets: A collection of assets, one asset, or None.
     :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
+        as the provided assets.
     """
 
     # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
@@ -69,6 +70,8 @@ def ids(assets: _AssetT) -> Any:
 def logcfg(verbose: bool = False) -> None:
     """
     Configure default logging.
+
+    :param bool: Log at the debug level?
     """
 
     logging.basicConfig(
@@ -120,13 +123,14 @@ def run(
     :return: Did cmd exit with 0 (success) status?
     """
 
+    indent = "    "
     logging.info("%s: Running: %s", taskname, cmd)
     if cwd:
-        logging.info("%s:     in %s", taskname, cwd)
+        logging.info("%s: %sin %s", taskname, indent, cwd)
     if env:
-        logging.info("%s:     with environment variables:", taskname)
+        logging.info("%s: %swith environment variables:", taskname, indent)
         for key, val in env.items():
-            logging.info("%s:         %s=%s", taskname, key, val)
+            logging.info("%s: %s%s=%s", taskname, indent * 2, key, val)
     try:
         output = check_output(
             cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
@@ -135,13 +139,13 @@ def run(
         success = True
     except CalledProcessError as e:
         output = e.output
-        logging.error("%s:     Failed with status: %s", taskname, e.returncode)
+        logging.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
         logfunc = logging.error
         success = False
     if output and (log or not success):
-        logfunc("%s:     Output:", taskname)
+        logfunc("%s: %sOutput:", taskname, indent)
         for line in output.split("\n"):
-            logfunc("%s:         %s", taskname, line)
+            logfunc("%s: %s%s", taskname, indent * 2, line)
     return success
 
 
@@ -161,7 +165,7 @@ def external(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready = all(a.ready() for a in _listify(assets))
         if not ready or top:
-            _report_readiness(ready=ready, taskname=taskname, external_=True)
+            _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return assets
 
     return decorated_external
@@ -195,7 +199,7 @@ def task(f) -> Callable[..., _AssetT]:
 
 def tasks(f) -> Callable[..., _AssetT]:
     """
-    The @tasks decorator for collections of @task functions.
+    The @tasks decorator for collections of @task function calls.
     """
 
     @cache
@@ -235,7 +239,7 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
 
 def _execute(g: Generator, taskname: str) -> None:
     """
-    Execute the body of a decorated function.
+    Execute the post-yield body of a decorated function.
 
     :param g: The current task.
     :param taskname: The current task's name.
@@ -256,6 +260,7 @@ def _formatter(prog: str) -> HelpFormatter:
     Help-message formatter.
 
     :param prog: The program name.
+    :return: An argparse help formatter.
     """
 
     return HelpFormatter(prog, max_help_position=4)
@@ -263,7 +268,7 @@ def _formatter(prog: str) -> HelpFormatter:
 
 def _i_am_top_task() -> bool:
     """
-    Is the calling task the first to execute in the workflow?
+    Is the calling task the task-tree entry point?
 
     :return: Is it?
     """
@@ -294,7 +299,7 @@ def _listify(assets: _AssetT) -> List[asset]:
     Return a list representation of the provided asset(s).
 
     :param assets: A collection of assets, one asset, or None.
-    :return: A possibly empty iterable list of assets.
+    :return: A possibly empty list of assets.
     """
 
     if assets is None:
@@ -327,9 +332,10 @@ def _parse_args(raw: List[str]) -> Namespace:
 
 def _reify(s: str) -> Any:
     """
-    Convert strings, when possible, to more specifically types.
+    Convert strings, when possible, to more specifically typed objects.
 
     :param s: The string to convert.
+    :return: A more Pythonic represetnation of the input string.
     """
 
     try:
@@ -339,18 +345,18 @@ def _reify(s: str) -> Any:
 
 
 def _report_readiness(
-    ready: bool, taskname: str, external_: Optional[bool] = False, initial: Optional[bool] = False
+    ready: bool, taskname: str, is_external: Optional[bool] = False, initial: Optional[bool] = False
 ) -> None:
     """
     Log information about the readiness of an asset.
 
     :param ready: Is the asset ready to use?
     :param taskname: The current task's name.
-    :param external_: Is this an @external task?
+    :param is_external: Is this an @external task?
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
 
-    extmsg = " (EXTERNAL)" if external_ and not ready else ""
+    extmsg = " (EXTERNAL)" if is_external and not ready else ""
     logf = logging.info if initial or ready else logging.warning
     logf(
         "%s: %s state: %s%s",
