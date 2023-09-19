@@ -53,6 +53,9 @@ def ids(assets: _Assets) -> Any:
     :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
     """
 
+    # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
+    # scalar types are included in a compound type.
+
     if isinstance(assets, dict):
         return {k: v.id for k, v in assets.items()}
     if isinstance(assets, list):
