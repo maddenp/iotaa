@@ -10,20 +10,20 @@ Workflows comprise:
 
 - Assets (observable external state -- typically files, but sometimes more abstract state, e.g. a time duration)
 - Requirement relationships between assets
-- Means by which assets are made ready (e.g. created)
+- Executable logic to make assets ready (e.g. create them)
 
 ## Assets
 
-The `asset` has two attributes:
+An `asset` object has two attributes:
 
-1. `id`: A value, of any type, that uniquely identifies the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
-2. `ready`: A 0-arity (no-argument) function returning a `bool` value indicating whether or not the asset is ready to use
+1. `id`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
+2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether or not the asset is ready to use
 
 Create an `asset` by calling `asset()`.
 
 ## Tasks
 
-Task are functions that declare, by `yield`ing values to `iotaa`,  one or more of: asset description, requirement relationships between assets, and imperative recipes for readying assets. `iotaa` provides three Python decorators to define tasks:
+Task are functions that declare, by `yield`ing values to `iotaa`, a description of the assets represented by the task (aka the task's name), plus -- depending on task type -- one or more of: the `asset`s themselves, other tasks that the task requires, and/or executable logic to make the task's asset ready. `iotaa` provides three Python decorators to define tasks:
 
 ### `@task`
 
@@ -31,13 +31,13 @@ The essential workflow function type. A `@task` function `yield`s, in order:
 
 1. A task name describing the assets being readied, for logging
 2. An `asset` -- or an `asset` `list`, or a `dict` mapping `str` keys to `asset` values, or `None` -- that the task is responsible for making ready
-3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` of such calls, or `None` -- that this task requires
+3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires before it can ready its own assets
 
-Arbitrary Python statements may appear before and interspersed between the `yield` statements. All statements following the third and final `yield` will be executed -- if and only if the assets of all required tasks are ready -- with the expectation that they will make ready the task's assets.
+Arbitrary Python statements may appear before and interspersed between the `yield` statements. If the assets of all required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will make the task's assets ready.
 
 ### `@external`
 
-A function type representing a required `asset` that `iotaa` cannot make ready. An `@external` function `yield`s, in order:
+A function type representing a required `asset` that `iotaa` cannot make ready, or a `list` or `dict` of such assets. An `@external` function `yield`s, in order:
 
 1. A task name describing the assets being readied, for logging
 2. A required `asset` -- or an `asset` `list`, or a `dict` mapping `str` keys to `asset` values, or `None` -- that must become ready via external means not under workflow control. (Specifying `None` may be nonsensical.)
@@ -49,7 +49,7 @@ As with `@task` functions, arbitrary Python statements may appear before and int
 A function type serving as a container for other tasks. A `@tasks` function `yield`s, in order:
 
 1. A task name describing the assets being readied, for logging
-2. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` of such calls, or `None` -- this task requires. (Specifying `None` may be nonsensical.)
+2. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires. (Specifying `None` may be nonsensical.)
 
 As with `@external` tasks, no statements should follow the second and final `yield`, as they will never execute.
 
