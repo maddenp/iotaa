@@ -170,7 +170,7 @@ def task(f) -> Callable[..., _Assets]:
     def decorated_task(*args, **kwargs) -> _Assets:
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _assets(next(g))
+        assets = _iterable(next(g))
         ready = all(a.ready() for a in _extract(assets))
         if not ready or _i_am_top_task():
             _report_readiness(ready=ready, taskname=taskname, initial=True)
@@ -208,23 +208,6 @@ def tasks(f) -> Callable[..., _Assets]:
 # Private functions
 
 
-def _assets(x: Optional[Union[Dict, List, asset]]) -> _Assets:
-    """
-    Create an asset list when the argument is not already itearble.
-
-    :param x: A singe asset, a None object or a dict or list of assets.
-    :return: A possibly empty iterable collecton of assets.
-    """
-
-    if x is None:
-        return []
-    if isinstance(x, asset):
-        return [x]
-    if isinstance(x, dict):
-        return list(x.values())
-    return x
-
-
 def _delegate(g: Generator, taskname: str) -> List[asset]:
     """
     Delegate execution to the current task's requirement(s).
@@ -241,7 +224,7 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
 
     logging.info("%s: Checking required tasks", taskname)
     flat: list = []
-    for a in _assets(next(g)):
+    for a in _iterable(next(g)):
         flat += a.values() if isinstance(a, dict) else a if isinstance(a, list) else [a]
     return list(filter(None, flat))
 
@@ -296,6 +279,23 @@ def _i_am_top_task() -> bool:
         return False
     _state.initialized = True
     return True
+
+
+def _iterable(x: Optional[Union[Dict, List, asset]]) -> _Assets:
+    """
+    Create an asset list when the argument is not already itearble.
+
+    :param x: A singe asset, a None object or a dict or list of assets.
+    :return: A possibly empty iterable collecton of assets.
+    """
+
+    if x is None:
+        return []
+    if isinstance(x, asset):
+        return [x]
+    if isinstance(x, dict):
+        return list(x.values())
+    return x
 
 
 def _parse_args(raw: List[str]) -> Namespace:

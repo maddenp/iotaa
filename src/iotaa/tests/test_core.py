@@ -264,14 +264,6 @@ def test_tasks_ready(tasks_baz, tmp_path):
 # Private function tests
 
 
-def test__assets():
-    a = ic.asset(id=None, ready=lambda: True)
-    assert ic._assets(x=None) == []
-    assert ic._assets(x=a) == [a]
-    assert ic._assets(x=[a]) == [a]
-    assert ic._assets(x={"a": a}) == [a]
-
-
 def test__delegate_none(caplog):
     ic.logging.getLogger().setLevel(ic.logging.INFO)
 
@@ -354,6 +346,14 @@ def test__formatter():
 def test__i_am_top_task(val):
     with patch.object(ic, "_state", new=ic.ns(initialized=not val)):
         assert ic._i_am_top_task() == val
+
+
+def test__iterable():
+    a = ic.asset(id=None, ready=lambda: True)
+    assert ic._iterable(x=None) == []
+    assert ic._iterable(x=a) == [a]
+    assert ic._iterable(x=[a]) == [a]
+    assert ic._iterable(x={"a": a}) == [a]
 
 
 def test__parse_args():
