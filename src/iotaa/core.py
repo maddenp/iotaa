@@ -33,8 +33,8 @@ class asset:
     ready: Callable
 
 
-_AssetColl = Union[Dict[str, asset], List[asset]]
-_Assets = Optional[Union[_AssetColl, asset]]
+_Assets = Union[Dict[str, asset], List[asset]]
+_AssetT = Optional[Union[_Assets, asset]]
 
 
 def dryrun() -> None:
@@ -45,7 +45,7 @@ def dryrun() -> None:
     _state.dry_run_enabled = True
 
 
-def ids(assets: _Assets) -> Any:
+def ids(assets: _AssetT) -> Any:
     """
     Extract and return asset identity objects (e.g. paths to files).
 
@@ -147,13 +147,13 @@ def run(
 # Decorators
 
 
-def external(f) -> Callable[..., _Assets]:
+def external(f) -> Callable[..., _AssetT]:
     """
     The @external decorator for assets that cannot be produced by the workflow.
     """
 
     @cache
-    def decorated_external(*args, **kwargs) -> _Assets:
+    def decorated_external(*args, **kwargs) -> _AssetT:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _assets(next(g))
@@ -165,13 +165,13 @@ def external(f) -> Callable[..., _Assets]:
     return decorated_external
 
 
-def task(f) -> Callable[..., _Assets]:
+def task(f) -> Callable[..., _AssetT]:
     """
     The @task decorator for assets that the workflow can produce.
     """
 
     @cache
-    def decorated_task(*args, **kwargs) -> _Assets:
+    def decorated_task(*args, **kwargs) -> _AssetT:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _iterable(next(g))
@@ -190,13 +190,13 @@ def task(f) -> Callable[..., _Assets]:
     return decorated_task
 
 
-def tasks(f) -> Callable[..., _Assets]:
+def tasks(f) -> Callable[..., _AssetT]:
     """
     The @tasks decorator for collections of @task functions.
     """
 
     @cache
-    def decorated_tasks(*args, **kwargs) -> _Assets:
+    def decorated_tasks(*args, **kwargs) -> _AssetT:
         g = f(*args, **kwargs)
         taskname = next(g)
         _report_readiness(ready=False, taskname=taskname, initial=True)
@@ -251,7 +251,7 @@ def _execute(g: Generator, taskname: str) -> None:
         pass
 
 
-def _extract(assets: _Assets) -> Generator:
+def _extract(assets: _AssetT) -> Generator:
     """
     Extract and yield individual assets.
 
@@ -285,7 +285,7 @@ def _i_am_top_task() -> bool:
     return True
 
 
-def _iterable(assets: _Assets, dict_to_list: bool = False) -> _AssetColl:
+def _iterable(assets: _AssetT, dict_to_list: bool = False) -> _Assets:
     """
     Create an asset list when the argument is not already itearble.
 
