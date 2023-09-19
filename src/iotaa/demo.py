@@ -40,7 +40,7 @@ def steeped_tea(cupdir):
     # Give tea time to steep.
     yield f"Steeped tea in {cupdir}"
     ready = False
-    water = ids(steeping_tea(cupdir))[0]
+    water = ids(steeping_tea(cupdir))["water"]
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
         ready_time = water_poured_time + dt.timedelta(seconds=10)
@@ -79,6 +79,6 @@ def ingredient(cupdir, fn, name, req=None):
     path = Path(cupdir) / fn
     path.parent.mkdir(parents=True, exist_ok=True)
     yield f"{name} in {cupdir}"
-    yield asset(path, path.exists)
+    yield {fn: asset(path, path.exists)}
     yield req(cupdir) if req else None
     path.touch()

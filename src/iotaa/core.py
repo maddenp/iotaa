@@ -156,10 +156,10 @@ def external(f) -> Callable[..., _AssetT]:
     def decorated_external(*args, **kwargs) -> _AssetT:
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _assets(next(g))
-        for a in _extract(assets):
-            if not a.ready():
-                _report_readiness(ready=False, taskname=taskname, external_=True)
+        assets = next(g)
+        ready = all(a.ready() for a in _extract(_iterable(assets)))
+        if not ready or _i_am_top_task():
+            _report_readiness(ready=ready, taskname=taskname, external_=True)
         return assets
 
     return decorated_external
