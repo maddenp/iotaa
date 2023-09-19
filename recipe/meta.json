@@ -1,0 +1,20 @@
+{
+  "build": "0",
+  "buildnum": "0",
+  "name": "iotaa",
+  "packages": {
+    "dev": [
+      "black",
+      "coverage",
+      "docformatter",
+      "isort",
+      "mypy",
+      "pip",
+      "pylint",
+      "pytest",
+      "python"
+    ],
+    "run": []
+  },
+  "version": "0.1.0"
+}
