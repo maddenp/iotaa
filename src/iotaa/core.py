@@ -181,7 +181,7 @@ def task(f) -> Callable[..., _AssetT]:
         top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
-        assets = _iterable(next(g))
+        assets = next(g)
         ready = all(a.ready() for a in _listify(assets))
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, initial=True)

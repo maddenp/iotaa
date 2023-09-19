@@ -14,7 +14,7 @@ from iotaa import asset, external, ids, task, tasks
 @tasks
 def a_cup_of_tea(basedir):
     yield "A cup of steeped tea with sugar"
-    cupdir = ids(cup(basedir))[0]
+    cupdir = ids(cup(basedir))
     yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
 
 
