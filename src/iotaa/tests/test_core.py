@@ -19,7 +19,12 @@ import iotaa.core as ic
 
 
 @fixture
-def external_foo_scalar_dict():
+def delegate_assets():
+    return (ic.asset(id=n, ready=lambda: True) for n in range(4))
+
+
+@fixture
+def external_foo_scalar():
     @ic.external
     def foo(path):
         f = path / "foo"
@@ -27,6 +32,18 @@ def external_foo_scalar_dict():
         yield ic.asset(f, f.is_file)
 
     return foo
+
+
+@fixture
+def module_for_main(tmp_path):
+    func = """
+def hi(x):
+    print(f"hello {x}!")
+""".strip()
+    m = tmp_path / "a.py"
+    with open(m, "w", encoding="utf-8") as f:
+        print(func, file=f)
+    return m
 
 
 @fixture
@@ -42,37 +59,37 @@ def rungen():
 
 
 @fixture
-def task_bar_list(external_foo_scalar_dict):
+def task_bar_list(external_foo_scalar):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield [ic.asset(f, f.is_file)]
-        yield [external_foo_scalar_dict(path)]
+        yield [external_foo_scalar(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def task_bar_dict(external_foo_scalar_dict):
+def task_bar_dict(external_foo_scalar):
     @ic.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield {"path": ic.asset(f, f.is_file)}
-        yield [external_foo_scalar_dict(path)]
+        yield [external_foo_scalar(path)]
         f.touch()
 
     return bar
 
 
 @fixture
-def tasks_baz(external_foo_scalar_dict, task_bar_dict):
+def tasks_baz(external_foo_scalar, task_bar_dict):
     @ic.tasks
     def baz(path):
         yield "tasks baz"
-        yield [external_foo_scalar_dict(path), task_bar_dict(path)]
+        yield [external_foo_scalar(path), task_bar_dict(path)]
 
     return baz
 
@@ -114,18 +131,6 @@ def test_logcfg(vals):
     with patch.object(ic.logging, "basicConfig") as basicConfig:
         ic.logcfg(verbose=verbose)
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
-
-
-@fixture
-def module_for_main(tmp_path):
-    func = """
-def hi(x):
-    print(f"hello {x}!")
-""".strip()
-    m = tmp_path / "a.py"
-    with open(m, "w", encoding="utf-8") as f:
-        print(func, file=f)
-    return m
 
 
 def test_main_live_abspath(capsys, module_for_main):
@@ -193,19 +198,19 @@ def test_run_success(caplog, tmp_path):
 # Decorator tests
 
 
-def test_external_not_ready(external_foo_scalar_dict, tmp_path):
+def test_external_not_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = list(ic._extract(external_foo_scalar_dict(tmp_path)))
+    assets = list(ic._extract(external_foo_scalar(tmp_path)))
     assert ic.ids(assets)[0] == f
     assert not assets[0].ready()
 
 
-def test_external_ready(external_foo_scalar_dict, tmp_path):
+def test_external_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    assets = list(ic._extract(external_foo_scalar_dict(tmp_path)))
+    assets = ic._extract(external_foo_scalar(tmp_path))
     assert ic.ids(assets)[0] == f
     assert assets[0].ready()
 
@@ -275,11 +280,6 @@ def test__delegate_none(caplog):
 
     assert not ic._delegate(f(), "task")
     assert logged("task: Checking required tasks", caplog)
-
-
-@fixture
-def delegate_assets():
-    return (ic.asset(id=n, ready=lambda: True) for n in range(4))
 
 
 def test__delegate_scalar(caplog, delegate_assets):
