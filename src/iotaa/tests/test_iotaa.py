@@ -15,6 +15,7 @@ def test_import():
         "ids",
         "logcfg",
         "main",
+        "run",
         "task",
         "tasks",
     ]:
