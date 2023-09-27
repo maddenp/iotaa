@@ -2,7 +2,7 @@
 
 **It's One Thing After Another**
 
-A simple workflow manager with semantics similar to those of [Luigi](https://github.com/spotify/luigi) but with tasks defined as decorated Python functions. `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
+A tiny workflow manager with semantics similar to those of [Luigi](https://github.com/spotify/luigi) but with tasks defined as decorated Python functions. `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 
 ## Workflows
 
@@ -16,7 +16,7 @@ Workflows comprise:
 
 An `asset` object has two attributes:
 
-1. `id`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
+1. `ref`: A value, of any type, uniquely referring to the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
 2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether or not the asset is ready to use
 
 Create an `asset` by calling `asset()`.
@@ -59,7 +59,7 @@ As with `@external` tasks, no statements should follow the second and final `yie
 
 - In a conda environment: `conda install -c maddenp iotaa`, or
 - In a Python `venv` environment, from the `src/` directory of an `iotaa` git clone: `pip install --prefix /path/to/venv .`, or
-- Copy the `src/iotaa/core.py` module as `iotaa.py` to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
+- Copy the `src/iotaa/__init__.py` module as `iotaa.py` to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
 
 ### CLI Use
 
@@ -104,7 +104,7 @@ Several public helper callables are available in the `iotaa` module:
 
 - `asset()` creates an asset, to be returned from task functions.
 - `dryrun()` enables dry-run mode.
-- `ids()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single `asset`) or `str` (if the task `yield`s its assets as a `dict`) keys to the `id` attributes of the task's assets.
+- `ref()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single `asset`) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
 - `logcfg()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs.
 - `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
@@ -132,17 +132,17 @@ The first `@tasks` method defines the end result: A cup of tea, steeped, with su
 @tasks
 def a_cup_of_tea(basedir):
     yield "A cup of steeped tea with sugar"
-    cupdir = ids(cup(basedir))
+    cupdir = ref(cup(basedir))
     yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
 ```
 
-As described above, a `@tasks` function must `yield` its name and the assets id requires: In this case, a cup to make the tea in; then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to `cup()`, and the expression `ids(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ids()`, which extracts the unique identifiers for the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) id, which is the cup directory. (Compare to the definition of `@task` `cup`, below.) The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by `yield`ing these task-function calls.
+As described above, a `@tasks` function must `yield` its name and the assets it requires: In this case, a cup to make the tea in; then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to `cup()`, and the expression `ref(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ref()`, which extracts the unique references to the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) ref, which is the cup directory. (Compare to the definition of `@task` `cup`, below.) The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by `yield`ing these task-function calls.
 
 Note that the function could have equivalently
 
 ``` python
     the_cup = cup(basedir)
-    cupdir = ids(the_cup)
+    cupdir = ref(the_cup)
     yield [the_cup, steeped_tea_with_sugar(cupdir)]
 ```
 
@@ -201,7 +201,7 @@ def steeped_tea(cupdir):
     # Give tea time to steep.
     yield f"Steeped tea in {cupdir}"
     ready = False
-    water = ids(steeping_tea(cupdir))["water"]
+    water = ref(steeping_tea(cupdir))["water"]
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
         ready_time = water_poured_time + dt.timedelta(seconds=10)
@@ -215,7 +215,7 @@ def steeped_tea(cupdir):
     yield steeping_tea(cupdir)
 ```
 
-Here, the asset being `yield`ed is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, though useful for a demo. Try 3 minutes for black tea.) The path to the `water` file is located by calling `ids()` on the return value of `steeping_tea()` and taking the item with key `water`. (Because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` if the filename, e.g. `tea`, `water`, `sugar`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. The function finally `yield`s the `steeping_tea` task it requires. There are no post-`yield` statements, because there's nothing this task can do to make its asset (time passed) ready. It can only wait.
+Here, the asset being `yield`ed is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, though useful for a demo. Try 3 minutes for black tea.) The path to the `water` file is located by calling `ref()` on the return value of `steeping_tea()` and taking the item with key `water`. (Because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` if the filename, e.g. `tea`, `water`, `sugar`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. The function finally `yield`s the `steeping_tea` task it requires. There are no post-`yield` statements, because there's nothing this task can do to make its asset (time passed) ready. It can only wait.
 
 The `steeping_tea()` and `tea_bad()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
 

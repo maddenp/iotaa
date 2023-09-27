@@ -17,7 +17,7 @@ name_py = name_conda.replace("-", "_")
 setup(
     entry_points={
         "console_scripts": [
-            "iotaa = %s.core:main" % name_py,
+            "iotaa = %s:main" % name_py,
         ]
     },
     name=name_conda,
