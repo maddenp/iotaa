@@ -26,12 +26,12 @@ class asset:
     """
     A workflow asset (observable external state).
 
-    :param id: An object uniquely identifying the asset (e.g. a filesystem path).
     :param ready: A function that, when called, indicates whether the asset is ready to use.
+    :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
     """
 
-    id: Any
     ready: Callable
+    ref: Any
 
 
 @dataclass
@@ -57,27 +57,6 @@ def dryrun() -> None:
     """
 
     _state.dry_run_enabled = True
-
-
-def ids(assets: _AssetT) -> Any:
-    """
-    Extract and return asset identity objects.
-
-    :param assets: A collection of assets, one asset, or None.
-    :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
-        as the provided assets.
-    """
-
-    # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
-    # scalar types are included in a compound type.
-
-    if isinstance(assets, dict):
-        return {k: v.id for k, v in assets.items()}
-    if isinstance(assets, list):
-        return {i: v.id for i, v in enumerate(assets)}
-    if isinstance(assets, asset):
-        return assets.id
-    return None
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -116,6 +95,27 @@ def main() -> None:
         args.module = m.stem
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
+
+
+def ref(assets: _AssetT) -> Any:
+    """
+    Extract and return asset identity objects.
+
+    :param assets: A collection of assets, one asset, or None.
+    :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
+        as the provided assets.
+    """
+
+    # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
+    # scalar types are included in a compound type.
+
+    if isinstance(assets, dict):
+        return {k: v.ref for k, v in assets.items()}
+    if isinstance(assets, list):
+        return {i: v.ref for i, v in enumerate(assets)}
+    if isinstance(assets, asset):
+        return assets.ref
+    return None
 
 
 def run(

@@ -8,13 +8,13 @@ import datetime as dt
 import logging
 from pathlib import Path
 
-from iotaa import asset, external, ids, task, tasks
+from iotaa import asset, external, ref, task, tasks
 
 
 @tasks
 def a_cup_of_tea(basedir):
     yield "A cup of steeped tea with sugar"
-    cupdir = ids(cup(basedir))
+    cupdir = ref(cup(basedir))
     yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
 
 
@@ -40,7 +40,7 @@ def steeped_tea(cupdir):
     # Give tea time to steep.
     yield f"Steeped tea in {cupdir}"
     ready = False
-    water = ids(steeping_tea(cupdir))["water"]
+    water = ref(steeping_tea(cupdir))["water"]
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
         ready_time = water_poured_time + dt.timedelta(seconds=10)

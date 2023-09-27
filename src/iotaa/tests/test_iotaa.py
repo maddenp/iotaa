@@ -20,7 +20,7 @@ import iotaa
 
 @fixture
 def delegate_assets():
-    return (iotaa.asset(id=n, ready=lambda: True) for n in range(4))
+    return (iotaa.asset(ready=lambda: True, ref=n) for n in range(4))
 
 
 @fixture
@@ -102,11 +102,11 @@ def logged(msg: str, caplog: LogCaptureFixture) -> bool:
 
 
 @pytest.mark.parametrize(
-    "asset", [iotaa.asset("foo", lambda: True), iotaa.asset(id="foo", ready=lambda: True)]
+    "asset", [iotaa.asset(lambda: True, "foo"), iotaa.asset(ready=lambda: True, ref="foo")]
 )
 def test_asset(asset):
-    assert asset.id == "foo"
     assert asset.ready()
+    assert asset.ref == "foo"
 
 
 def test_dryrun():
@@ -114,15 +114,6 @@ def test_dryrun():
         assert not iotaa._state.dry_run_enabled
         iotaa.dryrun()
         assert iotaa._state.dry_run_enabled
-
-
-def test_ids_dict():
-    expected = "bar"
-    asset = iotaa.asset(id="bar", ready=lambda: True)
-    assert iotaa.ids(assets={"foo": asset})["foo"] == expected
-    assert iotaa.ids(assets=[asset])[0] == expected
-    assert iotaa.ids(assets=asset) == expected
-    assert iotaa.ids(assets=None) is None
 
 
 @pytest.mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
@@ -173,6 +164,15 @@ def test_main_mocked_up(tmp_path):
         parse_args.assert_called_once()
 
 
+def test_ref_dict():
+    expected = "bar"
+    asset = iotaa.asset(ready=lambda: True, ref="bar")
+    assert iotaa.ref(assets={"foo": asset})["foo"] == expected
+    assert iotaa.ref(assets=[asset])[0] == expected
+    assert iotaa.ref(assets=asset) == expected
+    assert iotaa.ref(assets=None) is None
+
+
 def test_run_failure(caplog):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     cmd = "expr 1 / 0"
@@ -204,7 +204,7 @@ def test_external_not_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
     assets = list(iotaa._listify(external_foo_scalar(tmp_path)))
-    assert iotaa.ids(assets)[0] == f
+    assert iotaa.ref(assets)[0] == f
     assert not assets[0].ready()
 
 
@@ -213,7 +213,7 @@ def test_external_ready(external_foo_scalar, tmp_path):
     f.touch()
     assert f.is_file()
     asset = external_foo_scalar(tmp_path)
-    assert iotaa.ids(asset) == f
+    assert iotaa.ref(asset) == f
     assert asset.ready()
 
 
@@ -222,7 +222,7 @@ def test_task_not_ready(caplog, task_bar_dict, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     assets = list(iotaa._listify(task_bar_dict(tmp_path)))
-    assert iotaa.ids(assets)[0] == f_bar
+    assert iotaa.ref(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     assert logged(f"task bar {f_bar}: Pending", caplog)
@@ -235,7 +235,7 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
     assert f_foo.is_file()
     assert not f_bar.is_file()
     assets = list(iotaa._listify(task_bar_list(tmp_path)))
-    assert iotaa.ids(assets)[0] == f_bar
+    assert iotaa.ref(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     assert logged(f"task bar {f_bar}: Ready", caplog)
@@ -245,8 +245,8 @@ def test_tasks_not_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     assets = list(iotaa._listify(tasks_baz(tmp_path)))
-    assert iotaa.ids(assets)[0] == f_foo
-    assert iotaa.ids(assets)[1] == f_bar
+    assert iotaa.ref(assets)[0] == f_foo
+    assert iotaa.ref(assets)[1] == f_bar
     assert not any(x.ready() for x in assets)
     assert not any(x.is_file() for x in [f_foo, f_bar])
 
@@ -257,8 +257,8 @@ def test_tasks_ready(tasks_baz, tmp_path):
     assert f_foo.is_file()
     assert not f_bar.is_file()
     assets = list(iotaa._listify(tasks_baz(tmp_path)))
-    assert iotaa.ids(assets)[0] == f_foo
-    assert iotaa.ids(assets)[1] == f_bar
+    assert iotaa.ref(assets)[0] == f_foo
+    assert iotaa.ref(assets)[1] == f_bar
     assert all(x.ready() for x in assets)
     assert all(x.is_file() for x in [f_foo, f_bar])
 
@@ -343,7 +343,7 @@ def test__i_am_top_task(val):
 
 
 def test__iterable():
-    a = iotaa.asset(id=None, ready=lambda: True)
+    a = iotaa.asset(ready=lambda: True, ref=None)
     assert iotaa._iterable(assets=None) == []
     assert iotaa._iterable(assets=a) == [a]
     assert iotaa._iterable(assets=[a]) == [a]
@@ -351,7 +351,7 @@ def test__iterable():
 
 
 def test__listify():
-    a = iotaa.asset(id=None, ready=lambda: True)
+    a = iotaa.asset(ready=lambda: True, ref=None)
     assert iotaa._listify(assets=None) == []
     assert iotaa._listify(assets=a) == [a]
     assert iotaa._listify(assets=[a]) == [a]
