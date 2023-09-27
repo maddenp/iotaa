@@ -59,7 +59,7 @@ As with `@external` tasks, no statements should follow the second and final `yie
 
 - In a conda environment: `conda install -c maddenp iotaa`, or
 - In a Python `venv` environment, from the `src/` directory of an `iotaa` git clone: `pip install --prefix /path/to/venv .`, or
-- Copy the `src/iotaa/core.py` module as `iotaa.py` to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
+- Copy the `src/iotaa/__init__.py` module as `iotaa.py` to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
 
 ### CLI Use
 
