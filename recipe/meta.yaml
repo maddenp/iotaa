@@ -5,6 +5,7 @@ source:
   path: ../src
 build:
   include_recipe: false
+  noarch: python
   number: 0
 requirements:
   build:
