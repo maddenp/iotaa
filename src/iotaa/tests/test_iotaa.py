@@ -176,7 +176,9 @@ def test_main_mocked_up(tmp_path):
 def test_run_failure(caplog):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     cmd = "expr 1 / 0"
-    assert not iotaa.run(taskname="task", cmd=cmd)
+    result = iotaa.run(taskname="task", cmd=cmd)
+    assert "division by zero" in result.output
+    assert result.success is False
     assert logged("task: Running: %s" % cmd, caplog)
     assert logged("task:     Failed with status: 2", caplog)
     assert logged("task:     Output:", caplog)

@@ -34,6 +34,19 @@ class asset:
     ready: Callable
 
 
+@dataclass
+class result:
+    """
+    The result of running an external command.
+
+    output: Content of the combined stderr/stdout streams.
+    success: Did the command exit with 0 status?
+    """
+
+    output: str
+    success: bool
+
+
 _Assets = Union[Dict[str, asset], List[asset]]
 _AssetT = Optional[Union[_Assets, asset]]
 
@@ -111,7 +124,7 @@ def run(
     cwd: Optional[Union[Path, str]] = None,
     env: Optional[Dict[str, str]] = None,
     log: Optional[bool] = False,
-) -> bool:
+) -> result:
     """
     Run a command in a subshell.
 
@@ -120,7 +133,7 @@ def run(
     :param cwd: Change to this directory before running cmd.
     :param env: Environment variables to set before running cmd.
     :param log: Log output from successful cmd? (Error output is always logged.)
-    :return: Did cmd exit with 0 (success) status?
+    :return: A result object providing stderr, stdout and success info.
     """
 
     indent = "    "
@@ -146,7 +159,7 @@ def run(
         logfunc("%s: %sOutput:", taskname, indent)
         for line in output.split("\n"):
             logfunc("%s: %s%s", taskname, indent * 2, line)
-    return success
+    return result(output=output, success=success)
 
 
 # Decorators
