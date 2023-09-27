@@ -16,8 +16,8 @@ Workflows comprise:
 
 An `asset` object has two attributes:
 
-1. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether or not the asset is ready to use
-2. `ref`: A value, of any type, uniquely referring to the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
+1. `ref`: A value, of any type, uniquely referring to the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
+2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether or not the asset is ready to use
 
 Create an `asset` by calling `asset()`.
 

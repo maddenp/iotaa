@@ -26,12 +26,12 @@ class asset:
     """
     A workflow asset (observable external state).
 
-    :param ready: A function that, when called, indicates whether the asset is ready to use.
     :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
+    :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
 
-    ready: Callable
     ref: Any
+    ready: Callable
 
 
 @dataclass
