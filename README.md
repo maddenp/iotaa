@@ -108,6 +108,7 @@ Several public helper callables are available in the `iotaa` module:
 - `logcfg()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs.
 - `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
+- `runconda()` runs a command in a subshell with a named conda environment activated.
 
 ## Development
 

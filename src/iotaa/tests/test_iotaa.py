@@ -180,9 +180,9 @@ def test_run_failure(caplog):
     assert "division by zero" in result.output
     assert result.success is False
     assert logged("task: Running: %s" % cmd, caplog)
-    assert logged("task:     Failed with status: 2", caplog)
-    assert logged("task:     Output:", caplog)
-    assert logged("task:         expr: division by zero", caplog)
+    assert logged("task:   Failed with status: 2", caplog)
+    assert logged("task:   Output:", caplog)
+    assert logged("task:     expr: division by zero", caplog)
 
 
 def test_run_success(caplog, tmp_path):
@@ -190,11 +190,26 @@ def test_run_success(caplog, tmp_path):
     cmd = "echo hello $FOO"
     assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log=True)
     assert logged("task: Running: %s" % cmd, caplog)
-    assert logged("task:     in %s" % tmp_path, caplog)
-    assert logged("task:     with environment variables:", caplog)
-    assert logged("task:         FOO=bar", caplog)
-    assert logged("task:     Output:", caplog)
-    assert logged("task:         hello bar", caplog)
+    assert logged("task:   in %s" % tmp_path, caplog)
+    assert logged("task:   with environment variables:", caplog)
+    assert logged("task:     FOO=bar", caplog)
+    assert logged("task:   Output:", caplog)
+    assert logged("task:     hello bar", caplog)
+
+
+def test_runconda():
+    conda_path = "/path/to_conda"
+    conda_env = "env-name"
+    taskname = "task"
+    cmd = "foo"
+    fullcmd = 'eval "$(%s/bin/conda shell.bash hook)" && conda activate %s && %s' % (
+        conda_path,
+        conda_env,
+        cmd,
+    )
+    with patch.object(iotaa, "run") as run:
+        iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
+        run.assert_called_once_with(taskname=taskname, cmd=fullcmd, cwd=None, env=None, log=False)
 
 
 # Decorator tests

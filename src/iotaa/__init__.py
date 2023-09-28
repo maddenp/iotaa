@@ -128,7 +128,7 @@ def run(
     """
     Run a command in a subshell.
 
-    :param taskname: The name of the task, for logging.
+    :param taskname: The current task's name.
     :param cmd: The command to run.
     :param cwd: Change to this directory before running cmd.
     :param env: Environment variables to set before running cmd.
@@ -136,7 +136,7 @@ def run(
     :return: A result object providing stderr, stdout and success info.
     """
 
-    indent = "    "
+    indent = "  "
     logging.info("%s: Running: %s", taskname, cmd)
     if cwd:
         logging.info("%s: %sin %s", taskname, indent, cwd)
@@ -160,6 +160,37 @@ def run(
         for line in output.split("\n"):
             logfunc("%s: %s%s", taskname, indent * 2, line)
     return result(output=output, success=success)
+
+
+def runconda(
+    conda_path: str,
+    conda_env: str,
+    taskname: str,
+    cmd: str,
+    cwd: Optional[Union[Path, str]] = None,
+    env: Optional[Dict[str, str]] = None,
+    log: Optional[bool] = False,
+) -> result:
+    """
+    Run a command in the specified conda environment.
+
+    :param conda_path: Path to the conda installation to use.
+    :param conda_env: Name of the conda environment in which to run cmd.
+    :param taskname: The current task's name.
+    :param cmd: The command to run.
+    :param cwd: Change to this directory before running cmd.
+    :param env: Environment variables to set before running cmd.
+    :param log: Log output from successful cmd? (Error output is always logged.)
+    :return: A result object providing stderr, stdout and success info.
+    """
+    cmd = " && ".join(
+        [
+            'eval "$(%s/bin/conda shell.bash hook)"' % conda_path,
+            "conda activate %s" % conda_env,
+            cmd,
+        ]
+    )
+    return run(taskname=taskname, cmd=cmd, cwd=cwd, env=env, log=log)
 
 
 # Decorators
