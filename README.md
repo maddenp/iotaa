@@ -251,7 +251,7 @@ Unlike other task types, the `@external` `yield`s, after its name, only the _ass
 Let's run this workflow with the `iotaa` command-line tool, requesting that the workflow start with the `a_cup_of_tea` task:
 
 ```
-% iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
+% iotaa iotaa.demo a_cup_of_tea ./teatime
 [2023-09-19T22:44:21] INFO    A cup of steeped tea with sugar: Checking required tasks
 [2023-09-19T22:44:21] INFO    The cup: teatime/cup: Initial state: Pending
 [2023-09-19T22:44:21] INFO    The cup: teatime/cup: Checking required tasks
@@ -316,7 +316,7 @@ teatime/
 Now let's iterate the workflow:
 
 ```
-% iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
+% iotaa iotaa.demo a_cup_of_tea ./teatime
 [2023-09-19T22:46:33] INFO    A cup of steeped tea with sugar: Checking required tasks
 [2023-09-19T22:46:33] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
 [2023-09-19T22:46:33] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
@@ -354,7 +354,7 @@ teatime/
 Since the box of tea became available, the workflow could add tea to the cup and pour boiling water over it. Note the informative message `Tea needs to steep for 9s`. If we iterate the workflow again quickly, we can see the steep time decreasing:
 
 ```
-% iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
+% iotaa iotaa.demo a_cup_of_tea ./teatime
 ...
 [2023-09-19T22:46:37] INFO    Tea needs to steep for 5s
 ...
@@ -363,7 +363,7 @@ Since the box of tea became available, the workflow could add tea to the cup and
 If we wait a few seconds more and iterate:
 
 ```
-% iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
+% iotaa iotaa.demo a_cup_of_tea ./teatime
 [2023-09-19T22:47:11] INFO    A cup of steeped tea with sugar: Checking required tasks
 [2023-09-19T22:47:11] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
 [2023-09-19T22:47:11] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
@@ -388,7 +388,7 @@ teatime/
 One more iteration and we see that the workflow has reached its final state and takes no more action:
 
 ```
-% iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
+% iotaa iotaa.demo a_cup_of_tea ./teatime
 [2023-09-19T22:48:22] INFO    A cup of steeped tea with sugar: Checking required tasks
 [2023-09-19T22:48:22] INFO    A cup of steeped tea with sugar: Final state: Ready
 ```
@@ -411,7 +411,7 @@ teatime/
 Note how the workflow detects the change to the readiness of its assets and recovers:
 
 ```
-% iotaa src/iotaa/demo.py a_cup_of_tea ./teatime
+% iotaa iotaa.demo a_cup_of_tea ./teatime
 [2023-09-19T22:49:03] INFO    A cup of steeped tea with sugar: Checking required tasks
 [2023-09-19T22:49:03] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
 [2023-09-19T22:49:03] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
@@ -449,7 +449,7 @@ teatime/
 Now request tea without sugar (note that task `steeped_tea` expects a path to the cup as its argument, so `./teatime/cup` is supplied here instead of just `./teatime`:
 
 ```
-% iotaa src/iotaa/demo.py steeped_tea ./teatime/cup
+% iotaa iotaa.demo steeped_tea ./teatime/cup
 [2023-09-19T22:49:40] INFO    Boiling water over the tea in ./teatime/cup: Initial state: Pending
 [2023-09-19T22:49:40] INFO    Boiling water over the tea in ./teatime/cup: Checking required tasks
 [2023-09-19T22:49:40] INFO    Tea bag in ./teatime/cup: Initial state: Pending
@@ -470,7 +470,7 @@ Now request tea without sugar (note that task `steeped_tea` expects a path to th
 After waiting for the tea to steep:
 
 ```
-% iotaa src/iotaa/demo.py steeped_tea ./teatime/cup
+% iotaa iotaa.demo steeped_tea ./teatime/cup
 [2023-09-19T22:49:56] INFO    Steeped tea in ./teatime/cup: Initial state: Ready
 ```
 
