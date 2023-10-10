@@ -228,7 +228,7 @@ def task(f) -> Callable[..., _AssetT]:
         if not ready_initial or _i_am_top_task():
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
-            if all(req_asset.ready() for req_asset in _delegate(g, taskname)):
+            if _ready(_delegate(g, taskname)):
                 logging.info("%s: Ready", taskname)
                 _execute(g, taskname)
             else:
