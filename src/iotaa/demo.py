@@ -35,10 +35,10 @@ def steeped_tea_with_sugar(cupdir):
         yield x
 
 
-@task
+@external
 def steeped_tea(cupdir):
     # Give tea time to steep.
-    yield f"Steeped tea in {cupdir}"
+    yield f"Time for tea to steep in {cupdir}"
     ready = False
     water = ref(steeping_tea(cupdir))["water"]
     if water.exists():
@@ -46,12 +46,11 @@ def steeped_tea(cupdir):
         ready_time = water_poured_time + dt.timedelta(seconds=10)
         now = dt.datetime.now()
         ready = now >= ready_time
-        yield asset(None, lambda: ready)
         if not ready:
-            logging.info("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
+            logging.warning("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
+        yield asset(None, lambda: ready)
     else:
         yield asset(None, lambda: False)
-    yield steeping_tea(cupdir)
 
 
 @task
