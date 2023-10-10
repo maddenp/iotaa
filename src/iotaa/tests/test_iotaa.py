@@ -357,14 +357,6 @@ def test__i_am_top_task(val):
         assert iotaa._i_am_top_task() == val
 
 
-def test__iterable():
-    a = iotaa.asset(ref=None, ready=lambda: True)
-    assert iotaa._iterable(assets=None) == []
-    assert iotaa._iterable(assets=a) == [a]
-    assert iotaa._iterable(assets=[a]) == [a]
-    assert iotaa._iterable(assets={"a": a}) == {"a": a}
-
-
 def test__listify():
     a = iotaa.asset(ref=None, ready=lambda: True)
     assert iotaa._listify(assets=None) == []

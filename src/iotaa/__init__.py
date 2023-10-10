@@ -326,21 +326,6 @@ def _i_am_top_task() -> bool:
     return True
 
 
-def _iterable(assets: _AssetT) -> _Assets:
-    """
-    Create an asset list when the argument is not already itearble.
-
-    :param assets: A collection of assets, one asset, or None.
-    :return: A possibly empty iterable collecton of assets.
-    """
-
-    if assets is None:
-        return []
-    if isinstance(assets, asset):
-        return [assets]
-    return assets
-
-
 def _listify(assets: _AssetT) -> List[asset]:
     """
     Return a list representation of the provided asset(s).
