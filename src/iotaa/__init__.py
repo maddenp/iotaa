@@ -15,7 +15,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Union
 
-_state = ns(dry_run_enabled=False, initialized=False)
+_state = ns(dry_run=False, initialized=False)
 
 
 # Public API
@@ -56,7 +56,7 @@ def dryrun() -> None:
     Enable dry-run mode.
     """
 
-    _state.dry_run_enabled = True
+    _state.dry_run = True
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -289,7 +289,7 @@ def _execute(g: Generator, taskname: str) -> None:
     :param taskname: The current task's name.
     """
 
-    if _state.dry_run_enabled:
+    if _state.dry_run:
         logging.info("%s: SKIPPING (DRY RUN ENABLED)", taskname)
         return
     try:

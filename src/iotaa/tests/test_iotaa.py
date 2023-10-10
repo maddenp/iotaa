@@ -110,10 +110,10 @@ def test_asset(asset):
 
 
 def test_dryrun():
-    with patch.object(iotaa, "_state", iotaa.ns(dry_run_enabled=False)):
-        assert not iotaa._state.dry_run_enabled
+    with patch.object(iotaa, "_state", iotaa.ns(dry_run=False)):
+        assert not iotaa._state.dry_run
         iotaa.dryrun()
-        assert iotaa._state.dry_run_enabled
+        assert iotaa._state.dry_run
 
 
 @pytest.mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
@@ -335,7 +335,7 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
 
 
 def test__execute_dry_run(caplog, rungen):
-    with patch.object(iotaa, "_state", new=iotaa.ns(dry_run_enabled=True)):
+    with patch.object(iotaa, "_state", new=iotaa.ns(dry_run=True)):
         iotaa._execute(g=rungen, taskname="task")
     assert logged("task: SKIPPING (DRY RUN ENABLED)", caplog)
 
