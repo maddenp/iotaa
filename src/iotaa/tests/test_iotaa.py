@@ -390,6 +390,18 @@ def test__parse_args():
     assert e.value.code == 2
 
 
+def test__ready():
+    af = iotaa.asset(ref=False, ready=lambda: False)
+    at = iotaa.asset(ref=True, ready=lambda: True)
+    assert iotaa._ready(None)
+    assert iotaa._ready([at])
+    assert iotaa._ready(at)
+    assert iotaa._ready({"ready": at})
+    assert not iotaa._ready([af])
+    assert not iotaa._ready(af)
+    assert not iotaa._ready({"not ready": af})
+
+
 def test__reify():
     strs = ["foo", "88", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 88, 3.14, True]

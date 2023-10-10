@@ -206,7 +206,7 @@ def external(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = next(g)
-        ready = all(a.ready() for a in _listify(assets))
+        ready = _ready(assets)
         if not ready or _i_am_top_task():
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return assets
@@ -224,7 +224,7 @@ def task(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = next(g)
-        ready_initial = all(a.ready() for a in _listify(assets))
+        ready_initial = _ready(assets)
         if not ready_initial or _i_am_top_task():
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
@@ -234,7 +234,7 @@ def task(f) -> Callable[..., _AssetT]:
             else:
                 logging.info("%s: Pending", taskname)
                 _report_readiness(ready=False, taskname=taskname)
-        ready_final = all(a.ready() for a in _listify(assets))
+        ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
         return assets
@@ -252,7 +252,7 @@ def tasks(f) -> Callable[..., _AssetT]:
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _delegate(g, taskname)
-        ready = all(a.ready() for a in _listify(assets))
+        ready = _ready(assets)
         if not ready or _i_am_top_task():
             _report_readiness(ready=ready, taskname=taskname)
         return assets
@@ -357,6 +357,16 @@ def _parse_args(raw: List[str]) -> Namespace:
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
     return parser.parse_args(raw)
+
+
+def _ready(assets: _AssetT) -> bool:
+    """
+    Readiness of the specified asset(s).
+
+    :param assets: A collection of assets, one asset, or None.
+    :return: Are all the assets ready?
+    """
+    return all(a.ready() for a in _listify(assets))
 
 
 def _reify(s: str) -> Any:
