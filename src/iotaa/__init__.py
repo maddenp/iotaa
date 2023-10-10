@@ -203,12 +203,11 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
-        top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = next(g)
         ready = all(a.ready() for a in _listify(assets))
-        if not ready or top:
+        if not ready or _i_am_top_task():
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return assets
 
@@ -222,12 +221,11 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
-        top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = next(g)
         ready_initial = all(a.ready() for a in _listify(assets))
-        if not ready_initial or top:
+        if not ready_initial or _i_am_top_task():
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if all(req_asset.ready() for req_asset in _delegate(g, taskname)):
@@ -251,12 +249,11 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
-        top = _i_am_top_task()
         g = f(*args, **kwargs)
         taskname = next(g)
         assets = _delegate(g, taskname)
         ready = all(a.ready() for a in _listify(assets))
-        if not ready or top:
+        if not ready or _i_am_top_task():
             _report_readiness(ready=ready, taskname=taskname)
         return assets
 
