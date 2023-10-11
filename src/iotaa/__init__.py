@@ -230,10 +230,10 @@ def task(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
-                logging.info("%s: Ready", taskname)
+                logging.info("%s: Requirements ready", taskname)
                 _execute(g, taskname)
             else:
-                logging.info("%s: Pending requirement(s)", taskname)
+                logging.info("%s: Requirements pending", taskname)
                 _report_readiness(ready=False, taskname=taskname)
         ready_final = _ready(assets)
         if ready_final != ready_initial:
@@ -280,7 +280,7 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     _state.parents.append(taskname)
-    logging.info("%s: Checking requirement(s)", taskname)
+    logging.info("%s: Checking requirements", taskname)
     assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
     _state.parents.pop()
     return assets
