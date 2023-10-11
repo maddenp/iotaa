@@ -48,9 +48,9 @@ def steeped_tea(cupdir):
         ready = now >= ready_time
         if not ready:
             logging.warning("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
-        yield asset(None, lambda: ready)
+        yield asset("Time", lambda: ready)
     else:
-        yield asset(None, lambda: False)
+        yield asset("Time", lambda: False)
     yield steeping_tea(cupdir)
 
 
