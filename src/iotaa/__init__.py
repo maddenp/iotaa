@@ -13,7 +13,7 @@ from json import JSONDecodeError, loads
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
-from typing import Any, Callable, Dict, Generator, List, Optional, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 _graph = ns(assets=set(), tasks=set())
 _state = ns(dry_run=False, initialized=False, parents=[])
@@ -206,11 +206,7 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
-        top = _i_am_top_task()  # must precede delegation to other tasks!
-        g = f(*args, **kwargs)
-        taskname = next(g)
-        # if _state.parents:
-        # _graph.tasks.add((_state.parents[-1], taskname))
+        top, g, taskname = _task_common_prep(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
@@ -227,11 +223,7 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
-        top = _i_am_top_task()  # must precede delegation to other tasks!
-        g = f(*args, **kwargs)
-        taskname = next(g)
-        # if _state.parents:
-        # _graph.tasks.add((_state.parents[-1], taskname))
+        top, g, taskname = _task_common_prep(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
@@ -258,17 +250,13 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
-        top = _i_am_top_task()  # must precede delegation to other tasks!
-        g = f(*args, **kwargs)
-        taskname = next(g)
-        # if _state.parents:
-        # _graph.tasks.add((_state.parents[-1], taskname))
+        top, g, taskname = _task_common_prep(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
-        ready_final = _ready(assets)
-        if not ready_final or top:
-            _report_readiness(ready=ready_final, taskname=taskname)
+        ready = _ready(assets)
+        if not ready or top:
+            _report_readiness(ready=ready, taskname=taskname)
         return assets
 
     return decorated_tasks
@@ -421,3 +409,15 @@ def _report_readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
+
+
+def _task_common_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
+    """
+    ???
+    """
+    top = _i_am_top_task()  # Must precede delegation to other tasks!
+    g = f(*args, **kwargs)
+    taskname = next(g)
+    if _state.parents:
+        _graph.tasks.add((_state.parents[-1], taskname))
+    return top, g, taskname

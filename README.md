@@ -235,7 +235,7 @@ def tea_bag(cupdir):
         yield x
 ```
 
-Finally, we have this workflow's second `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist, and no action by the workflow can create it:
+Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist, and no action by the workflow can create it:
 
 ``` python
 @external
