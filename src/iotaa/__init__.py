@@ -230,10 +230,10 @@ def task(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
-                logging.info("%s: Requirements ready", taskname)
+                logging.info("%s: Requirement(s) ready", taskname)
                 _execute(g, taskname)
             else:
-                logging.info("%s: Requirements pending", taskname)
+                logging.info("%s: Requirement(s) pending", taskname)
                 _report_readiness(ready=False, taskname=taskname)
         ready_final = _ready(assets)
         if ready_final != ready_initial:

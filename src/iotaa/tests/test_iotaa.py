@@ -240,7 +240,7 @@ def test_task_not_ready(caplog, task_bar_dict, tmp_path):
     assert iotaa.ref(assets)[0] == f_bar
     assert not assets[0].ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Pending", caplog)
+    assert logged(f"task bar {f_bar}: Requirement(s) pending", caplog)
 
 
 def test_task_ready(caplog, task_bar_list, tmp_path):
@@ -253,7 +253,7 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
     assert iotaa.ref(assets)[0] == f_bar
     assert assets[0].ready()
     assert all(x.is_file for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Ready", caplog)
+    assert logged(f"task bar {f_bar}: Requirement(s) ready", caplog)
 
 
 def test_tasks_not_ready(tasks_baz, tmp_path):
@@ -288,7 +288,7 @@ def test__delegate_none(caplog):
         yield None
 
     assert not iotaa._delegate(f(), "task")
-    assert logged("task: Checking required tasks", caplog)
+    assert logged("task: Checking requirements", caplog)
 
 
 def test__delegate_scalar(caplog, delegate_assets):
@@ -299,7 +299,7 @@ def test__delegate_scalar(caplog, delegate_assets):
         yield a1
 
     assert iotaa._delegate(f(), "task") == [a1]
-    assert logged("task: Checking required tasks", caplog)
+    assert logged("task: Checking requirements", caplog)
 
 
 def test__delegate_empty_dict_and_empty_list(caplog):
@@ -309,7 +309,7 @@ def test__delegate_empty_dict_and_empty_list(caplog):
         yield [{}, []]
 
     assert not iotaa._delegate(f(), "task")
-    assert logged("task: Checking required tasks", caplog)
+    assert logged("task: Checking requirements", caplog)
 
 
 def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
@@ -320,7 +320,7 @@ def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
         yield [{"foo": a1, "bar": a2}, [a3, a4]]
 
     assert iotaa._delegate(f(), "task") == [a1, a2, a3, a4]
-    assert logged("task: Checking required tasks", caplog)
+    assert logged("task: Checking requirements", caplog)
 
 
 def test__delegate_none_and_scalar(caplog, delegate_assets):
@@ -331,7 +331,7 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
         yield [None, a1]
 
     assert iotaa._delegate(f(), "task") == [a1]
-    assert logged("task: Checking required tasks", caplog)
+    assert logged("task: Checking requirements", caplog)
 
 
 def test__execute_dry_run(caplog, rungen):
@@ -411,7 +411,7 @@ def test__reify():
     "vals",
     [
         (True, False, True, "Initial state: Ready"),
-        (False, True, False, "Final state: Pending (EXTERNAL)"),
+        (False, True, False, "State: Pending (EXTERNAL)"),
     ],
 )
 def test__report_readiness(caplog, vals):
