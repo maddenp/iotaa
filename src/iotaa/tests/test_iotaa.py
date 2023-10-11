@@ -259,7 +259,9 @@ def test_task_ready(caplog, task_bar_list, tmp_path):
 def test_tasks_not_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = list(iotaa._listify(tasks_baz(tmp_path)))
+    with patch.object(iotaa, "_state") as _state:
+        _state.initialized = False
+        assets = list(iotaa._listify(tasks_baz(tmp_path)))
     assert iotaa.ref(assets)[0] == f_foo
     assert iotaa.ref(assets)[1] == f_bar
     assert not any(x.ready() for x in assets)

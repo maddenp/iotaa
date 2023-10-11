@@ -96,8 +96,8 @@ def main() -> None:
         args.module = m.stem
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
-    for x in sorted(_graph.tasks):
-        print("@@@", x)
+    # for x in sorted(_graph.tasks):
+    #     print("@@@", x)
 
 
 def ref(assets: _AssetT) -> Any:
