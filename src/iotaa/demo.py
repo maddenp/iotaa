@@ -35,7 +35,7 @@ def steeped_tea_with_sugar(cupdir):
         yield x
 
 
-@external
+@task
 def steeped_tea(cupdir):
     # Give tea time to steep.
     yield f"Time for tea to steep in {cupdir}"
@@ -51,6 +51,8 @@ def steeped_tea(cupdir):
         yield asset(None, lambda: ready)
     else:
         yield asset(None, lambda: False)
+    yield steeping_tea(cupdir)
+    pass  # Nothing to do but wait...
 
 
 @task

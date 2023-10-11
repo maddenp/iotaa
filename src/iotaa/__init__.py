@@ -15,7 +15,8 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Union
 
-_state = ns(dry_run=False, initialized=False)
+_graph = ns(assets=set(), tasks=set())
+_state = ns(dry_run=False, initialized=False, parents=[])
 
 
 # Public API
@@ -95,6 +96,8 @@ def main() -> None:
         args.module = m.stem
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
+    # for x in sorted(_graph.tasks):
+    # print("@@@", x)
 
 
 def ref(assets: _AssetT) -> Any:
@@ -203,11 +206,14 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
+        top = _i_am_top_task()  # must precede delegation to other tasks!
         g = f(*args, **kwargs)
         taskname = next(g)
+        # if _state.parents:
+        # _graph.tasks.add((_state.parents[-1], taskname))
         assets = next(g)
         ready = _ready(assets)
-        if not ready or _i_am_top_task():
+        if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return assets
 
@@ -221,18 +227,21 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
+        top = _i_am_top_task()  # must precede delegation to other tasks!
         g = f(*args, **kwargs)
         taskname = next(g)
+        # if _state.parents:
+        # _graph.tasks.add((_state.parents[-1], taskname))
         assets = next(g)
         ready_initial = _ready(assets)
-        if not ready_initial or _i_am_top_task():
+        if not ready_initial or top:
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
                 logging.info("%s: Ready", taskname)
                 _execute(g, taskname)
             else:
-                logging.info("%s: Pending", taskname)
+                logging.info("%s: Pending requirement(s)", taskname)
                 _report_readiness(ready=False, taskname=taskname)
         ready_final = _ready(assets)
         if ready_final != ready_initial:
@@ -249,12 +258,17 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
+        top = _i_am_top_task()  # must precede delegation to other tasks!
         g = f(*args, **kwargs)
         taskname = next(g)
+        # if _state.parents:
+        # _graph.tasks.add((_state.parents[-1], taskname))
+        if top:
+            _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
-        ready = _ready(assets)
-        if not ready or _i_am_top_task():
-            _report_readiness(ready=ready, taskname=taskname)
+        ready_final = _ready(assets)
+        if not ready_final or top:
+            _report_readiness(ready=ready_final, taskname=taskname)
         return assets
 
     return decorated_tasks
@@ -277,8 +291,11 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     # it to a list for iteration. The value of each task-function call is a collection of assets,
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
-    logging.info("%s: Checking required tasks", taskname)
-    return list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
+    _state.parents.append(taskname)
+    logging.info("%s: Checking requirement(s)", taskname)
+    assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
+    _state.parents.pop()
+    return assets
 
 
 def _execute(g: Generator, taskname: str) -> None:
@@ -398,9 +415,9 @@ def _report_readiness(
     extmsg = " (EXTERNAL)" if is_external and not ready else ""
     logf = logging.info if initial or ready else logging.warning
     logf(
-        "%s: %s state: %s%s",
+        "%s: %s: %s%s",
         taskname,
-        "Initial" if initial else "Final",
+        "State" if is_external else "Initial state" if initial else "Final state",
         "Ready" if ready else "Pending",
         extmsg,
     )
