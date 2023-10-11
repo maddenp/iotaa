@@ -127,229 +127,261 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (according to [the official recipe](https://www.google.com/search?q=masters+of+reality+t.u.s.a.+lyrics)).
 
-The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar:
+The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar -- and a spoon to stir in the sugar:
 
 ``` python
 @tasks
 def a_cup_of_tea(basedir):
-    yield "A cup of steeped tea with sugar"
-    cupdir = ref(cup(basedir))
-    yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
+    # A cup of steeped tea with sugar, and a spoon.
+    yield "A nice cup of tea"
+    yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
 ```
 
-As described above, a `@tasks` function must `yield` its name and the assets it requires: In this case, a cup to make the tea in; then the steeped tea with sugar, in that cup. Knowledge of the location of the directory representing the cup belongs to `cup()`, and the expression `ref(cup(basedir))[0]` 1. Calls `cup()`, which returns a list of the assets it makes ready; 2. Passes those returned assets into `ref()`, which extracts the unique references to the assets (a filesystem path in this case); and 3. Retrieves the first (and in this case only) ref, which is the cup directory. (Compare to the definition of `@task` `cup`, below.) The function then declares that it requires this `cup()`, as well as steeped tea with sugar in the cup, by `yield`ing these task-function calls.
+As described above, a `@tasks` function must `yield` its name and the assets it requires: In this case, the steeped tea with sugar, and a spoon. Since this function is a `@tasks` connection, no executable statements follow the final `yield.`
 
-Note that the function could have equivalently
+The `spoon()` and `cup()` `@task` functions are straightforward:
 
 ``` python
-    the_cup = cup(basedir)
-    cupdir = ref(the_cup)
-    yield [the_cup, steeped_tea_with_sugar(cupdir)]
+@task
+def spoon(basedir):
+    # A spoon to stir the tea.
+    path = Path(basedir) / "spoon"
+    yield "A spoon"
+    yield asset(path, path.exists)
+    yield None
+    path.parent.mkdir(parents=True)
+    path.touch()
 ```
-
-to avoid repeating the `cup(basedir)` call. But since `iotaa` caches task-function calls, repeating the call does not change the workflow's behavior.
-
-Since this function is a `@tasks` connection, to executable statements follow the final `yield.`
-
-The `cup()` `@task` function is straightforward:
 
 ``` python
 @task
 def cup(basedir):
-    # Get a cup to make the tea in.
+    # A cup for the tea.
     path = Path(basedir) / "cup"
-    yield f"The cup: {path}"
+    yield "A cup"
     yield asset(path, path.exists)
     yield None
     path.mkdir(parents=True)
 ```
 
-It `yield`s its name; the asset it is responsible for making ready; and its requirements (it has none). Following the final `yield`, it does what is necessary to ready its asset: Creates the cup directory.
+They `yield` their names; the asset each is responsible for making ready; and the tasks they require -- `None` in this case, since they have no requirements. Following the final `yield`, they do what is necessary to ready their assets: `spoon()` ensures that the base directory exists, then creates the `spoon` file therein; `cup()` creates the `cup` directory that will contain the tea ingredients.
+
+Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directoy is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
 
 The `steeped_tea_with_sugar()` `@task` function is next:
 
 ``` python
 @task
-def steeped_tea_with_sugar(cupdir):
+def steeped_tea_with_sugar(basedir):
     # Add sugar to the steeped tea. Requires tea to have steeped.
-    for x in ingredient(cupdir, "sugar", "Steeped tea with sugar", steeped_tea):
+    for x in ingredient(basedir, "sugar", "Sugar", steeped_tea):
         yield x
 ```
 
 Two new ideas are demonstrated here.
 
-First, a task function can call other non-task logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined thus:
+First, a task function can call arbitrary logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined thus:
 
 ``` python
-def ingredient(cupdir, fn, name, req=None):
-    path = Path(cupdir) / fn
-    path.parent.mkdir(parents=True, exist_ok=True)
-    yield f"{name} in {cupdir}"
+def ingredient(basedir, fn, name, req=None):
+    yield f"{name} in cup"
+    path = ref(cup(basedir)) / fn
     yield {fn: asset(path, path.exists)}
-    yield req(cupdir) if req else None
+    yield [cup(basedir)] + ([req(basedir)] if req else [])
+    logging.info("Adding %s to cup", fn)
     path.touch()
 ```
 
-This helper is called by other task functions in the workflow. It simulates adding an ingredient (tea, boiling water, sugar) to the tea cup, and handles `yield`ing the necessary values to `iotaa`.
+This helper is called by other task functions in the workflow, too. It simulates adding an ingredient (tea, water, sugar) to the tea cup, and `yield`s values that the caller can re-`yield` to `iotaa`.
 
-Second, `steeped_tea_with_sugar()` `yield`s (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that it passes the function _name_ rather than a call (i.e. `steeped_tea` instead of `steeped_tea(cupdir)`) so that it can be called at the right time by `ingredient()`.
+Second, `steeped_tea_with_sugar()` `yield`s (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that it passes the function _name_ rather than a call (i.e. `steeped_tea` instead of `steeped_tea(basedir)`) so that it can be called at the right time by `ingredient()`.
 
-Next up, the `steeped_tea()` `@external` function, which is somewhat more complex:
+Next up, the `steeped_tea()` function, which is somewhat more complex:
 
 ``` python
-@external
-def steeped_tea(cupdir):
+@task
+def steeped_tea(basedir):
     # Give tea time to steep.
-    yield f"Time for tea to steep in {cupdir}"
-    ready = False
-    water = ref(steeping_tea(cupdir))["water"]
+    yield "Time for tea to steep"
+    water = ref(steeping_tea(basedir))["water"]
+    steep_time = lambda x: asset("Time", lambda: x)
+    t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
-        ready_time = water_poured_time + dt.timedelta(seconds=10)
+        ready_time = water_poured_time + dt.timedelta(seconds=t)
         now = dt.datetime.now()
         ready = now >= ready_time
-        if not ready:
-            logging.warning("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
-        yield asset(None, lambda: ready)
+        remaining = int((ready_time - now).total_seconds())
+        yield steep_time(ready)
     else:
-        yield asset(None, lambda: False)
+        ready = False
+        remaining = t
+        yield steep_time(False)
+    yield steeping_tea(basedir)
+    if not ready:
+        logging.warning("Tea needs to steep for %ss", remaining)
 ```
 
-Here, the asset being `yield`ed is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, though useful for a demo. Try 3 minutes for black tea.) The path to the `water` file is located by calling `ref()` on the return value of `steeping_tea()` and taking the item with key `water`. (Because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `tea`, `water`, `sugar`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. This function is `@external` because there's nothing it can do to make its asset (time passed) ready: It can only wait.
+Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `ref()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to make its asset (time passed) ready: It can only wait.
 
-The `steeping_tea()` and `tea_bag()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
+The `steeping_tea()` and `teabag()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
 
 ``` python
 @task
-def steeping_tea(cupdir):
-    # Pour boiling water over the tea. Requires tea bag in cup.
-    for x in ingredient(cupdir, "water", "Boiling water over the tea", tea_bag):
+def steeping_tea(basedir):
+    # Pour boiling water over the tea. Requires teabag in cup.
+    for x in ingredient(basedir, "water", "Boiling water", teabag):
         yield x
 ```
 
 ``` python
 @task
-def tea_bag(cupdir):
-    # Place tea bag in the cup. Requires box of tea bags.
-    for x in ingredient(cupdir, "tea", "Tea bag", box_of_tea_bags):
+def teabag(basedir):
+    # Place tea bag in the cup. Requires box of teabags.
+    for x in ingredient(basedir, "teabag", "Teabag", box_of_teabags):
         yield x
 ```
 
-Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist, and no action by the workflow can create it:
+Finally, we have this workflow's only `@external` task, `box_of_teabags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of teabags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ that it represents. It `yield`s no task requirements, and has no executable statements to make the asset ready:
 
 ``` python
 @external
-def box_of_tea_bags(cupdir):
-    path = Path(cupdir).parent / "box-of-tea"
-    yield f"Tea from store: {path}"
+def box_of_teabags(basedir):
+    path = Path(basedir) / "box-of-teabags"
+    yield f"Box of teabags {path}"
     yield asset(path, path.exists)
 ```
-
-Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ that it represents. It `yield`s no task requirements, and has no executable statements to make the asset ready.
 
 Let's run this workflow with the `iotaa` command-line tool, requesting that the workflow start with the `a_cup_of_tea` task:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-10T23:26:41] INFO    A cup of steeped tea with sugar: Checking required tasks
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Initial state: Pending
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Checking required tasks
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Ready
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Executing
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Final state: Ready
-[2023-10-10T23:26:41] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
-[2023-10-10T23:26:41] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
-[2023-10-10T23:26:41] INFO    Boiling water over the tea in teatime/cup: Initial state: Pending
-[2023-10-10T23:26:41] INFO    Boiling water over the tea in teatime/cup: Checking required tasks
-[2023-10-10T23:26:41] INFO    Tea bag in teatime/cup: Initial state: Pending
-[2023-10-10T23:26:41] INFO    Tea bag in teatime/cup: Checking required tasks
-[2023-10-10T23:26:41] WARNING Tea from store: teatime/box-of-tea: Final state: Pending (EXTERNAL)
-[2023-10-10T23:26:41] INFO    Tea bag in teatime/cup: Pending
-[2023-10-10T23:26:41] WARNING Tea bag in teatime/cup: Final state: Pending
-[2023-10-10T23:26:41] INFO    Boiling water over the tea in teatime/cup: Pending
-[2023-10-10T23:26:41] WARNING Boiling water over the tea in teatime/cup: Final state: Pending
-[2023-10-10T23:26:41] WARNING Time for tea to steep in teatime/cup: Final state: Pending (EXTERNAL)
-[2023-10-10T23:26:41] INFO    Steeped tea with sugar in teatime/cup: Pending
-[2023-10-10T23:26:41] WARNING Steeped tea with sugar in teatime/cup: Final state: Pending
-[2023-10-10T23:26:41] WARNING A cup of steeped tea with sugar: Final state: Pending
+[2023-10-11T12:31:51] INFO    A nice cup of tea: Initial state: Pending
+[2023-10-11T12:31:51] INFO    A nice cup of tea: Checking requirements
+[2023-10-11T12:31:51] INFO    A spoon: Initial state: Pending
+[2023-10-11T12:31:51] INFO    A spoon: Checking requirements
+[2023-10-11T12:31:51] INFO    A spoon: Requirement(s) ready
+[2023-10-11T12:31:51] INFO    A spoon: Executing
+[2023-10-11T12:31:51] INFO    A spoon: Final state: Ready
+[2023-10-11T12:31:51] INFO    A cup: Initial state: Pending
+[2023-10-11T12:31:51] INFO    A cup: Checking requirements
+[2023-10-11T12:31:51] INFO    A cup: Requirement(s) ready
+[2023-10-11T12:31:51] INFO    A cup: Executing
+[2023-10-11T12:31:51] INFO    A cup: Final state: Ready
+[2023-10-11T12:31:51] INFO    Sugar in cup: Initial state: Pending
+[2023-10-11T12:31:51] INFO    Sugar in cup: Checking requirements
+[2023-10-11T12:31:51] INFO    Boiling water in cup: Initial state: Pending
+[2023-10-11T12:31:51] INFO    Boiling water in cup: Checking requirements
+[2023-10-11T12:31:51] INFO    Teabag in cup: Initial state: Pending
+[2023-10-11T12:31:51] INFO    Teabag in cup: Checking requirements
+[2023-10-11T12:31:51] WARNING Box of teabags teatime/box-of-teabags: State: Pending (EXTERNAL)
+[2023-10-11T12:31:51] INFO    Teabag in cup: Requirement(s) pending
+[2023-10-11T12:31:51] WARNING Teabag in cup: Final state: Pending
+[2023-10-11T12:31:51] INFO    Boiling water in cup: Requirement(s) pending
+[2023-10-11T12:31:51] WARNING Boiling water in cup: Final state: Pending
+[2023-10-11T12:31:51] INFO    Time for tea to steep: Initial state: Pending
+[2023-10-11T12:31:51] INFO    Time for tea to steep: Checking requirements
+[2023-10-11T12:31:51] INFO    Time for tea to steep: Requirement(s) pending
+[2023-10-11T12:31:51] WARNING Time for tea to steep: Final state: Pending
+[2023-10-11T12:31:51] INFO    Sugar in cup: Requirement(s) pending
+[2023-10-11T12:31:51] WARNING Sugar in cup: Final state: Pending
+[2023-10-11T12:31:51] WARNING A nice cup of tea: Final state: Pending
 ```
 
-There's lots to see during the first invocation. Most of the tasks start and end in a pending state. Only the `cup()` task makes progress from pending to ready state:
+There's lots to see during the first invocation. Most of the tasks start and end in a pending state. Only the `spoon()` and `cup()` tasks make progress from `Pending` to `Ready` states:
 
 ```
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Initial state: Pending
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Checking required tasks
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Ready
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Executing
-[2023-10-10T23:26:41] INFO    The cup: teatime/cup: Final state: Ready
+[2023-10-11T12:31:51] INFO    A spoon: Initial state: Pending
+[2023-10-11T12:31:51] INFO    A spoon: Checking requirements
+[2023-10-11T12:31:51] INFO    A spoon: Requirement(s) ready
+[2023-10-11T12:31:51] INFO    A spoon: Executing
+[2023-10-11T12:31:51] INFO    A spoon: Final state: Ready
 ```
+
+```
+[2023-10-11T12:31:51] INFO    A cup: Initial state: Pending
+[2023-10-11T12:31:51] INFO    A cup: Checking requirements
+[2023-10-11T12:31:51] INFO    A cup: Requirement(s) ready
+[2023-10-11T12:31:51] INFO    A cup: Executing
+[2023-10-11T12:31:51] INFO    A cup: Final state: Ready
+```
+
+We will see in subsequent workflow invocations that these tasks are not revisited, as their assets will be found to be ready.
 
 The on-disk workflow state is:
 
 ```
-% tree teatime/
-teatime/
-└── cup
+% tree teatime
+teatime
+├── cup
+└── spoon
 ```
 
 Note the blocker:
 
 ```
-[2023-10-10T23:26:41] WARNING Tea from store: teatime/box-of-tea: Final state: Pending (EXTERNAL)
+[2023-10-11T12:31:51] WARNING Box of teabags teatime/box-of-teabags: State: Pending (EXTERNAL)
 ```
 
-The file `teatime/box-of-tea` cannot be created by the workflow, as it is declared `@external`. Let's create it externally:
+The file `teatime/box-of-teabags` cannot be created by the workflow, as it is declared `@external`. Let's create it externally:
 
 ```
-% touch teatime/box-of-tea
-% tree teatime/
-teatime/
-├── box-of-tea
-└── cup
+% touch teatime/box-of-teabags
+% tree teatime
+teatime
+├── box-of-teabags
+├── cup
+└── spoon
 ```
 
 Now let's iterate the workflow:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-10T23:28:34] INFO    A cup of steeped tea with sugar: Checking required tasks
-[2023-10-10T23:28:34] INFO    The cup: teatime/cup: Initial state: Ready
-[2023-10-10T23:28:34] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
-[2023-10-10T23:28:34] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
-[2023-10-10T23:28:34] INFO    Boiling water over the tea in teatime/cup: Initial state: Pending
-[2023-10-10T23:28:34] INFO    Boiling water over the tea in teatime/cup: Checking required tasks
-[2023-10-10T23:28:34] INFO    Tea bag in teatime/cup: Initial state: Pending
-[2023-10-10T23:28:34] INFO    Tea bag in teatime/cup: Checking required tasks
-[2023-10-10T23:28:34] INFO    Tea bag in teatime/cup: Ready
-[2023-10-10T23:28:34] INFO    Tea bag in teatime/cup: Executing
-[2023-10-10T23:28:34] INFO    Tea bag in teatime/cup: Final state: Ready
-[2023-10-10T23:28:34] INFO    Boiling water over the tea in teatime/cup: Ready
-[2023-10-10T23:28:34] INFO    Boiling water over the tea in teatime/cup: Executing
-[2023-10-10T23:28:34] INFO    Boiling water over the tea in teatime/cup: Final state: Ready
-[2023-10-10T23:28:34] WARNING Tea needs to steep for 9s
-[2023-10-10T23:28:34] WARNING Time for tea to steep in teatime/cup: Final state: Pending (EXTERNAL)
-[2023-10-10T23:28:34] INFO    Steeped tea with sugar in teatime/cup: Pending
-[2023-10-10T23:28:34] WARNING Steeped tea with sugar in teatime/cup: Final state: Pending
-[2023-10-10T23:28:34] WARNING A cup of steeped tea with sugar: Final state: Pending
+[2023-10-11T12:35:35] INFO    A nice cup of tea: Initial state: Pending
+[2023-10-11T12:35:35] INFO    A nice cup of tea: Checking requirements
+[2023-10-11T12:35:35] INFO    Sugar in cup: Initial state: Pending
+[2023-10-11T12:35:35] INFO    Sugar in cup: Checking requirements
+[2023-10-11T12:35:35] INFO    Boiling water in cup: Initial state: Pending
+[2023-10-11T12:35:35] INFO    Boiling water in cup: Checking requirements
+[2023-10-11T12:35:35] INFO    Teabag in cup: Initial state: Pending
+[2023-10-11T12:35:35] INFO    Teabag in cup: Checking requirements
+[2023-10-11T12:35:35] INFO    Teabag in cup: Requirement(s) ready
+[2023-10-11T12:35:35] INFO    Teabag in cup: Executing
+[2023-10-11T12:35:35] INFO    Adding teabag to cup
+[2023-10-11T12:35:35] INFO    Teabag in cup: Final state: Ready
+[2023-10-11T12:35:35] INFO    Boiling water in cup: Requirement(s) ready
+[2023-10-11T12:35:35] INFO    Boiling water in cup: Executing
+[2023-10-11T12:35:35] INFO    Adding water to cup
+[2023-10-11T12:35:35] INFO    Boiling water in cup: Final state: Ready
+[2023-10-11T12:35:35] INFO    Time for tea to steep: Initial state: Pending
+[2023-10-11T12:35:35] INFO    Time for tea to steep: Checking requirements
+[2023-10-11T12:35:35] INFO    Time for tea to steep: Requirement(s) ready
+[2023-10-11T12:35:35] INFO    Time for tea to steep: Executing
+[2023-10-11T12:35:35] WARNING Tea needs to steep for 9s
+[2023-10-11T12:35:35] INFO    Sugar in cup: Requirement(s) pending
+[2023-10-11T12:35:35] WARNING Sugar in cup: Final state: Pending
+[2023-10-11T12:35:35] WARNING A nice cup of tea: Final state: Pending
 ```
 
 On-disk workflow state now:
 
 ```
-% tree teatime/
-teatime/
-├── box-of-tea
-└── cup
-    ├── tea
-    └── water
+% tree teatime
+teatime
+├── box-of-teabags
+├── cup
+│   ├── teabag
+│   └── water
+└── spoon
 ```
 
-Since the box of tea became available, the workflow could add tea to the cup and pour boiling water over it. Note the message `Tea needs to steep for 9s`. If we iterate the workflow again quickly, we can see the steep time decreasing:
+Since the box of tea became available, the workflow was able to add tea to the cup and pour boiling water over it. Note the message `Tea needs to steep for 9s`. If we iterate the workflow again after a few seconds, we can see the steep time decreasing:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
 ...
-[2023-10-10T23:28:39] WARNING Tea needs to steep for 5s
+[2023-10-11T12:35:40] WARNING Tea needs to steep for 5s
 ...
 ```
 
@@ -357,36 +389,40 @@ If we wait a bit longer and iterate:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-10T23:30:54] INFO    A cup of steeped tea with sugar: Checking required tasks
-[2023-10-10T23:30:54] INFO    The cup: teatime/cup: Initial state: Ready
-[2023-10-10T23:30:54] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
-[2023-10-10T23:30:54] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
-[2023-10-10T23:30:54] INFO    Steeped tea with sugar in teatime/cup: Ready
-[2023-10-10T23:30:54] INFO    Steeped tea with sugar in teatime/cup: Executing
-[2023-10-10T23:30:54] INFO    Steeped tea with sugar in teatime/cup: Final state: Ready
+[2023-10-11T12:37:49] INFO    A nice cup of tea: Initial state: Pending
+[2023-10-11T12:37:49] INFO    A nice cup of tea: Checking requirements
+[2023-10-11T12:37:49] INFO    Sugar in cup: Initial state: Pending
+[2023-10-11T12:37:49] INFO    Sugar in cup: Checking requirements
+[2023-10-11T12:37:49] INFO    Sugar in cup: Requirement(s) ready
+[2023-10-11T12:37:49] INFO    Sugar in cup: Executing
+[2023-10-11T12:37:49] INFO    Adding sugar to cup
+[2023-10-11T12:37:49] INFO    Sugar in cup: Final state: Ready
+[2023-10-11T12:37:49] INFO    A nice cup of tea: Final state: Ready
 ```
 
 Now that the tea has steeped long enough, the sugar has been added:
 
 ```
-% tree teatime/
-teatime/
-├── box-of-tea
-└── cup
-    ├── sugar
-    ├── tea
-    └── water
+% tree teatime
+teatime
+├── box-of-teabags
+├── cup
+│   ├── sugar
+│   ├── teabag
+│   └── water
+└── spoon
 ```
 
 One more iteration and we see that the workflow has reached its final state and takes no more action:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-10T23:31:43] INFO    A cup of steeped tea with sugar: Checking required tasks
-[2023-10-10T23:31:44] INFO    The cup: teatime/cup: Initial state: Ready
+[2023-10-11T12:38:38] INFO    A nice cup of tea: Initial state: Pending
+[2023-10-11T12:38:38] INFO    A nice cup of tea: Checking requirements
+[2023-10-11T12:38:38] INFO    A nice cup of tea: Final state: Ready
 ```
 
-Since `a_cup_of_tea()` is a `@tasks` collection, its state is contingent on that of its required tasks, so its readiness check will always involve checking requirements, unlike a non-collection `@task`, which can just check its own assets.
+Since `a_cup_of_tea()` is a `@tasks` _collection_, its state is contingent on that of its required tasks, so its readiness check will always involve checking requirements, unlike a non-collection `@task`, which can just check its assets.
 
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
@@ -395,83 +431,93 @@ One useful feature of this kind of workflow is its ability to recover from damag
 removed 'teatime/cup/sugar'
 % tree teatime/
 teatime/
-├── box-of-tea
-└── cup
-    ├── tea
-    └── water
+├── box-of-teabags
+├── cup
+│   ├── teabag
+│   └── water
+└── spoon
 ```
 
 Note how the workflow detects the change to the readiness of its assets and recovers:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-10T23:32:39] INFO    A cup of steeped tea with sugar: Checking required tasks
-[2023-10-10T23:32:39] INFO    The cup: teatime/cup: Initial state: Ready
-[2023-10-10T23:32:39] INFO    Steeped tea with sugar in teatime/cup: Initial state: Pending
-[2023-10-10T23:32:39] INFO    Steeped tea with sugar in teatime/cup: Checking required tasks
-[2023-10-10T23:32:39] INFO    Steeped tea with sugar in teatime/cup: Ready
-[2023-10-10T23:32:39] INFO    Steeped tea with sugar in teatime/cup: Executing
-[2023-10-10T23:32:39] INFO    Steeped tea with sugar in teatime/cup: Final state: Ready
+[2023-10-11T12:40:10] INFO    A nice cup of tea: Initial state: Pending
+[2023-10-11T12:40:10] INFO    A nice cup of tea: Checking requirements
+[2023-10-11T12:40:10] INFO    Sugar in cup: Initial state: Pending
+[2023-10-11T12:40:10] INFO    Sugar in cup: Checking requirements
+[2023-10-11T12:40:10] INFO    Sugar in cup: Requirement(s) ready
+[2023-10-11T12:40:10] INFO    Sugar in cup: Executing
+[2023-10-11T12:40:10] INFO    Adding sugar to cup
+[2023-10-11T12:40:10] INFO    Sugar in cup: Final state: Ready
+[2023-10-11T12:40:10] INFO    A nice cup of tea: Final state: Ready
 ```
 
 ```
-% tree teatime/
-teatime/
-├── box-of-tea
-└── cup
-    ├── sugar
-    ├── tea
-    └── water
+% tree teatime
+teatime
+├── box-of-teabags
+├── cup
+│   ├── sugar
+│   ├── teabag
+│   └── water
+└── spoon
 ```
 
 Another useful feature is the ability to enter the workflow's task graph at an arbitrary point to obtain only a subset of the assets. For example, if we'd like a cup of tea _without_ sugar, we can start with the `steeped_tea` task rather than the higher-level `a_cup_of_tea` task.
 
-First, empty the cup:
+First, let's empty the cup:
 
 ```
 % rm -v teatime/cup/*
 removed 'teatime/cup/sugar'
-removed 'teatime/cup/tea'
+removed 'teatime/cup/teabag'
 removed 'teatime/cup/water'
-(DEV-iotaa) ~/git/iotaa % tree teatime/
-teatime/
-├── box-of-tea
-└── cup
+% tree teatime
+teatime
+├── box-of-teabags
+├── cup
+└── spoon
 ```
 
-Now request tea without sugar (note that task `steeped_tea` expects a path to the cup as its argument, so `./teatime/cup` is supplied here instead of just `./teatime`:
+Now request tea without sugar:
 
 ```
-% iotaa iotaa.demo steeped_tea ./teatime/cup
-[2023-10-10T23:33:51] INFO    Boiling water over the tea in ./teatime/cup: Initial state: Pending
-[2023-10-10T23:33:51] INFO    Boiling water over the tea in ./teatime/cup: Checking required tasks
-[2023-10-10T23:33:51] INFO    Tea bag in ./teatime/cup: Initial state: Pending
-[2023-10-10T23:33:51] INFO    Tea bag in ./teatime/cup: Checking required tasks
-[2023-10-10T23:33:51] INFO    Tea from store: teatime/box-of-tea: Final state: Ready
-[2023-10-10T23:33:51] INFO    Tea bag in ./teatime/cup: Ready
-[2023-10-10T23:33:51] INFO    Tea bag in ./teatime/cup: Executing
-[2023-10-10T23:33:51] INFO    Tea bag in ./teatime/cup: Final state: Ready
-[2023-10-10T23:33:51] INFO    Boiling water over the tea in ./teatime/cup: Ready
-[2023-10-10T23:33:51] INFO    Boiling water over the tea in ./teatime/cup: Executing
-[2023-10-10T23:33:51] INFO    Boiling water over the tea in ./teatime/cup: Final state: Ready
-[2023-10-10T23:33:51] WARNING Tea needs to steep for 9s
-[2023-10-10T23:33:51] WARNING Time for tea to steep in ./teatime/cup: Final state: Pending (EXTERNAL)
+% iotaa iotaa.demo steeped_tea ./teatime
+[2023-10-11T12:43:11] INFO    Boiling water in cup: Initial state: Pending
+[2023-10-11T12:43:11] INFO    Boiling water in cup: Checking requirements
+[2023-10-11T12:43:11] INFO    Teabag in cup: Initial state: Pending
+[2023-10-11T12:43:11] INFO    Teabag in cup: Checking requirements
+[2023-10-11T12:43:11] INFO    Teabag in cup: Requirement(s) ready
+[2023-10-11T12:43:11] INFO    Teabag in cup: Executing
+[2023-10-11T12:43:11] INFO    Adding teabag to cup
+[2023-10-11T12:43:11] INFO    Teabag in cup: Final state: Ready
+[2023-10-11T12:43:11] INFO    Boiling water in cup: Requirement(s) ready
+[2023-10-11T12:43:11] INFO    Boiling water in cup: Executing
+[2023-10-11T12:43:11] INFO    Adding water to cup
+[2023-10-11T12:43:11] INFO    Boiling water in cup: Final state: Ready
+[2023-10-11T12:43:11] INFO    Time for tea to steep: Initial state: Pending
+[2023-10-11T12:43:11] INFO    Time for tea to steep: Checking requirements
+[2023-10-11T12:43:11] INFO    Time for tea to steep: Requirement(s) ready
+[2023-10-11T12:43:11] INFO    Time for tea to steep: Executing
+[2023-10-11T12:43:11] WARNING Tea needs to steep for 9s
 ```
 
 After waiting for the tea to steep:
 
 ```
-% iotaa iotaa.demo steeped_tea ./teatime/cup
-[2023-10-10T23:34:14] INFO    Boiling water over the tea in ./teatime/cup: Initial state: Ready
+% iotaa iotaa.demo steeped_tea ./teatime
+[2023-10-11T12:44:09] INFO    Time for tea to steep: Initial state: Ready
 ```
 
 On-disk state:
 
 ```
-% tree teatime
-teatime
-├── box-of-tea
-└── cup
-    ├── tea
-    └── water
+% tree teatime/
+teatime/
+├── box-of-teabags
+├── cup
+│   ├── teabag
+│   └── water
+└── spoon
 ```

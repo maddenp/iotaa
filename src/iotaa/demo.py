@@ -25,7 +25,8 @@ def spoon(basedir):
     yield "A spoon"
     yield asset(path, path.exists)
     yield None
-    path.mkdir(parents=True)
+    path.parent.mkdir(parents=True)
+    path.touch()
 
 
 @task
@@ -85,7 +86,7 @@ def teabag(basedir):
 @external
 def box_of_teabags(basedir):
     path = Path(basedir) / "box-of-teabags"
-    yield "Box of teabags"
+    yield f"Box of teabags {path}"
     yield asset(path, path.exists)
 
 
