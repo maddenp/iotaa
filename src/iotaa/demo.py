@@ -41,6 +41,7 @@ def steeped_tea(cupdir):
     yield f"Time for tea to steep in {cupdir}"
     ready = False
     water = ref(steeping_tea(cupdir))["water"]
+    steep_time = lambda x: asset("Time", lambda: x)
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
         ready_time = water_poured_time + dt.timedelta(seconds=10)
@@ -48,9 +49,9 @@ def steeped_tea(cupdir):
         ready = now >= ready_time
         if not ready:
             logging.warning("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
-        yield asset("Time", lambda: ready)
+        yield steep_time(ready)
     else:
-        yield asset("Time", lambda: False)
+        yield steep_time(False)
     yield steeping_tea(cupdir)
 
 
