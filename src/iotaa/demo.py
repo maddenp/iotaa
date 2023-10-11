@@ -52,7 +52,6 @@ def steeped_tea(cupdir):
     else:
         yield asset(None, lambda: False)
     yield steeping_tea(cupdir)
-    pass  # Nothing to do but wait...
 
 
 @task
