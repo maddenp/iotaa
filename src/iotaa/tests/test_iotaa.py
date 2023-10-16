@@ -20,7 +20,7 @@ import iotaa
 
 @fixture
 def delegate_assets():
-    return (iotaa.asset(ref=n, ready=lambda: True) for n in range(4))
+    return (iotaa.Asset(ref=n, ready=lambda: True) for n in range(4))
 
 
 @fixture
@@ -29,7 +29,7 @@ def external_foo_scalar():
     def foo(path):
         f = path / "foo"
         yield f"external foo {f}"
-        yield iotaa.asset(f, f.is_file)
+        yield iotaa.Asset(f, f.is_file)
 
     return foo
 
@@ -64,7 +64,7 @@ def task_bar_list(external_foo_scalar):
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
-        yield [iotaa.asset(f, f.is_file)]
+        yield [iotaa.Asset(f, f.is_file)]
         yield [external_foo_scalar(path)]
         f.touch()
 
@@ -77,7 +77,7 @@ def task_bar_dict(external_foo_scalar):
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
-        yield {"path": iotaa.asset(f, f.is_file)}
+        yield {"path": iotaa.Asset(f, f.is_file)}
         yield [external_foo_scalar(path)]
         f.touch()
 
@@ -102,7 +102,7 @@ def logged(msg: str, caplog: LogCaptureFixture) -> bool:
 
 
 @pytest.mark.parametrize(
-    "asset", [iotaa.asset("foo", lambda: True), iotaa.asset(ref="foo", ready=lambda: True)]
+    "asset", [iotaa.Asset("foo", lambda: True), iotaa.Asset(ref="foo", ready=lambda: True)]
 )
 def test_asset(asset):
     assert asset.ref == "foo"
@@ -166,7 +166,7 @@ def test_main_mocked_up(tmp_path):
 
 def test_ref_dict():
     expected = "bar"
-    asset = iotaa.asset(ref="bar", ready=lambda: True)
+    asset = iotaa.Asset(ref="bar", ready=lambda: True)
     assert iotaa.ref(assets={"foo": asset})["foo"] == expected
     assert iotaa.ref(assets=[asset])[0] == expected
     assert iotaa.ref(assets=asset) == expected
@@ -360,7 +360,7 @@ def test__i_am_top_task(val):
 
 
 def test__listify():
-    a = iotaa.asset(ref=None, ready=lambda: True)
+    a = iotaa.Asset(ref=None, ready=lambda: True)
     assert iotaa._listify(assets=None) == []
     assert iotaa._listify(assets=a) == [a]
     assert iotaa._listify(assets=[a]) == [a]
@@ -393,8 +393,8 @@ def test__parse_args():
 
 
 def test__ready():
-    af = iotaa.asset(ref=False, ready=lambda: False)
-    at = iotaa.asset(ref=True, ready=lambda: True)
+    af = iotaa.Asset(ref=False, ready=lambda: False)
+    at = iotaa.Asset(ref=True, ready=lambda: True)
     assert iotaa._ready(None)
     assert iotaa._ready([at])
     assert iotaa._ready(at)

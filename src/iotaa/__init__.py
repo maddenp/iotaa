@@ -22,7 +22,7 @@ _state = ns(dry_run=False, initialized=False)
 
 
 @dataclass
-class asset:
+class Asset:
     """
     A workflow asset (observable external state).
 
@@ -35,7 +35,7 @@ class asset:
 
 
 @dataclass
-class result:
+class Result:
     """
     The result of running an external command.
 
@@ -47,8 +47,8 @@ class result:
     success: bool
 
 
-_Assets = Union[Dict[str, asset], List[asset]]
-_AssetT = Optional[Union[_Assets, asset]]
+_Assets = Union[Dict[str, Asset], List[Asset]]
+_AssetT = Optional[Union[_Assets, Asset]]
 
 
 def dryrun() -> None:
@@ -115,7 +115,7 @@ def ref(assets: _AssetT) -> Any:
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
         return {i: v.ref for i, v in enumerate(assets)}
-    if isinstance(assets, asset):
+    if isinstance(assets, Asset):
         return assets.ref
     return None
 
@@ -126,7 +126,7 @@ def run(
     cwd: Optional[Union[Path, str]] = None,
     env: Optional[Dict[str, str]] = None,
     log: Optional[bool] = False,
-) -> result:
+) -> Result:
     """
     Run a command in a subshell.
 
@@ -135,7 +135,7 @@ def run(
     :param cwd: Change to this directory before running cmd.
     :param env: Environment variables to set before running cmd.
     :param log: Log output from successful cmd? (Error output is always logged.)
-    :return: A result object providing stderr, stdout and success info.
+    :return: The stderr, stdout and success info.
     """
 
     indent = "  "
@@ -161,7 +161,7 @@ def run(
         logfunc("%s: %sOutput:", taskname, indent)
         for line in output.split("\n"):
             logfunc("%s: %s%s", taskname, indent * 2, line)
-    return result(output=output, success=success)
+    return Result(output=output, success=success)
 
 
 def runconda(
@@ -172,7 +172,7 @@ def runconda(
     cwd: Optional[Union[Path, str]] = None,
     env: Optional[Dict[str, str]] = None,
     log: Optional[bool] = False,
-) -> result:
+) -> Result:
     """
     Run a command in the specified conda environment.
 
@@ -183,7 +183,7 @@ def runconda(
     :param cwd: Change to this directory before running cmd.
     :param env: Environment variables to set before running cmd.
     :param log: Log output from successful cmd? (Error output is always logged.)
-    :return: A result object providing stderr, stdout and success info.
+    :return: The stderr, stdout and success info.
     """
     cmd = " && ".join(
         [
@@ -264,7 +264,7 @@ def tasks(f) -> Callable[..., _AssetT]:
 # Private functions
 
 
-def _delegate(g: Generator, taskname: str) -> List[asset]:
+def _delegate(g: Generator, taskname: str) -> List[Asset]:
     """
     Delegate execution to the current task's requirement(s).
 
@@ -324,7 +324,7 @@ def _i_am_top_task() -> bool:
     return True
 
 
-def _listify(assets: _AssetT) -> List[asset]:
+def _listify(assets: _AssetT) -> List[Asset]:
     """
     Return a list representation of the provided asset(s).
 
@@ -334,7 +334,7 @@ def _listify(assets: _AssetT) -> List[asset]:
 
     if assets is None:
         return []
-    if isinstance(assets, asset):
+    if isinstance(assets, Asset):
         return [assets]
     if isinstance(assets, dict):
         return list(assets.values())

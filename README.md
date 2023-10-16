@@ -14,33 +14,33 @@ Workflows comprise:
 
 ## Assets
 
-An `asset` object has two attributes:
+An `Asset` object has two attributes:
 
 1. `ref`: A value, of any type, uniquely referring to the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
 2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether or not the asset is ready to use
 
-Create an `asset` by calling `asset()`.
+Create an `Asset` by calling the `Asset()` constructor.
 
 ## Tasks
 
-Task are functions that declare, by `yield`ing values to `iotaa`, a description of the assets represented by the task (aka the task's name), plus -- depending on task type -- one or more of: the `asset`s themselves, other tasks that the task requires, and/or executable logic to make the task's asset ready. `iotaa` provides three Python decorators to define tasks:
+Task are functions that declare, by `yield`ing values to `iotaa`, a description of the assets represented by the task (aka the task's name), plus -- depending on task type -- one or more of: the `Asset`s themselves, other tasks that the task requires, and/or executable logic to make the task's asset ready. `iotaa` provides three Python decorators to define tasks:
 
 ### `@task`
 
 The essential workflow function type. A `@task` function `yield`s, in order:
 
 1. A task name describing the assets being readied, for logging
-2. An `asset` -- or an `asset` `list`, or a `dict` mapping `str` keys to `asset` values, or `None` -- that the task is responsible for making ready
+2. An `Asset` -- or an `Asset` `list`, or a `dict` mapping `str` keys to `Asset` values, or `None` -- that the task is responsible for making ready
 3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires before it can ready its own assets
 
 Arbitrary Python statements may appear before and interspersed between the `yield` statements. If the assets of all required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will make the task's assets ready.
 
 ### `@external`
 
-A function type representing a required `asset` that `iotaa` cannot make ready, or a `list` or `dict` of such assets. An `@external` function `yield`s, in order:
+A function type representing a required asset that `iotaa` cannot make ready, or a `list` or `dict` of such assets. An `@external` function `yield`s, in order:
 
 1. A task name describing the assets being readied, for logging
-2. A required `asset` -- or an `asset` `list`, or a `dict` mapping `str` keys to `asset` values, or `None` -- that must become ready via external means not under workflow control. (Specifying `None` may be nonsensical.)
+2. A required `Asset` -- or an `Asset` `list`, or a `dict` mapping `str` keys to `Asset` values, or `None` -- that must become ready via external means not under workflow control. (Specifying `None` may be nonsensical.)
 
 As with `@task` functions, arbitrary Python statements may appear before and interspersed between these `yield` statements. However, no statements should follow the second and final `yield`: They will never execute since `@external` tasks are intended as passive wrappers around external state.
 
@@ -102,9 +102,9 @@ Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `io
 
 Several public helper callables are available in the `iotaa` module:
 
-- `asset()` creates an asset, to be returned from task functions.
+- `Asset()` instantiates an `Asset` object to return from a task function.
 - `dryrun()` enables dry-run mode.
-- `ref()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single `asset`) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
+- `ref()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single `Asset`) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
 - `logcfg()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs.
 - `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
@@ -147,7 +147,7 @@ def spoon(basedir):
     # A spoon to stir the tea.
     path = Path(basedir) / "spoon"
     yield "A spoon"
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield None
     path.parent.mkdir(parents=True)
     path.touch()
@@ -159,14 +159,14 @@ def cup(basedir):
     # A cup for the tea.
     path = Path(basedir) / "cup"
     yield "A cup"
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield None
     path.mkdir(parents=True)
 ```
 
 They `yield` their names; the asset each is responsible for making ready; and the tasks they require -- `None` in this case, since they have no requirements. Following the final `yield`, they do what is necessary to ready their assets: `spoon()` ensures that the base directory exists, then creates the `spoon` file therein; `cup()` creates the `cup` directory that will contain the tea ingredients.
 
-Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directoy is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
+Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directoy is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `Asset()` in `cup()`.
 
 The `steeped_tea_with_sugar()` `@task` function is next:
 
@@ -186,7 +186,7 @@ First, a task function can call arbitrary logic to help it carry out its duties.
 def ingredient(basedir, fn, name, req=None):
     yield f"{name} in cup"
     path = ref(cup(basedir)) / fn
-    yield {fn: asset(path, path.exists)}
+    yield {fn: Asset(path, path.exists)}
     yield [cup(basedir)] + ([req(basedir)] if req else [])
     logging.info("Adding %s to cup", fn)
     path.touch()
@@ -204,7 +204,7 @@ def steeped_tea(basedir):
     # Give tea time to steep.
     yield "Time for tea to steep"
     water = ref(steeping_tea(basedir))["water"]
-    steep_time = lambda x: asset("Time", lambda: x)
+    steep_time = lambda x: Asset("Time", lambda: x)
     t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
@@ -222,7 +222,7 @@ def steeped_tea(basedir):
         logging.warning("Tea needs to steep for %ss", remaining)
 ```
 
-Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `ref()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to make its asset (time passed) ready: It can only wait.
+Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `ref()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: Asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to make its asset (time passed) ready: It can only wait.
 
 Note the statement
 
@@ -257,7 +257,7 @@ Finally, we have this workflow's only `@external` task, `box_of_teabags()`. The 
 def box_of_teabags(basedir):
     path = Path(basedir) / "box-of-teabags"
     yield f"Box of teabags {path}"
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
 ```
 
 Let's run this workflow with the `iotaa` command-line tool, requesting that the workflow start with the `a_cup_of_tea` task:
