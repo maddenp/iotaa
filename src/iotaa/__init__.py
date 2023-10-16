@@ -197,7 +197,7 @@ def runconda(
 
 def external(f) -> Callable[..., _AssetT]:
     """
-    The @external decorator for assets that cannot be produced by the workflow.
+    The @external decorator for assets the workflow cannot produce.
     """
 
     @cache
