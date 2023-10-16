@@ -55,7 +55,6 @@ def dryrun() -> None:
     """
     Enable dry-run mode.
     """
-
     _state.dry_run = True
 
 
@@ -65,7 +64,6 @@ def logcfg(verbose: bool = False) -> None:
 
     :param bool: Log at the debug level?
     """
-
     logging.basicConfig(
         datefmt="%Y-%m-%dT%H:%M:%S",
         format="[%(asctime)s] %(levelname)-7s %(message)s",
@@ -137,7 +135,6 @@ def run(
     :param log: Log output from successful cmd? (Error output is always logged.)
     :return: The stderr, stdout and success info.
     """
-
     indent = "  "
     logging.info("%s: Running: %s", taskname, cmd)
     if cwd:
@@ -210,7 +207,7 @@ def external(f) -> Callable[..., _AssetT]:
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return assets
+        return _task_post(taskname, assets)
 
     return decorated_external
 
@@ -237,7 +234,7 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        return assets
+        return _task_post(taskname, assets)
 
     return decorated_task
 
@@ -256,7 +253,7 @@ def tasks(f) -> Callable[..., _AssetT]:
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        return assets
+        return _task_post(taskname, assets)
 
     return decorated_tasks
 
@@ -289,7 +286,6 @@ def _execute(g: Generator, taskname: str) -> None:
     :param g: The current task.
     :param taskname: The current task's name.
     """
-
     if _state.dry_run:
         logging.info("%s: SKIPPING (DRY RUN ENABLED)", taskname)
         return
@@ -307,7 +303,6 @@ def _formatter(prog: str) -> HelpFormatter:
     :param prog: The program name.
     :return: An argparse help formatter.
     """
-
     return HelpFormatter(prog, max_help_position=4)
 
 
@@ -317,7 +312,6 @@ def _i_am_top_task() -> bool:
 
     :return: Is it?
     """
-
     if _state.initialized:
         return False
     _state.initialized = True
@@ -331,7 +325,6 @@ def _listify(assets: _AssetT) -> List[Asset]:
     :param assets: A collection of assets, one asset, or None.
     :return: A possibly empty list of assets.
     """
-
     if assets is None:
         return []
     if isinstance(assets, Asset):
@@ -348,7 +341,6 @@ def _parse_args(raw: List[str]) -> Namespace:
     :param args: Raw command-line arguments.
     :return: Parsed command-line arguments.
     """
-
     parser = ArgumentParser(add_help=False, formatter_class=_formatter)
     parser.add_argument("module", help="application module", type=str)
     parser.add_argument("function", help="task function", type=str)
@@ -377,7 +369,6 @@ def _reify(s: str) -> Any:
     :param s: The string to convert.
     :return: A more Pythonic represetnation of the input string.
     """
-
     try:
         return loads(s)
     except JSONDecodeError:
@@ -395,7 +386,6 @@ def _report_readiness(
     :param is_external: Is this an @external task?
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
-
     extmsg = " (EXTERNAL)" if is_external and not ready else ""
     logf = logging.info if initial or ready else logging.warning
     logf(
@@ -405,6 +395,15 @@ def _report_readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
+
+
+def _task_post(taskname: str, assets: _AssetT) -> _AssetT:
+    """
+    ???
+    """
+    for asset in _listify(assets):
+        setattr(asset, "taskname", taskname)
+    return assets
 
 
 def _task_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
