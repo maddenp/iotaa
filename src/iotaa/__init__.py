@@ -97,7 +97,7 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
     # for x in sorted(_graph.tasks):
-    #     print("@@@", x)
+    #     print(">>>", x)
 
 
 def ref(assets: _AssetT) -> Any:
@@ -206,11 +206,12 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_common_prep(f, *args, **kwargs)
+        top, g, taskname = _task_prep(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
+        _task_post(taskname)
         return assets
 
     return decorated_external
@@ -223,7 +224,7 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_common_prep(f, *args, **kwargs)
+        top, g, taskname = _task_prep(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
@@ -238,6 +239,7 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
+        _task_post(taskname)
         return assets
 
     return decorated_task
@@ -250,13 +252,14 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_common_prep(f, *args, **kwargs)
+        top, g, taskname = _task_prep(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
+        _task_post(taskname)
         return assets
 
     return decorated_tasks
@@ -279,11 +282,8 @@ def _delegate(g: Generator, taskname: str) -> List[asset]:
     # it to a list for iteration. The value of each task-function call is a collection of assets,
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
-    _state.parents.append(taskname)
     logging.info("%s: Checking requirements", taskname)
-    assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-    _state.parents.pop()
-    return assets
+    return list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
 
 
 def _execute(g: Generator, taskname: str) -> None:
@@ -411,13 +411,24 @@ def _report_readiness(
     )
 
 
-def _task_common_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
+def _task_post(taskname) -> None:
+    """
+    ???
+    """
+    _state.parents.pop()
+    print("@@@ 2", taskname, _state.parents)
+
+
+def _task_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
     """
     ???
     """
     top = _i_am_top_task()  # Must precede delegation to other tasks!
     g = f(*args, **kwargs)
     taskname = next(g)
+    print("@@@ 0", taskname, _state.parents)
     if _state.parents:
         _graph.tasks.add((_state.parents[-1], taskname))
+    _state.parents.append(taskname) 
+    print("@@@ 1", taskname, _state.parents)
     return top, g, taskname
