@@ -15,7 +15,6 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-_graph = ns(assets=set(), tasks=set())
 _state = ns(dry_run=False, initialized=False)
 
 
@@ -211,7 +210,6 @@ def external(f) -> Callable[..., _AssetT]:
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        _task_post()
         return assets
 
     return decorated_external
@@ -239,7 +237,6 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        _task_post()
         return assets
 
     return decorated_task
@@ -259,7 +256,6 @@ def tasks(f) -> Callable[..., _AssetT]:
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        _task_post()
         return assets
 
     return decorated_tasks
@@ -409,12 +405,6 @@ def _report_readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
-
-
-def _task_post() -> None:
-    """
-    ???
-    """
 
 
 def _task_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
