@@ -15,6 +15,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
+_graph = ns(assets=set(), tasks=set())
 _state = ns(dry_run=False, initialized=False)
 
 
@@ -403,6 +404,7 @@ def _task_post(taskname: str, assets: _AssetT) -> _AssetT:
     """
     for asset in _listify(assets):
         setattr(asset, "taskname", taskname)
+        _graph.assets.add((taskname, asset.ref))
     return assets
 
 
