@@ -416,7 +416,6 @@ def _task_post(taskname) -> None:
     ???
     """
     _state.parents.pop()
-    print("@@@ 2", taskname, _state.parents)
 
 
 def _task_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
@@ -426,9 +425,7 @@ def _task_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
     top = _i_am_top_task()  # Must precede delegation to other tasks!
     g = f(*args, **kwargs)
     taskname = next(g)
-    print("@@@ 0", taskname, _state.parents)
     if _state.parents:
         _graph.tasks.add((_state.parents[-1], taskname))
     _state.parents.append(taskname) 
-    print("@@@ 1", taskname, _state.parents)
     return top, g, taskname
