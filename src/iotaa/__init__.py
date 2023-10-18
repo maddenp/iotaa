@@ -16,7 +16,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-_graph = ns(assets=[], edges=set(), tasks=set())
+_graph = ns(assets={}, edges=set(), tasks=set())
 _state = ns(dry_run=False, initialized=False)
 
 
@@ -317,12 +317,13 @@ def _graph_emit() -> None:
     """
     Emit a task/asset graph in GraphViz dot format.
     """
-    color_of = {x.ref: {True: "seagreen", False: "orangered"}[x.ready()] for x in _graph.assets}
+    colormap = {True: "seagreen", False: "orangered"}
+    colorof = {ref: colormap[ready()] for ref, ready in _graph.assets.items()}
     node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-    h = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
-    f = lambda s, shape, color="grey": node_template % (h(s), color, s, shape)
+    h = lambda name: "_%s" % md5(str(name).encode("utf-8")).hexdigest()
+    f = lambda name, shape, color="grey": node_template % (h(name), color, name, shape)
     nodes_t = [f(x, "ellipse") for x in _graph.tasks]
-    nodes_a = [f(x.ref, "box", color_of[x.ref]) for x in _graph.assets]
+    nodes_a = [f(ref, "box", colorof[ref]) for ref in _graph.assets.keys()]
     edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.edges]
     graph = "digraph g {\n  %s\n}" % "\n  ".join(nodes_t + nodes_a + edges)
     print(graph)
@@ -336,7 +337,7 @@ def _graph_udpate_from_requirements(taskname: str, alist: List[Asset]) -> None:
     :param alist: Flattened required-task assets.
     """
     asset_taskname = lambda a: getattr(a, "taskname", None)
-    _graph.assets += alist
+    _graph.assets.update({a.ref: a.ready for a in alist})
     _graph.edges |= set((asset_taskname(a), a.ref) for a in alist)
     _graph.edges |= set((taskname, asset_taskname(a)) for a in alist)
     _graph.tasks |= set(asset_taskname(a) for a in alist)
@@ -351,7 +352,7 @@ def _graph_update_from_task(taskname: str, assets: _AssetT) -> None:
     :param assets: A collection of assets, one asset, or None.
     """
     alist = _listify(assets)
-    _graph.assets += alist
+    _graph.assets.update({a.ref: a.ready for a in alist})
     _graph.edges |= set((taskname, asset.ref) for asset in alist)
     _graph.tasks.add(taskname)
 
