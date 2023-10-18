@@ -95,7 +95,8 @@ def main() -> None:
         args.module = m.stem
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
-    _emit_graph()
+    if args.graph:
+        _emit_graph()
 
 
 def ref(assets: _AssetT) -> Any:
@@ -367,6 +368,7 @@ def _parse_args(raw: List[str]) -> Namespace:
     optional = parser.add_argument_group("optional arguments")
     optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
+    optional.add_argument("-g", "--graph", action="store_true", help="Emit GraphViz dot to stdout")
     optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
     return parser.parse_args(raw)
 

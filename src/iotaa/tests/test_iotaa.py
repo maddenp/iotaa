@@ -150,6 +150,7 @@ def test_main_mocked_up(tmp_path):
             args=strs,
             dry_run=True,
             function="a_function",
+            graph=False,
             module=m,
             verbose=True,
         )
