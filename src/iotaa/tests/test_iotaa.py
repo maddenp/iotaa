@@ -340,7 +340,7 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
 def test__execute_dry_run(caplog, rungen):
     with patch.object(iotaa, "_state", new=iotaa.ns(dry_run=True)):
         iotaa._execute(g=rungen, taskname="task")
-    assert logged("task: SKIPPING (DRY RUN ENABLED)", caplog)
+    assert logged("task: SKIPPING (DRY RUN)", caplog)
 
 
 def test__execute_live(caplog, rungen):

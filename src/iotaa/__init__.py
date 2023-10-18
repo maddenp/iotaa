@@ -204,12 +204,12 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_prep(f, *args, **kwargs)
+        top, g, taskname = _task_init(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_post(taskname, assets)
+        return _task_final(taskname, assets)
 
     return decorated_external
 
@@ -221,7 +221,7 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_prep(f, *args, **kwargs)
+        top, g, taskname = _task_init(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
@@ -236,7 +236,7 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        return _task_post(taskname, assets)
+        return _task_final(taskname, assets)
 
     return decorated_task
 
@@ -248,14 +248,14 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_prep(f, *args, **kwargs)
+        top, g, taskname = _task_init(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_post(taskname, assets)
+        return _task_final(taskname, assets)
 
     return decorated_tasks
 
@@ -291,7 +291,7 @@ def _execute(g: Generator, taskname: str) -> None:
     :param taskname: The current task's name.
     """
     if _state.dry_run:
-        logging.info("%s: SKIPPING (DRY RUN ENABLED)", taskname)
+        logging.info("%s: SKIPPING (DRY RUN)", taskname)
         return
     try:
         logging.info("%s: Executing", taskname)
@@ -418,9 +418,13 @@ def _report_readiness(
     )
 
 
-def _task_post(taskname: str, assets: _AssetT) -> _AssetT:
+def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
     """
-    ???
+    Final steps common to all task types.
+
+    :param taskname: The current task's name.
+    :param assets: A collection of assets, one asset, or None.
+    :return: The same assets that were provided as input.
     """
     for asset in _listify(assets):
         setattr(asset, "taskname", taskname)
@@ -428,9 +432,12 @@ def _task_post(taskname: str, assets: _AssetT) -> _AssetT:
     return assets
 
 
-def _task_prep(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
+def _task_init(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
     """
-    ???
+    Inital steps common to all task types.
+
+    :param f: A task function (receives the provided args & kwargs).
+    :return: The task's "top" status, the generator returned by the task, and the task's name.
     """
     top = _i_am_top_task()  # Must precede delegation to other tasks!
     g = f(*args, **kwargs)
