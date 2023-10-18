@@ -96,7 +96,7 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
     if args.graph:
-        _emit_graph()
+        _graph_emit()
 
 
 def ref(assets: _AssetT) -> Any:
@@ -208,9 +208,7 @@ def external(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
-            _graph.assets += _listify(assets)
-            _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
-            _graph.tasks.add(taskname)
+            _graph_update(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(taskname, assets)
 
@@ -228,9 +226,7 @@ def task(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
-            _graph.assets += _listify(assets)
-            _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
-            _graph.tasks.add(taskname)
+            _graph_update(taskname, assets)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
@@ -260,9 +256,7 @@ def tasks(f) -> Callable[..., _AssetT]:
         assets = _delegate(g, taskname)
         ready = _ready(assets)
         if not ready or top:
-            _graph.assets += _listify(assets)
-            _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
-            _graph.tasks.add(taskname)
+            _graph_update(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(taskname, assets)
 
@@ -325,7 +319,7 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _emit_graph():
+def _graph_emit() -> None:
     """
     Emit a task/asset graph in GraphViz dot format.
     """
@@ -340,6 +334,17 @@ def _emit_graph():
     print(graph)
 
 
+def _graph_update(taskname: str, assets: _AssetT) -> None:
+    """
+    Update graph data structures with current task info.
+
+    :param taskname: The current task's name.
+    :param assets: A collection of assets, one asset, or None.
+    """
+    _graph.assets += _listify(assets)
+    _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
+    _graph.tasks.add(taskname)
+    
 def _i_am_top_task() -> bool:
     """
     Is the calling task the task-tree entry point?
