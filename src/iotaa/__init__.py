@@ -2,12 +2,12 @@
 iotaa.core.
 """
 
-from hashlib import md5
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass
 from functools import cache
+from hashlib import md5
 from importlib import import_module
 from itertools import chain
 from json import JSONDecodeError, loads
@@ -313,17 +313,16 @@ def _emit_graph():
     """
     Emit a task/asset graph in GraphViz dot format.
     """
-    f = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
-    nodes_t = ['%s [shape=cylinder, label="%s"]' % (f(x), x) for x in sorted(set(chain.from_iterable(_graph.tasks)))]
-    nodes_a = ['%s [shape=box3d, label="%s"]' % (f(x), x) for x in set(x[1] for x in _graph.assets)]
-    edges = ["%s -> %s" % (f(parent), f(child)) for parent, child in _graph.tasks | _graph.assets]
-    template = """
-digraph g {
-  %s
-  %s
-}
-""" % ("\n  ".join(nodes_t + nodes_a), "\n  ".join(edges))
-    print(template.strip())
+    h = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
+    f = lambda s, n: '%s [shape=%s, label="%s"]' % (h(s), n, s)
+    nodes_t = [f(x, "cylinder") for x in sorted(set(chain.from_iterable(_graph.tasks)))]
+    nodes_a = [f(x, "box3d") for x in set(x[1] for x in _graph.assets)]
+    edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.tasks | _graph.assets]
+    graph = "digraph g {\n  %s\n  %s\n}" % (
+        "\n  ".join(nodes_t + nodes_a),
+        "\n  ".join(edges),
+    )
+    print(graph)
 
 
 def _i_am_top_task() -> bool:
