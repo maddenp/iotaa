@@ -283,10 +283,12 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     logging.info("%s: Checking requirements", taskname)
     assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
 
-    _graph.assets += _listify(assets)
-    _graph.edges |= set((getattr(asset, "taskname", None), asset.ref) for asset in _listify(assets))
+    alist = _listify(assets)
+    _graph.assets += alist
+    _graph.edges |= set((getattr(asset, "taskname", None), asset.ref) for asset in alist)
     _graph.edges |= set((taskname, getattr(asset, "taskname", None)) for asset in assets)
-    _graph.tasks |= set(getattr(asset, "taskname", None) for asset in _listify(assets))
+    _graph.tasks |= set(getattr(asset, "taskname", None) for asset in alist)
+
     _graph.tasks.add(taskname)
 
     return assets
@@ -341,8 +343,9 @@ def _graph_update(taskname: str, assets: _AssetT) -> None:
     :param taskname: The current task's name.
     :param assets: A collection of assets, one asset, or None.
     """
-    _graph.assets += _listify(assets)
-    _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
+    alist = _listify(assets)
+    _graph.assets += alist
+    _graph.edges |= set((taskname, asset.ref) for asset in alist)
     _graph.tasks.add(taskname)
     
 def _i_am_top_task() -> bool:
