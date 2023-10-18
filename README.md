@@ -102,9 +102,9 @@ Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `io
 
 Several public helper callables are available in the `iotaa` module:
 
-- `Asset()` instantiates an `Asset` object to return from a task function.
+- `asset()` instantiates an `Asset` object to return from a task function.
 - `dryrun()` enables dry-run mode.
-- `ref()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single `Asset`) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
+- `refs()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single `Asset`) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
 - `logcfg()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs.
 - `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
@@ -185,7 +185,7 @@ First, a task function can call arbitrary logic to help it carry out its duties.
 ``` python
 def ingredient(basedir, fn, name, req=None):
     yield f"{name} in cup"
-    path = ref(cup(basedir)) / fn
+    path = refs(cup(basedir)) / fn
     yield {fn: Asset(path, path.exists)}
     yield [cup(basedir)] + ([req(basedir)] if req else [])
     logging.info("Adding %s to cup", fn)
@@ -203,7 +203,7 @@ Next up, the `steeped_tea()` function, which is more complex:
 def steeped_tea(basedir):
     # Give tea time to steep.
     yield "Time for tea to steep"
-    water = ref(steeping_tea(basedir))["water"]
+    water = refs(steeping_tea(basedir))["water"]
     steep_time = lambda x: Asset("Time", lambda: x)
     t = 10  # seconds
     if water.exists():
@@ -222,15 +222,15 @@ def steeped_tea(basedir):
         logging.warning("Tea needs to steep for %ss", remaining)
 ```
 
-Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `ref()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: Asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to make its asset (time passed) ready: It can only wait.
+Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `refs()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: Asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to make its asset (time passed) ready: It can only wait.
 
 Note the statement
 
 ``` python
-water = ref(steeping_tea(basedir))["water"]
+water = refs(steeping_tea(basedir))["water"]
 ```
 
-Here, `steeped_tea()` needs to know the path to the `water` file, and obtains it by calling the `steeping_tea()` task, extracting the references to its assets with `iotaa`'s `ref()` function, and selecting the `"water"` item's reference, which is the path to the `water` file. This is a useful way to delegate ownership of knowledge about assets to those assets, but note that the function call `steeping_tea(basedir)` effectively transfers workflow control to that task. This can be seen in the execution traces shown later in this document, where the task responsible for the `water` file (as well as its requirements) are evaluated before the steep-time task.
+Here, `steeped_tea()` needs to know the path to the `water` file, and obtains it by calling the `steeping_tea()` task, extracting the references to its assets with `iotaa`'s `refs()` function, and selecting the `"water"` item's reference, which is the path to the `water` file. This is a useful way to delegate ownership of knowledge about assets to those assets, but note that the function call `steeping_tea(basedir)` effectively transfers workflow control to that task. This can be seen in the execution traces shown later in this document, where the task responsible for the `water` file (as well as its requirements) are evaluated before the steep-time task.
 
 The `steeping_tea()` and `teabag()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
 

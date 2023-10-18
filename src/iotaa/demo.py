@@ -8,7 +8,7 @@ import datetime as dt
 import logging
 from pathlib import Path
 
-from iotaa import Asset, external, ref, task, tasks
+from iotaa import Asset, external, refs, task, tasks
 
 
 @tasks
@@ -50,7 +50,7 @@ def steeped_tea_with_sugar(basedir):
 def steeped_tea(basedir):
     # Give tea time to steep.
     yield "Steeped tea"
-    water = ref(steeping_tea(basedir))["water"]
+    water = refs(steeping_tea(basedir))["water"]
     steep_time = lambda x: Asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
@@ -92,7 +92,7 @@ def box_of_teabags(basedir):
 
 def ingredient(basedir, fn, name, req=None):
     yield f"{name} in cup"
-    path = ref(cup(basedir)) / fn
+    path = refs(cup(basedir)) / fn
     yield {fn: Asset(path, path.exists)}
     yield [cup(basedir)] + ([req(basedir)] if req else [])
     logging.info("Adding %s to cup", fn)

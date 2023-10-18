@@ -33,7 +33,7 @@ class Asset:
     """
 
     ref: Any
-    ready: Callable
+    ready: Callable[..., bool]
 
 
 @dataclass
@@ -51,6 +51,17 @@ class Result:
 
 _Assets = Union[Dict[str, Asset], List[Asset]]
 _AssetT = Optional[Union[_Assets, Asset]]
+
+
+def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
+    """
+    Factory function for Asset objects.
+
+    :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
+    :param ready: A function that, when called, indicates whether the asset is ready to use.
+    :return: An Asset object.
+    """
+    return Asset(ref, ready)
 
 
 def dryrun() -> None:
@@ -99,7 +110,7 @@ def main() -> None:
         _graph_emit()
 
 
-def ref(assets: _AssetT) -> Any:
+def refs(assets: _AssetT) -> Any:
     """
     Extract and return asset identity objects.
 
@@ -353,7 +364,7 @@ def _graph_update_from_task(taskname: str, assets: _AssetT) -> None:
     """
     alist = _listify(assets)
     _graph.assets.update({a.ref: a.ready for a in alist})
-    _graph.edges |= set((taskname, asset.ref) for asset in alist)
+    _graph.edges |= set((taskname, a.ref) for a in alist)
     _graph.tasks.add(taskname)
 
 
@@ -457,8 +468,8 @@ def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
     :param assets: A collection of assets, one asset, or None.
     :return: The same assets that were provided as input.
     """
-    for asset in _listify(assets):
-        setattr(asset, "taskname", taskname)
+    for a in _listify(assets):
+        setattr(a, "taskname", taskname)
     return assets
 
 
