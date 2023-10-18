@@ -212,7 +212,7 @@ def external(f) -> Callable[..., _AssetT]:
             _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
             _graph.tasks.add(taskname)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_final(taskname, top, assets)
+        return _task_final(taskname, assets)
 
     return decorated_external
 
@@ -242,7 +242,7 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        return _task_final(taskname, top, assets)
+        return _task_final(taskname, assets)
 
     return decorated_task
 
@@ -264,7 +264,7 @@ def tasks(f) -> Callable[..., _AssetT]:
             _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
             _graph.tasks.add(taskname)
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(taskname, top, assets)
+        return _task_final(taskname, assets)
 
     return decorated_tasks
 
@@ -432,22 +432,16 @@ def _report_readiness(
     )
 
 
-def _task_final(taskname: str, top: bool, assets: _AssetT) -> _AssetT:
+def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
     """
     Final steps common to all task types.
 
     :param taskname: The current task's name.
-    :param top: Is the calling task the task-tree entry point?
     :param assets: A collection of assets, one asset, or None.
     :return: The same assets that were provided as input.
     """
-    # if top:
-    #     _graph.tasks.add(taskname)
     for asset in _listify(assets):
         setattr(asset, "taskname", taskname)
-        # if top:
-        #     _graph.assets.append(asset)
-        #     _graph.edges.add((taskname, str(asset.ref)))
     return assets
 
 
