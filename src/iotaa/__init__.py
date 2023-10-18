@@ -319,9 +319,9 @@ def _emit_graph():
     node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
     h = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
     f = lambda s, shape, color="grey": node_template % (h(s), color, s, shape)
-    nodes_t = [f(x, "cylinder") for x in sorted(set(chain.from_iterable(tasks_)))]
+    nodes_t = [f(x, "ellipse") for x in sorted(set(chain.from_iterable(tasks_)))]
     edges_t = ["%s -> %s" % (h(parent), h(child)) for parent, child in tasks_]
-    nodes_a = [f(x, "box3d", color[x]) for x in set(x[1] for x in assets_)]
+    nodes_a = [f(x, "box", color[x]) for x in set(x[1] for x in assets_)]
     edges_a = ["%s -> %s" % (h(parent), h(child)) for parent, child in assets_]
     graph = "digraph g {\n  %s\n  %s\n}" % (
         "\n  ".join(nodes_t + nodes_a),
