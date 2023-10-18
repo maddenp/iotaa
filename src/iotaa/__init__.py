@@ -208,8 +208,11 @@ def external(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
+            _graph.assets += _listify(assets)
+            _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
+            _graph.tasks.add(taskname)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_final(taskname, assets)
+        return _task_final(taskname, top, assets)
 
     return decorated_external
 
@@ -225,6 +228,9 @@ def task(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
+            _graph.assets += _listify(assets)
+            _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
+            _graph.tasks.add(taskname)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
@@ -236,7 +242,7 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        return _task_final(taskname, assets)
+        return _task_final(taskname, top, assets)
 
     return decorated_task
 
@@ -254,8 +260,11 @@ def tasks(f) -> Callable[..., _AssetT]:
         assets = _delegate(g, taskname)
         ready = _ready(assets)
         if not ready or top:
+            _graph.assets += _listify(assets)
+            _graph.edges |= set((taskname, asset.ref) for asset in _listify(assets))
+            _graph.tasks.add(taskname)
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(taskname, assets)
+        return _task_final(taskname, top, assets)
 
     return decorated_tasks
 
@@ -279,7 +288,13 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
 
     logging.info("%s: Checking requirements", taskname)
     assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
+
+    _graph.assets += _listify(assets)
+    _graph.edges |= set((getattr(asset, "taskname", None), asset.ref) for asset in _listify(assets))
     _graph.edges |= set((taskname, getattr(asset, "taskname", None)) for asset in assets)
+    _graph.tasks |= set(getattr(asset, "taskname", None) for asset in _listify(assets))
+    _graph.tasks.add(taskname)
+
     return assets
 
 
@@ -321,10 +336,7 @@ def _emit_graph():
     nodes_t = [f(x, "ellipse") for x in _graph.tasks]
     nodes_a = [f(x.ref, "box", color_of[x.ref]) for x in _graph.assets]
     edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.edges]
-    graph = "digraph g {\n  %s\n  %s\n}" % (
-        "\n  ".join(nodes_t + nodes_a),
-        "\n  ".join(edges),
-    )
+    graph = "digraph g {\n  %s\n}" % "\n  ".join(nodes_t + nodes_a + edges)
     print(graph)
 
 
@@ -420,19 +432,22 @@ def _report_readiness(
     )
 
 
-def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
+def _task_final(taskname: str, top: bool, assets: _AssetT) -> _AssetT:
     """
     Final steps common to all task types.
 
     :param taskname: The current task's name.
+    :param top: Is the calling task the task-tree entry point?
     :param assets: A collection of assets, one asset, or None.
     :return: The same assets that were provided as input.
     """
-    _graph.tasks.add(taskname)
+    # if top:
+    #     _graph.tasks.add(taskname)
     for asset in _listify(assets):
         setattr(asset, "taskname", taskname)
-        _graph.assets.append(asset)
-        _graph.edges.add((taskname, str(asset.ref)))
+        # if top:
+        #     _graph.assets.append(asset)
+        #     _graph.edges.add((taskname, str(asset.ref)))
     return assets
 
 
