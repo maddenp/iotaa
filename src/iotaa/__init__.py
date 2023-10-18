@@ -2,6 +2,7 @@
 iotaa.core.
 """
 
+from hashlib import md5
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
@@ -101,18 +102,17 @@ def graph():
     """
     ???
     """
-    node = lambda s: "_%s" % hashlib.md5(str(s).encode("utf-8")).hexdigest()
-    import hashlib
-    print("digraph g {")
-    for task in sorted(set(chain.from_iterable(_graph.tasks))):
-        print('  %s [shape=cylinder, label="%s"]' % (node(task), task))
-    for asset in set(x[1] for x in _graph.assets):
-        print('  %s [shape=box3d, label="%s"]' % (node(asset), asset))
-    for parent, child in sorted(_graph.tasks):
-        print("  %s -> %s" % (node(parent), node(child)))
-    for parent, child in sorted(_graph.assets):
-        print("  %s -> %s" % (node(parent), node(child)))
-    print("}")
+    f = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
+    nodes_t = ['%s [shape=cylinder, label="%s"]' % (f(x), x) for x in sorted(set(chain.from_iterable(_graph.tasks)))]
+    nodes_a = ['%s [shape=box3d, label="%s"]' % (f(x), x) for x in set(x[1] for x in _graph.assets)]
+    edges = ["%s -> %s" % (f(parent), f(child)) for parent, child in _graph.tasks | _graph.assets]
+    template = """
+digraph g {
+  %s
+  %s
+}
+""" % ("\n  ".join(nodes_t + nodes_a), "\n  ".join(edges))
+    print(template.strip())
 
 
 def ref(assets: _AssetT) -> Any:
