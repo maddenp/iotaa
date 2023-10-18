@@ -208,7 +208,7 @@ def external(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
-            _graph_update(taskname, assets)
+            _graph_update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(taskname, assets)
 
@@ -226,7 +226,7 @@ def task(f) -> Callable[..., _AssetT]:
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
-            _graph_update(taskname, assets)
+            _graph_update_from_task(taskname, assets)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
@@ -256,7 +256,7 @@ def tasks(f) -> Callable[..., _AssetT]:
         assets = _delegate(g, taskname)
         ready = _ready(assets)
         if not ready or top:
-            _graph_update(taskname, assets)
+            _graph_update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(taskname, assets)
 
@@ -281,13 +281,8 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     logging.info("%s: Checking requirements", taskname)
-    asset_taskname = lambda a: getattr(a, "taskname", None)
     alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-    _graph.assets += alist
-    _graph.edges |= set((asset_taskname(a), a.ref) for a in alist)
-    _graph.edges |= set((taskname, asset_taskname(a)) for a in alist)
-    _graph.tasks |= set(asset_taskname(a) for a in alist)
-    _graph.tasks.add(taskname)
+    _graph_udpate_from_requirements(taskname, alist)
     return alist
 
 
@@ -333,7 +328,22 @@ def _graph_emit() -> None:
     print(graph)
 
 
-def _graph_update(taskname: str, assets: _AssetT) -> None:
+def _graph_udpate_from_requirements(taskname: str, alist: List[Asset]) -> None:
+    """
+    Update graph data structures with required-task info.
+
+    :param taskname: The current task's name.
+    :param alist: Flattened required-task assets.
+    """
+    asset_taskname = lambda a: getattr(a, "taskname", None)
+    _graph.assets += alist
+    _graph.edges |= set((asset_taskname(a), a.ref) for a in alist)
+    _graph.edges |= set((taskname, asset_taskname(a)) for a in alist)
+    _graph.tasks |= set(asset_taskname(a) for a in alist)
+    _graph.tasks.add(taskname)
+
+
+def _graph_update_from_task(taskname: str, assets: _AssetT) -> None:
     """
     Update graph data structures with current task info.
 
