@@ -281,11 +281,12 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     logging.info("%s: Checking requirements", taskname)
+    asset_taskname = lambda a: getattr(a, "taskname", None)
     alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
     _graph.assets += alist
-    _graph.edges |= set((getattr(asset, "taskname", None), asset.ref) for asset in alist)
-    _graph.edges |= set((taskname, getattr(asset, "taskname", None)) for asset in alist)
-    _graph.tasks |= set(getattr(asset, "taskname", None) for asset in alist)
+    _graph.edges |= set((asset_taskname(a), a.ref) for a in alist)
+    _graph.edges |= set((taskname, asset_taskname(a)) for a in alist)
+    _graph.tasks |= set(asset_taskname(a) for a in alist)
     _graph.tasks.add(taskname)
     return alist
 
