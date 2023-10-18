@@ -314,13 +314,12 @@ def _emit_graph():
     """
     Emit a task/asset graph in GraphViz dot format.
     """
-    # assets_, tasks_ = set((parent, child.ref) for parent, child in _graph.assets), _graph.tasks
-    color = {x.ref: {True: "seagreen", False: "orangered"}[x.ready()] for x in _graph.assets}
+    color_of = {x.ref: {True: "seagreen", False: "orangered"}[x.ready()] for x in _graph.assets}
     node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
     h = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
     f = lambda s, shape, color="grey": node_template % (h(s), color, s, shape)
     nodes_t = [f(x, "ellipse") for x in _graph.tasks]
-    nodes_a = [f(x.ref, "box", color[x.ref]) for x in _graph.assets]
+    nodes_a = [f(x.ref, "box", color_of[x.ref]) for x in _graph.assets]
     edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.edges]
     graph = "digraph g {\n  %s\n  %s\n}" % (
         "\n  ".join(nodes_t + nodes_a),
