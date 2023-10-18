@@ -16,7 +16,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-_graph = ns(assets=[], tasks=set())
+_graph = ns(assets=[], edges=set(), tasks=set())
 _state = ns(dry_run=False, initialized=False)
 
 
@@ -204,7 +204,7 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_init(f, *args, **kwargs)
+        taskname, top, g = _task_init(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
@@ -221,7 +221,7 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_init(f, *args, **kwargs)
+        taskname, top, g = _task_init(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
@@ -248,7 +248,7 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
-        top, g, taskname = _task_init(f, *args, **kwargs)
+        taskname, top, g = _task_init(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
@@ -279,7 +279,7 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
 
     logging.info("%s: Checking requirements", taskname)
     assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-    _graph.tasks |= set((taskname, getattr(asset, "taskname", None)) for asset in assets)
+    _graph.edges |= set((taskname, getattr(asset, "taskname", None)) for asset in assets)
     return assets
 
 
@@ -314,18 +314,17 @@ def _emit_graph():
     """
     Emit a task/asset graph in GraphViz dot format.
     """
-    assets_, tasks_ = set((parent, child.ref) for parent, child in _graph.assets), _graph.tasks
-    color = {x[1].ref: {True: "seagreen", False: "orangered"}[x[1].ready()] for x in _graph.assets}
+    # assets_, tasks_ = set((parent, child.ref) for parent, child in _graph.assets), _graph.tasks
+    color = {x.ref: {True: "seagreen", False: "orangered"}[x.ready()] for x in _graph.assets}
     node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
     h = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
     f = lambda s, shape, color="grey": node_template % (h(s), color, s, shape)
-    nodes_t = [f(x, "ellipse") for x in sorted(set(chain.from_iterable(tasks_)))]
-    edges_t = ["%s -> %s" % (h(parent), h(child)) for parent, child in tasks_]
-    nodes_a = [f(x, "box", color[x]) for x in set(x[1] for x in assets_)]
-    edges_a = ["%s -> %s" % (h(parent), h(child)) for parent, child in assets_]
+    nodes_t = [f(x, "ellipse") for x in _graph.tasks]
+    nodes_a = [f(x.ref, "box", color[x.ref]) for x in _graph.assets]
+    edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.edges]
     graph = "digraph g {\n  %s\n  %s\n}" % (
         "\n  ".join(nodes_t + nodes_a),
-        "\n  ".join(edges_t + edges_a),
+        "\n  ".join(edges),
     )
     print(graph)
 
@@ -430,20 +429,22 @@ def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
     :param assets: A collection of assets, one asset, or None.
     :return: The same assets that were provided as input.
     """
+    _graph.tasks.add(taskname)
     for asset in _listify(assets):
         setattr(asset, "taskname", taskname)
-        _graph.assets.append((taskname, asset))
+        _graph.assets.append(asset)
+        _graph.edges.add((taskname, str(asset.ref)))
     return assets
 
 
-def _task_init(f: Callable, *args, **kwargs) -> Tuple[bool, Generator, str]:
+def _task_init(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
     """
     Inital steps common to all task types.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The task's "top" status, the generator returned by the task, and the task's name.
+    :return: The task's name, its "top" status, and the generator returned by the task.
     """
     top = _i_am_top_task()  # Must precede delegation to other tasks!
     g = f(*args, **kwargs)
     taskname = next(g)
-    return top, g, taskname
+    return taskname, top, g

@@ -14,7 +14,7 @@ from iotaa import Asset, external, ref, task, tasks
 @tasks
 def a_cup_of_tea(basedir):
     # A cup of steeped tea with sugar, and a spoon.
-    yield "A nice cup of tea"
+    yield "The perfect cup of tea"
     yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
 
 
@@ -49,7 +49,7 @@ def steeped_tea_with_sugar(basedir):
 @task
 def steeped_tea(basedir):
     # Give tea time to steep.
-    yield "Time for tea to steep"
+    yield "Steeped tea"
     water = ref(steeping_tea(basedir))["water"]
     steep_time = lambda x: Asset("elapsed time", lambda: x)
     t = 10  # seconds
