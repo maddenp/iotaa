@@ -281,17 +281,13 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     logging.info("%s: Checking requirements", taskname)
-    assets = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-
-    alist = _listify(assets)
+    alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
     _graph.assets += alist
     _graph.edges |= set((getattr(asset, "taskname", None), asset.ref) for asset in alist)
-    _graph.edges |= set((taskname, getattr(asset, "taskname", None)) for asset in assets)
+    _graph.edges |= set((taskname, getattr(asset, "taskname", None)) for asset in alist)
     _graph.tasks |= set(getattr(asset, "taskname", None) for asset in alist)
-
     _graph.tasks.add(taskname)
-
-    return assets
+    return alist
 
 
 def _execute(g: Generator, taskname: str) -> None:
@@ -347,7 +343,8 @@ def _graph_update(taskname: str, assets: _AssetT) -> None:
     _graph.assets += alist
     _graph.edges |= set((taskname, asset.ref) for asset in alist)
     _graph.tasks.add(taskname)
-    
+
+
 def _i_am_top_task() -> bool:
     """
     Is the calling task the task-tree entry point?
