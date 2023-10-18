@@ -94,8 +94,25 @@ def main() -> None:
         args.module = m.stem
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
-    # for x in sorted(_graph.tasks):
-    #     print(">>>", x)
+    graph()
+
+
+def graph():
+    """
+    ???
+    """
+    node = lambda s: "_%s" % hashlib.md5(str(s).encode("utf-8")).hexdigest()
+    import hashlib
+    print("digraph g {")
+    for task in sorted(set(chain.from_iterable(_graph.tasks))):
+        print('  %s [shape=cylinder, label="%s"]' % (node(task), task))
+    for asset in set(x[1] for x in _graph.assets):
+        print('  %s [shape=box3d, label="%s"]' % (node(asset), asset))
+    for parent, child in sorted(_graph.tasks):
+        print("  %s -> %s" % (node(parent), node(child)))
+    for parent, child in sorted(_graph.assets):
+        print("  %s -> %s" % (node(parent), node(child)))
+    print("}")
 
 
 def ref(assets: _AssetT) -> Any:

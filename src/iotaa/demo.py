@@ -51,7 +51,7 @@ def steeped_tea(basedir):
     # Give tea time to steep.
     yield "Time for tea to steep"
     water = ref(steeping_tea(basedir))["water"]
-    steep_time = lambda x: Asset("Time", lambda: x)
+    steep_time = lambda x: Asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
