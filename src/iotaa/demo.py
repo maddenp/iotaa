@@ -8,7 +8,7 @@ import datetime as dt
 import logging
 from pathlib import Path
 
-from iotaa import Asset, external, refs, task, tasks
+from iotaa import asset, external, refs, task, tasks
 
 
 @tasks
@@ -23,7 +23,7 @@ def spoon(basedir):
     # A spoon to stir the tea.
     path = Path(basedir) / "spoon"
     yield "A spoon"
-    yield Asset(path, path.exists)
+    yield asset(path, path.exists)
     yield None
     path.parent.mkdir(parents=True)
     path.touch()
@@ -34,7 +34,7 @@ def cup(basedir):
     # A cup for the tea.
     path = Path(basedir) / "cup"
     yield "A cup"
-    yield Asset(path, path.exists)
+    yield asset(path, path.exists)
     yield None
     path.mkdir(parents=True)
 
@@ -51,7 +51,7 @@ def steeped_tea(basedir):
     # Give tea time to steep.
     yield "Steeped tea"
     water = refs(steeping_tea(basedir))["water"]
-    steep_time = lambda x: Asset("elapsed time", lambda: x)
+    steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
@@ -87,13 +87,13 @@ def teabag(basedir):
 def box_of_teabags(basedir):
     path = Path(basedir) / "box-of-teabags"
     yield f"Box of teabags {path}"
-    yield Asset(path, path.exists)
+    yield asset(path, path.exists)
 
 
 def ingredient(basedir, fn, name, req=None):
     yield f"{name} in cup"
     path = refs(cup(basedir)) / fn
-    yield {fn: Asset(path, path.exists)}
+    yield {fn: asset(path, path.exists)}
     yield [cup(basedir)] + ([req(basedir)] if req else [])
     logging.info("Adding %s to cup", fn)
     path.touch()
