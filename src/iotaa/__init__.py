@@ -95,24 +95,7 @@ def main() -> None:
         args.module = m.stem
     reified = [_reify(arg) for arg in args.args]
     getattr(import_module(args.module), args.function)(*reified)
-    graph()
-
-
-def graph():
-    """
-    ???
-    """
-    f = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
-    nodes_t = ['%s [shape=cylinder, label="%s"]' % (f(x), x) for x in sorted(set(chain.from_iterable(_graph.tasks)))]
-    nodes_a = ['%s [shape=box3d, label="%s"]' % (f(x), x) for x in set(x[1] for x in _graph.assets)]
-    edges = ["%s -> %s" % (f(parent), f(child)) for parent, child in _graph.tasks | _graph.assets]
-    template = """
-digraph g {
-  %s
-  %s
-}
-""" % ("\n  ".join(nodes_t + nodes_a), "\n  ".join(edges))
-    print(template.strip())
+    _emit_graph()
 
 
 def ref(assets: _AssetT) -> Any:
@@ -324,6 +307,23 @@ def _formatter(prog: str) -> HelpFormatter:
     :return: An argparse help formatter.
     """
     return HelpFormatter(prog, max_help_position=4)
+
+
+def _emit_graph():
+    """
+    Emit a task/asset graph in GraphViz dot format.
+    """
+    f = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
+    nodes_t = ['%s [shape=cylinder, label="%s"]' % (f(x), x) for x in sorted(set(chain.from_iterable(_graph.tasks)))]
+    nodes_a = ['%s [shape=box3d, label="%s"]' % (f(x), x) for x in set(x[1] for x in _graph.assets)]
+    edges = ["%s -> %s" % (f(parent), f(child)) for parent, child in _graph.tasks | _graph.assets]
+    template = """
+digraph g {
+  %s
+  %s
+}
+""" % ("\n  ".join(nodes_t + nodes_a), "\n  ".join(edges))
+    print(template.strip())
 
 
 def _i_am_top_task() -> bool:
