@@ -16,7 +16,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-_graph = ns(assets=set(), tasks=set())
+_graph = ns(assets=[], tasks=set())
 _state = ns(dry_run=False, initialized=False)
 
 
@@ -314,14 +314,18 @@ def _emit_graph():
     """
     Emit a task/asset graph in GraphViz dot format.
     """
+    assets_, tasks_ = set((parent, child.ref) for parent, child in _graph.assets), _graph.tasks
+    color = {x[1].ref: {True: "seagreen", False: "orangered"}[x[1].ready()] for x in _graph.assets}
+    node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
     h = lambda s: "_%s" % md5(str(s).encode("utf-8")).hexdigest()
-    f = lambda s, n: '%s [shape=%s, label="%s"]' % (h(s), n, s)
-    nodes_t = [f(x, "cylinder") for x in sorted(set(chain.from_iterable(_graph.tasks)))]
-    nodes_a = [f(x, "box3d") for x in set(x[1] for x in _graph.assets)]
-    edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.tasks | _graph.assets]
+    f = lambda s, shape, color="grey": node_template % (h(s), color, s, shape)
+    nodes_t = [f(x, "cylinder") for x in sorted(set(chain.from_iterable(tasks_)))]
+    edges_t = ["%s -> %s" % (h(parent), h(child)) for parent, child in tasks_]
+    nodes_a = [f(x, "box3d", color[x]) for x in set(x[1] for x in assets_)]
+    edges_a = ["%s -> %s" % (h(parent), h(child)) for parent, child in assets_]
     graph = "digraph g {\n  %s\n  %s\n}" % (
         "\n  ".join(nodes_t + nodes_a),
-        "\n  ".join(edges),
+        "\n  ".join(edges_t + edges_a),
     )
     print(graph)
 
@@ -428,7 +432,7 @@ def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
     """
     for asset in _listify(assets):
         setattr(asset, "taskname", taskname)
-        _graph.assets.add((taskname, asset.ref))
+        _graph.assets.append((taskname, asset))
     return assets
 
 
