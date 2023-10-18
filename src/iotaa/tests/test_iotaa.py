@@ -102,11 +102,29 @@ def logged(msg: str, caplog: LogCaptureFixture) -> bool:
 
 
 @pytest.mark.parametrize(
-    "asset", [iotaa.Asset("foo", lambda: True), iotaa.Asset(ref="foo", ready=lambda: True)]
+    # One without kwargs, one with:
+    "asset",
+    [iotaa.Asset("foo", lambda: True), iotaa.Asset(ref="foo", ready=lambda: True)],
 )
-def test_asset(asset):
+def test_Asset(asset):
     assert asset.ref == "foo"
     assert asset.ready()
+
+
+@pytest.mark.parametrize(
+    # One without kwargs, one with:
+    "result",
+    [iotaa.Result("foo", True), iotaa.Result(output="foo", success=True)],
+)
+def test_Result(result):
+    assert result.output == "foo"
+    assert result.success
+
+
+def test_asset_kwargs():
+    a = iotaa.asset(ref="foo", ready=lambda: True)
+    assert a.ref == "foo"
+    assert a.ready()
 
 
 def test_dryrun():
@@ -144,13 +162,15 @@ def test_main_mocked_up(tmp_path):
     m = tmp_path / "a.py"
     m.touch()
     strs = ["foo", "88", "3.14", "true"]
-    with patch.multiple(iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D) as mocks:
+    with patch.multiple(
+        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D
+    ) as mocks:
         parse_args = mocks["_parse_args"]
         parse_args.return_value = iotaa.Namespace(
             args=strs,
             dry_run=True,
             function="a_function",
-            graph=False,
+            graph=True,
             module=m,
             verbose=True,
         )
@@ -162,6 +182,7 @@ def test_main_mocked_up(tmp_path):
             getattr_().assert_called_once_with("foo", 88, 3.14, True)
         mocks["dryrun"].assert_called_once()
         mocks["logcfg"].assert_called_once_with(verbose=True)
+        mocks["_graph_emit"].assert_called_once_with()
         parse_args.assert_called_once()
 
 
@@ -301,7 +322,9 @@ def test__delegate_scalar(caplog, delegate_assets):
     def f():
         yield a1
 
-    assert iotaa._delegate(f(), "task") == [a1]
+    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+        assert iotaa._delegate(f(), "task") == [a1]
+        gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
 
 
@@ -311,7 +334,9 @@ def test__delegate_empty_dict_and_empty_list(caplog):
     def f():
         yield [{}, []]
 
-    assert not iotaa._delegate(f(), "task")
+    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+        assert not iotaa._delegate(f(), "task")
+        gufr.assert_called_once_with("task", [])
     assert logged("task: Checking requirements", caplog)
 
 
@@ -322,7 +347,9 @@ def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
     def f():
         yield [{"foo": a1, "bar": a2}, [a3, a4]]
 
-    assert iotaa._delegate(f(), "task") == [a1, a2, a3, a4]
+    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+        assert iotaa._delegate(f(), "task") == [a1, a2, a3, a4]
+        gufr.assert_called_once_with("task", [a1, a2, a3, a4])
     assert logged("task: Checking requirements", caplog)
 
 
@@ -333,7 +360,9 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
     def f():
         yield [None, a1]
 
-    assert iotaa._delegate(f(), "task") == [a1]
+    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+        assert iotaa._delegate(f(), "task") == [a1]
+        gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
 
 
@@ -354,6 +383,18 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
+def test__graph_emit():
+    pass  # TODO FIXME
+
+
+def test__graph_update_from_requirements():
+    pass  # TODO FIXME
+
+
+def test__graph_update_from_task():
+    pass  # TODO FIXME
+
+
 @pytest.mark.parametrize("val", [True, False])
 def test__i_am_top_task(val):
     with patch.object(iotaa, "_state", new=iotaa.ns(initialized=not val)):
@@ -369,22 +410,25 @@ def test__listify():
 
 
 def test__parse_args():
-    # Specifying module, function, and two args (standard logging):
+    # Specifying module, function, and two args (standard logging, no graph):
     a0 = iotaa._parse_args(raw="a_module a_function arg1 arg2".split(" "))
     assert a0.module == "a_module"
     assert a0.function == "a_function"
+    assert a0.graph is False
     assert a0.args == ["arg1", "arg2"]
     assert a0.verbose is False
-    # Specifying module, function, two args (verbose logging):
+    # Specifying module, function, two args (verbose logging, no graph):
     a1 = iotaa._parse_args(raw="a_module a_function arg1 arg2 --verbose".split(" "))
     assert a1.module == "a_module"
     assert a1.function == "a_function"
+    assert a1.graph is False
     assert a1.args == ["arg1", "arg2"]
     assert a1.verbose is True
     # Specifying module, function, but no args (standard logging):
-    a2 = iotaa._parse_args(raw="a_module a_function".split(" "))
+    a2 = iotaa._parse_args(raw="a_module a_function --graph".split(" "))
     assert a2.module == "a_module"
     assert a2.function == "a_function"
+    assert a2.graph is True
     assert a2.args == []
     assert a2.verbose is False
     # It is an error to specify just a module with no function:
@@ -422,3 +466,11 @@ def test__report_readiness(caplog, vals):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
+
+
+def test__task_final():
+    pass  # TODO FIXME
+
+
+def test__task_inital():
+    pass  # TODO FIXME

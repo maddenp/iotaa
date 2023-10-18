@@ -215,7 +215,7 @@ def external(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_external(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_init(f, *args, **kwargs)
+        taskname, top, g = _task_initial(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
@@ -233,7 +233,7 @@ def task(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_task(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_init(f, *args, **kwargs)
+        taskname, top, g = _task_initial(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
@@ -261,7 +261,7 @@ def tasks(f) -> Callable[..., _AssetT]:
 
     @cache
     def decorated_tasks(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_init(f, *args, **kwargs)
+        taskname, top, g = _task_initial(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
         assets = _delegate(g, taskname)
@@ -473,7 +473,7 @@ def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
     return assets
 
 
-def _task_init(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
+def _task_initial(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
     """
     Inital steps common to all task types.
 
