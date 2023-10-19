@@ -81,7 +81,7 @@ optional arguments:
   -h, --help
     show help and exit
   -g, --graph
-    emit GraphViz dot to stdout
+    emit Graphviz dot to stdout
   -v, --verbose
     verbose logging
 ```
@@ -532,3 +532,20 @@ teatime/
 │   └── water
 └── spoon
 ```
+
+## Graphing
+
+The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow graph in [Grapviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
+
+```
+% iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T svg)
+[2023-10-19T12:13:47] INFO    The perfect cup of tea: Initial state: Pending
+...
+[2023-10-19T12:13:47] WARNING The perfect cup of tea: Final state: Pending
+```
+
+The displayed image:
+
+![teatime-dry-run-image](img/teatime-0.svg)
+
+Ready assets are shown in green, pending ones in orange.
