@@ -8,77 +8,92 @@ import datetime as dt
 import logging
 from pathlib import Path
 
-from iotaa import asset, external, ref, task, tasks
+from iotaa import asset, external, refs, task, tasks
 
 
 @tasks
 def a_cup_of_tea(basedir):
-    yield "A cup of steeped tea with sugar"
-    cupdir = ref(cup(basedir))
-    yield [cup(basedir), steeped_tea_with_sugar(cupdir)]
+    # A cup of steeped tea with sugar, and a spoon.
+    yield "The perfect cup of tea"
+    yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
+
+
+@task
+def spoon(basedir):
+    # A spoon to stir the tea.
+    path = Path(basedir) / "spoon"
+    yield "A spoon"
+    yield asset(path, path.exists)
+    yield None
+    path.parent.mkdir(parents=True)
+    path.touch()
 
 
 @task
 def cup(basedir):
-    # Get a cup to make the tea in.
+    # A cup for the tea.
     path = Path(basedir) / "cup"
-    yield f"The cup: {path}"
+    yield "A cup"
     yield asset(path, path.exists)
     yield None
     path.mkdir(parents=True)
 
 
 @task
-def steeped_tea_with_sugar(cupdir):
+def steeped_tea_with_sugar(basedir):
     # Add sugar to the steeped tea. Requires tea to have steeped.
-    for x in ingredient(cupdir, "sugar", "Steeped tea with sugar", steeped_tea):
+    for x in ingredient(basedir, "sugar", "Sugar", steeped_tea):
         yield x
 
 
 @task
-def steeped_tea(cupdir):
+def steeped_tea(basedir):
     # Give tea time to steep.
-    yield f"Steeped tea in {cupdir}"
-    ready = False
-    water = ref(steeping_tea(cupdir))["water"]
+    yield "Steeped tea"
+    water = refs(steeping_tea(basedir))["water"]
+    steep_time = lambda x: asset("elapsed time", lambda: x)
+    t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
-        ready_time = water_poured_time + dt.timedelta(seconds=10)
+        ready_time = water_poured_time + dt.timedelta(seconds=t)
         now = dt.datetime.now()
         ready = now >= ready_time
-        yield asset(None, lambda: ready)
-        if not ready:
-            logging.info("Tea needs to steep for %ss", int((ready_time - now).total_seconds()))
+        remaining = int((ready_time - now).total_seconds())
+        yield steep_time(ready)
     else:
-        yield asset(None, lambda: False)
-    yield steeping_tea(cupdir)
+        ready = False
+        remaining = t
+        yield steep_time(False)
+    yield steeping_tea(basedir)
+    if not ready:
+        logging.warning("Tea needs to steep for %ss", remaining)
 
 
 @task
-def steeping_tea(cupdir):
-    # Pour boiling water over the tea. Requires tea bag in cup.
-    for x in ingredient(cupdir, "water", "Boiling water over the tea", tea_bag):
+def steeping_tea(basedir):
+    # Pour boiling water over the tea. Requires teabag in cup.
+    for x in ingredient(basedir, "water", "Boiling water", teabag):
         yield x
 
 
 @task
-def tea_bag(cupdir):
-    # Place tea bag in the cup. Requires box of tea bags.
-    for x in ingredient(cupdir, "tea", "Tea bag", box_of_tea_bags):
+def teabag(basedir):
+    # Place tea bag in the cup. Requires box of teabags.
+    for x in ingredient(basedir, "teabag", "Teabag", box_of_teabags):
         yield x
 
 
 @external
-def box_of_tea_bags(cupdir):
-    path = Path(cupdir).parent / "box-of-tea"
-    yield f"Tea from store: {path}"
+def box_of_teabags(basedir):
+    path = Path(basedir) / "box-of-teabags"
+    yield f"Box of teabags {path}"
     yield asset(path, path.exists)
 
 
-def ingredient(cupdir, fn, name, req=None):
-    path = Path(cupdir) / fn
-    path.parent.mkdir(parents=True, exist_ok=True)
-    yield f"{name} in {cupdir}"
+def ingredient(basedir, fn, name, req=None):
+    yield f"{name} in cup"
+    path = refs(cup(basedir)) / fn
     yield {fn: asset(path, path.exists)}
-    yield req(cupdir) if req else None
+    yield [cup(basedir)] + ([req(basedir)] if req else [])
+    logging.info("Adding %s to cup", fn)
     path.touch()
