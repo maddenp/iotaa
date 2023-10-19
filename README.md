@@ -133,7 +133,7 @@ The first `@tasks` method defines the end result: A cup of tea, steeped, with su
 @tasks
 def a_cup_of_tea(basedir):
     # A cup of steeped tea with sugar, and a spoon.
-    yield "A nice cup of tea"
+    yield "The perfect cup of tea"
     yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
 ```
 
@@ -202,9 +202,9 @@ Next up, the `steeped_tea()` function, which is more complex:
 @task
 def steeped_tea(basedir):
     # Give tea time to steep.
-    yield "Time for tea to steep"
+    yield "Steeped tea"
     water = refs(steeping_tea(basedir))["water"]
-    steep_time = lambda x: asset("Time", lambda: x)
+    steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
