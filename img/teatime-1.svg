@@ -54,7 +54,7 @@
 <!-- _f9810bce5bbcd6a4d4b834b75279ddce -->
 <g id="node7" class="node">
 <title>_f9810bce5bbcd6a4d4b834b75279ddce</title>
-<polygon fill="orange" stroke="black" points="196.5,-36 95.5,-36 95.5,0 196.5,0 196.5,-36"/>
+<polygon fill="palegreen" stroke="black" points="196.5,-36 95.5,-36 95.5,0 196.5,0 196.5,-36"/>
 <text text-anchor="middle" x="146" y="-14.3" font-family="Times,serif" font-size="14.00">teatime/cup</text>
 </g>
 <!-- _5b1d149c29769d3624f4e34af2330bec&#45;&gt;_f9810bce5bbcd6a4d4b834b75279ddce -->
@@ -84,7 +84,7 @@
 <!-- _7f2d897b3949441090ec5b405dbeebb1 -->
 <g id="node6" class="node">
 <title>_7f2d897b3949441090ec5b405dbeebb1</title>
-<polygon fill="orange" stroke="black" points="118,-324 0,-324 0,-288 118,-288 118,-324"/>
+<polygon fill="palegreen" stroke="black" points="118,-324 0,-324 0,-288 118,-288 118,-324"/>
 <text text-anchor="middle" x="59" y="-302.3" font-family="Times,serif" font-size="14.00">teatime/spoon</text>
 </g>
 <!-- _4dfbb28a53db4770d8c9efa105b2d3ca&#45;&gt;_7f2d897b3949441090ec5b405dbeebb1 -->

@@ -270,7 +270,6 @@ def tasks(f) -> Callable[..., _AssetT]:
         assets = _delegate(g, taskname)
         ready = _ready(assets)
         if not ready or top:
-            _graph_update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(taskname, assets)
 
