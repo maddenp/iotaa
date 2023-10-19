@@ -550,22 +550,22 @@ The displayed image (ready assets are shown in green, pending ones in orange):
 
 Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of graph images are shown:
 
-First run, blocked by missing (external) box of tea:
+- First invocation, blocked by missing (external) box of tea:
 
 ![teatime-dry-run-image](img/teatime-1.svg)
 
-Second run, with box of tea available:
+- Second invocation, with box of tea available:
 
 ![teatime-dry-run-image](img/teatime-2.svg)
 
-Third run, waiting for tea to steep:
+- Third invocation, waiting for tea to steep:
 
 ![teatime-dry-run-image](img/teatime-3.svg)
 
-Fourth run, with sugar added to steeped tea:
+- Fourth invocation, with sugar added to steeped tea:
 
 ![teatime-dry-run-image](img/teatime-4.svg)
 
-Fifth run, showing final sate:
+- Fifth invocation, showing final sate:
 
 ![teatime-dry-run-image](img/teatime-5.svg)
