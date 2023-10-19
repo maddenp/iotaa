@@ -65,7 +65,7 @@ As with `@external` tasks, no statements should follow the second and final `yie
 
 ```
 % iotaa --help
-usage: iotaa [-d] [-h] [-v] module function [args ...]
+usage: iotaa [-d] [-h] [-g] [-v] module function [args ...]
 
 positional arguments:
   module
@@ -80,6 +80,8 @@ optional arguments:
     run in dry-run mode
   -h, --help
     show help and exit
+  -g, --graph
+    emit GraphViz dot to stdout
   -v, --verbose
     verbose logging
 ```
