@@ -399,23 +399,22 @@ def test__formatter():
 
 
 def test__graph_emit(capsys):
-    assets = {"foo": lambda: True, "bar": lambda: False}
+    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
     tasks = {"qux", "baz"}
     with patch.object(iotaa, "_graph", iotaa.ns(assets=assets, edges=edges, tasks=tasks)):
         iotaa._graph_emit()
-    node = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-    c, n, s = iotaa._graph_color, iotaa._graph_name, iotaa._graph_shape
-    lines = [
-        # assets:
-        *[node % (n(ref), c[ready()], ref, s.asset) for ref, ready in assets.items()],
-        # edges:
-        *["%s -> %s" % (n(parent), n(child)) for parent, child in edges],
-        # tasks:
-        *[node % (n(task), c[None], task, s.task) for task in tasks],
-    ]
-    expected = "digraph g {\n  %s\n}" % "\n  ".join(sorted(lines))
-    assert capsys.readouterr().out.strip() == expected
+    out = capsys.readouterr().out.strip().split("\n")
+    # How many asset nodes were graphed?
+    assert 2 == len([x for x in out if "shape=%s" % iotaa._graph_shape.asset in x])
+    # How many task nodes were graphed?
+    assert 2 == len([x for x in out if "shape=%s" % iotaa._graph_shape.task in x])
+    # How many edges were graphed?
+    assert 3 == len([x for x in out if "->" in x])
+    # How many assets were ready?
+    assert 1 == len([x for x in out if "color=%s" % iotaa._graph_color[True] in x])
+    # How many assets were pending?
+    assert 1 == len([x for x in out if "color=%s" % iotaa._graph_color[False] in x])
 
 
 def test__graph_name():

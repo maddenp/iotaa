@@ -331,21 +331,16 @@ def _graph_emit() -> None:
     """
     Emit a task/asset graph in GraphViz dot format.
     """
-    colorof = {ref: _graph_color[ready()] for ref, ready in _graph.assets.items()}
-    node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-    f = lambda name, shape, color=_graph_color[None]: node_template % (
+    f = lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]' % (
         _graph_name(name),
-        color,
+        _graph_color[ready],
         name,
         shape,
     )
+    edges = ["%s -> %s" % (_graph_name(a), _graph_name(b)) for a, b in _graph.edges]
+    nodes_a = [f(ref, _graph_shape.asset, ready()) for ref, ready in _graph.assets.items()]
     nodes_t = [f(x, _graph_shape.task) for x in _graph.tasks]
-    nodes_a = [f(ref, _graph_shape.asset, colorof[ref]) for ref in _graph.assets.keys()]
-    edges = [
-        "%s -> %s" % (_graph_name(parent), _graph_name(child)) for parent, child in _graph.edges
-    ]
-    graph = "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges))
-    print(graph)
+    print("digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges)))
 
 
 def _graph_name(name: str) -> str:
