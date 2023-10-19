@@ -264,54 +264,54 @@ Let's run this workflow with the `iotaa` command-line tool, requesting that the 
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-11T12:31:51] INFO    A nice cup of tea: Initial state: Pending
-[2023-10-11T12:31:51] INFO    A nice cup of tea: Checking requirements
-[2023-10-11T12:31:51] INFO    A spoon: Initial state: Pending
-[2023-10-11T12:31:51] INFO    A spoon: Checking requirements
-[2023-10-11T12:31:51] INFO    A spoon: Requirement(s) ready
-[2023-10-11T12:31:51] INFO    A spoon: Executing
-[2023-10-11T12:31:51] INFO    A spoon: Final state: Ready
-[2023-10-11T12:31:51] INFO    A cup: Initial state: Pending
-[2023-10-11T12:31:51] INFO    A cup: Checking requirements
-[2023-10-11T12:31:51] INFO    A cup: Requirement(s) ready
-[2023-10-11T12:31:51] INFO    A cup: Executing
-[2023-10-11T12:31:51] INFO    A cup: Final state: Ready
-[2023-10-11T12:31:51] INFO    Sugar in cup: Initial state: Pending
-[2023-10-11T12:31:51] INFO    Sugar in cup: Checking requirements
-[2023-10-11T12:31:51] INFO    Boiling water in cup: Initial state: Pending
-[2023-10-11T12:31:51] INFO    Boiling water in cup: Checking requirements
-[2023-10-11T12:31:51] INFO    Teabag in cup: Initial state: Pending
-[2023-10-11T12:31:51] INFO    Teabag in cup: Checking requirements
-[2023-10-11T12:31:51] WARNING Box of teabags teatime/box-of-teabags: State: Pending (EXTERNAL)
-[2023-10-11T12:31:51] INFO    Teabag in cup: Requirement(s) pending
-[2023-10-11T12:31:51] WARNING Teabag in cup: Final state: Pending
-[2023-10-11T12:31:51] INFO    Boiling water in cup: Requirement(s) pending
-[2023-10-11T12:31:51] WARNING Boiling water in cup: Final state: Pending
-[2023-10-11T12:31:51] INFO    Time for tea to steep: Initial state: Pending
-[2023-10-11T12:31:51] INFO    Time for tea to steep: Checking requirements
-[2023-10-11T12:31:51] INFO    Time for tea to steep: Requirement(s) pending
-[2023-10-11T12:31:51] WARNING Time for tea to steep: Final state: Pending
-[2023-10-11T12:31:51] INFO    Sugar in cup: Requirement(s) pending
-[2023-10-11T12:31:51] WARNING Sugar in cup: Final state: Pending
-[2023-10-11T12:31:51] WARNING A nice cup of tea: Final state: Pending
+[2023-10-19T11:49:43] INFO    The perfect cup of tea: Initial state: Pending
+[2023-10-19T11:49:43] INFO    The perfect cup of tea: Checking requirements
+[2023-10-19T11:49:43] INFO    A spoon: Initial state: Pending
+[2023-10-19T11:49:43] INFO    A spoon: Checking requirements
+[2023-10-19T11:49:43] INFO    A spoon: Requirement(s) ready
+[2023-10-19T11:49:43] INFO    A spoon: Executing
+[2023-10-19T11:49:43] INFO    A spoon: Final state: Ready
+[2023-10-19T11:49:43] INFO    A cup: Initial state: Pending
+[2023-10-19T11:49:43] INFO    A cup: Checking requirements
+[2023-10-19T11:49:43] INFO    A cup: Requirement(s) ready
+[2023-10-19T11:49:43] INFO    A cup: Executing
+[2023-10-19T11:49:43] INFO    A cup: Final state: Ready
+[2023-10-19T11:49:43] INFO    Sugar in cup: Initial state: Pending
+[2023-10-19T11:49:43] INFO    Sugar in cup: Checking requirements
+[2023-10-19T11:49:43] INFO    Boiling water in cup: Initial state: Pending
+[2023-10-19T11:49:43] INFO    Boiling water in cup: Checking requirements
+[2023-10-19T11:49:43] INFO    Teabag in cup: Initial state: Pending
+[2023-10-19T11:49:43] INFO    Teabag in cup: Checking requirements
+[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Pending (EXTERNAL)
+[2023-10-19T11:49:43] INFO    Teabag in cup: Requirement(s) pending
+[2023-10-19T11:49:43] WARNING Teabag in cup: Final state: Pending
+[2023-10-19T11:49:43] INFO    Boiling water in cup: Requirement(s) pending
+[2023-10-19T11:49:43] WARNING Boiling water in cup: Final state: Pending
+[2023-10-19T11:49:43] INFO    Steeped tea: Initial state: Pending
+[2023-10-19T11:49:43] INFO    Steeped tea: Checking requirements
+[2023-10-19T11:49:43] INFO    Steeped tea: Requirement(s) pending
+[2023-10-19T11:49:43] WARNING Steeped tea: Final state: Pending
+[2023-10-19T11:49:43] INFO    Sugar in cup: Requirement(s) pending
+[2023-10-19T11:49:43] WARNING Sugar in cup: Final state: Pending
+[2023-10-19T11:49:43] WARNING The perfect cup of tea: Final state: Pending
 ```
 
 There's lots to see during the first invocation. Most of the tasks start and end in a pending state. Only the `spoon()` and `cup()` tasks make progress from `Pending` to `Ready` states:
 
 ```
-[2023-10-11T12:31:51] INFO    A spoon: Initial state: Pending
-[2023-10-11T12:31:51] INFO    A spoon: Checking requirements
-[2023-10-11T12:31:51] INFO    A spoon: Requirement(s) ready
-[2023-10-11T12:31:51] INFO    A spoon: Executing
-[2023-10-11T12:31:51] INFO    A spoon: Final state: Ready
+[2023-10-19T11:49:43] INFO    A spoon: Initial state: Pending
+[2023-10-19T11:49:43] INFO    A spoon: Checking requirements
+[2023-10-19T11:49:43] INFO    A spoon: Requirement(s) ready
+[2023-10-19T11:49:43] INFO    A spoon: Executing
+[2023-10-19T11:49:43] INFO    A spoon: Final state: Ready
 ```
 
 ```
-[2023-10-11T12:31:51] INFO    A cup: Initial state: Pending
-[2023-10-11T12:31:51] INFO    A cup: Checking requirements
-[2023-10-11T12:31:51] INFO    A cup: Requirement(s) ready
-[2023-10-11T12:31:51] INFO    A cup: Executing
-[2023-10-11T12:31:51] INFO    A cup: Final state: Ready
+[2023-10-19T11:49:43] INFO    A cup: Initial state: Pending
+[2023-10-19T11:49:43] INFO    A cup: Checking requirements
+[2023-10-19T11:49:43] INFO    A cup: Requirement(s) ready
+[2023-10-19T11:49:43] INFO    A cup: Executing
+[2023-10-19T11:49:43] INFO    A cup: Final state: Ready
 ```
 
 We will see in subsequent workflow invocations that these tasks are not revisited, as their assets will be found to be ready.
@@ -328,15 +328,15 @@ teatime
 Note the blocker:
 
 ```
-[2023-10-11T12:31:51] WARNING Box of teabags teatime/box-of-teabags: State: Pending (EXTERNAL)
+[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Pending (EXTERNAL)
 ```
 
 The file `teatime/box-of-teabags` cannot be created by the workflow, as it is declared `@external`. Let's create it externally:
 
 ```
 % touch teatime/box-of-teabags
-% tree teatime
-teatime
+% tree teatime/
+teatime/
 ├── box-of-teabags
 ├── cup
 └── spoon
@@ -346,30 +346,30 @@ Now let's iterate the workflow:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-11T12:35:35] INFO    A nice cup of tea: Initial state: Pending
-[2023-10-11T12:35:35] INFO    A nice cup of tea: Checking requirements
-[2023-10-11T12:35:35] INFO    Sugar in cup: Initial state: Pending
-[2023-10-11T12:35:35] INFO    Sugar in cup: Checking requirements
-[2023-10-11T12:35:35] INFO    Boiling water in cup: Initial state: Pending
-[2023-10-11T12:35:35] INFO    Boiling water in cup: Checking requirements
-[2023-10-11T12:35:35] INFO    Teabag in cup: Initial state: Pending
-[2023-10-11T12:35:35] INFO    Teabag in cup: Checking requirements
-[2023-10-11T12:35:35] INFO    Teabag in cup: Requirement(s) ready
-[2023-10-11T12:35:35] INFO    Teabag in cup: Executing
-[2023-10-11T12:35:35] INFO    Adding teabag to cup
-[2023-10-11T12:35:35] INFO    Teabag in cup: Final state: Ready
-[2023-10-11T12:35:35] INFO    Boiling water in cup: Requirement(s) ready
-[2023-10-11T12:35:35] INFO    Boiling water in cup: Executing
-[2023-10-11T12:35:35] INFO    Adding water to cup
-[2023-10-11T12:35:35] INFO    Boiling water in cup: Final state: Ready
-[2023-10-11T12:35:35] INFO    Time for tea to steep: Initial state: Pending
-[2023-10-11T12:35:35] INFO    Time for tea to steep: Checking requirements
-[2023-10-11T12:35:35] INFO    Time for tea to steep: Requirement(s) ready
-[2023-10-11T12:35:35] INFO    Time for tea to steep: Executing
-[2023-10-11T12:35:35] WARNING Tea needs to steep for 9s
-[2023-10-11T12:35:35] INFO    Sugar in cup: Requirement(s) pending
-[2023-10-11T12:35:35] WARNING Sugar in cup: Final state: Pending
-[2023-10-11T12:35:35] WARNING A nice cup of tea: Final state: Pending
+[2023-10-19T11:52:09] INFO    The perfect cup of tea: Initial state: Pending
+[2023-10-19T11:52:09] INFO    The perfect cup of tea: Checking requirements
+[2023-10-19T11:52:09] INFO    Sugar in cup: Initial state: Pending
+[2023-10-19T11:52:09] INFO    Sugar in cup: Checking requirements
+[2023-10-19T11:52:09] INFO    Boiling water in cup: Initial state: Pending
+[2023-10-19T11:52:09] INFO    Boiling water in cup: Checking requirements
+[2023-10-19T11:52:09] INFO    Teabag in cup: Initial state: Pending
+[2023-10-19T11:52:09] INFO    Teabag in cup: Checking requirements
+[2023-10-19T11:52:09] INFO    Teabag in cup: Requirement(s) ready
+[2023-10-19T11:52:09] INFO    Teabag in cup: Executing
+[2023-10-19T11:52:09] INFO    Adding teabag to cup
+[2023-10-19T11:52:09] INFO    Teabag in cup: Final state: Ready
+[2023-10-19T11:52:09] INFO    Boiling water in cup: Requirement(s) ready
+[2023-10-19T11:52:09] INFO    Boiling water in cup: Executing
+[2023-10-19T11:52:09] INFO    Adding water to cup
+[2023-10-19T11:52:09] INFO    Boiling water in cup: Final state: Ready
+[2023-10-19T11:52:09] INFO    Steeped tea: Initial state: Pending
+[2023-10-19T11:52:09] INFO    Steeped tea: Checking requirements
+[2023-10-19T11:52:09] INFO    Steeped tea: Requirement(s) ready
+[2023-10-19T11:52:09] INFO    Steeped tea: Executing
+[2023-10-19T11:52:09] WARNING Tea needs to steep for 9s
+[2023-10-19T11:52:09] INFO    Sugar in cup: Requirement(s) pending
+[2023-10-19T11:52:09] WARNING Sugar in cup: Final state: Pending
+[2023-10-19T11:52:09] WARNING The perfect cup of tea: Final state: Pending
 ```
 
 On-disk workflow state now:
@@ -389,7 +389,7 @@ Since the box of tea became available, the workflow was able to add tea to the c
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
 ...
-[2023-10-11T12:35:40] WARNING Tea needs to steep for 5s
+[2023-10-19T11:52:12] WARNING Tea needs to steep for 6s
 ...
 ```
 
@@ -397,15 +397,15 @@ If we wait a bit longer and iterate:
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-11T12:37:49] INFO    A nice cup of tea: Initial state: Pending
-[2023-10-11T12:37:49] INFO    A nice cup of tea: Checking requirements
-[2023-10-11T12:37:49] INFO    Sugar in cup: Initial state: Pending
-[2023-10-11T12:37:49] INFO    Sugar in cup: Checking requirements
-[2023-10-11T12:37:49] INFO    Sugar in cup: Requirement(s) ready
-[2023-10-11T12:37:49] INFO    Sugar in cup: Executing
-[2023-10-11T12:37:49] INFO    Adding sugar to cup
-[2023-10-11T12:37:49] INFO    Sugar in cup: Final state: Ready
-[2023-10-11T12:37:49] INFO    A nice cup of tea: Final state: Ready
+[2023-10-19T11:53:49] INFO    The perfect cup of tea: Initial state: Pending
+[2023-10-19T11:53:49] INFO    The perfect cup of tea: Checking requirements
+[2023-10-19T11:53:49] INFO    Sugar in cup: Initial state: Pending
+[2023-10-19T11:53:49] INFO    Sugar in cup: Checking requirements
+[2023-10-19T11:53:49] INFO    Sugar in cup: Requirement(s) ready
+[2023-10-19T11:53:49] INFO    Sugar in cup: Executing
+[2023-10-19T11:53:49] INFO    Adding sugar to cup
+[2023-10-19T11:53:49] INFO    Sugar in cup: Final state: Ready
+[2023-10-19T11:53:49] INFO    The perfect cup of tea: Final state: Ready
 ```
 
 Now that the tea has steeped long enough, the sugar has been added:
@@ -425,9 +425,9 @@ One more iteration and we see that the workflow has reached its final state and 
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-11T12:38:38] INFO    A nice cup of tea: Initial state: Pending
-[2023-10-11T12:38:38] INFO    A nice cup of tea: Checking requirements
-[2023-10-11T12:38:38] INFO    A nice cup of tea: Final state: Ready
+[2023-10-19T11:54:32] INFO    The perfect cup of tea: Initial state: Pending
+[2023-10-19T11:54:32] INFO    The perfect cup of tea: Checking requirements
+[2023-10-19T11:54:32] INFO    The perfect cup of tea: Final state: Ready
 ```
 
 Since `a_cup_of_tea()` is a `@tasks` _collection_, its state is contingent on that of its required tasks, so its readiness check will always involve checking requirements, unlike a non-collection `@task`, which can just check its assets.
@@ -435,7 +435,7 @@ Since `a_cup_of_tea()` is a `@tasks` _collection_, its state is contingent on th
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
 ```
-% rm -v teatime/cup/sugar 
+% rm -v teatime/cup/sugar
 removed 'teatime/cup/sugar'
 % tree teatime/
 teatime/
@@ -450,15 +450,15 @@ Note how the workflow detects the change to the readiness of its assets and reco
 
 ```
 % iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-11T12:40:10] INFO    A nice cup of tea: Initial state: Pending
-[2023-10-11T12:40:10] INFO    A nice cup of tea: Checking requirements
-[2023-10-11T12:40:10] INFO    Sugar in cup: Initial state: Pending
-[2023-10-11T12:40:10] INFO    Sugar in cup: Checking requirements
-[2023-10-11T12:40:10] INFO    Sugar in cup: Requirement(s) ready
-[2023-10-11T12:40:10] INFO    Sugar in cup: Executing
-[2023-10-11T12:40:10] INFO    Adding sugar to cup
-[2023-10-11T12:40:10] INFO    Sugar in cup: Final state: Ready
-[2023-10-11T12:40:10] INFO    A nice cup of tea: Final state: Ready
+[2023-10-19T11:55:45] INFO    The perfect cup of tea: Initial state: Pending
+[2023-10-19T11:55:45] INFO    The perfect cup of tea: Checking requirements
+[2023-10-19T11:55:45] INFO    Sugar in cup: Initial state: Pending
+[2023-10-19T11:55:45] INFO    Sugar in cup: Checking requirements
+[2023-10-19T11:55:45] INFO    Sugar in cup: Requirement(s) ready
+[2023-10-19T11:55:45] INFO    Sugar in cup: Executing
+[2023-10-19T11:55:45] INFO    Adding sugar to cup
+[2023-10-19T11:55:45] INFO    Sugar in cup: Final state: Ready
+[2023-10-19T11:55:45] INFO    The perfect cup of tea: Final state: Ready
 ```
 
 ```
@@ -481,8 +481,8 @@ First, let's empty the cup:
 removed 'teatime/cup/sugar'
 removed 'teatime/cup/teabag'
 removed 'teatime/cup/water'
-% tree teatime
-teatime
+% tree teatime/
+teatime/
 ├── box-of-teabags
 ├── cup
 └── spoon
@@ -492,30 +492,31 @@ Now request tea without sugar:
 
 ```
 % iotaa iotaa.demo steeped_tea ./teatime
-[2023-10-11T12:43:11] INFO    Boiling water in cup: Initial state: Pending
-[2023-10-11T12:43:11] INFO    Boiling water in cup: Checking requirements
-[2023-10-11T12:43:11] INFO    Teabag in cup: Initial state: Pending
-[2023-10-11T12:43:11] INFO    Teabag in cup: Checking requirements
-[2023-10-11T12:43:11] INFO    Teabag in cup: Requirement(s) ready
-[2023-10-11T12:43:11] INFO    Teabag in cup: Executing
-[2023-10-11T12:43:11] INFO    Adding teabag to cup
-[2023-10-11T12:43:11] INFO    Teabag in cup: Final state: Ready
-[2023-10-11T12:43:11] INFO    Boiling water in cup: Requirement(s) ready
-[2023-10-11T12:43:11] INFO    Boiling water in cup: Executing
-[2023-10-11T12:43:11] INFO    Adding water to cup
-[2023-10-11T12:43:11] INFO    Boiling water in cup: Final state: Ready
-[2023-10-11T12:43:11] INFO    Time for tea to steep: Initial state: Pending
-[2023-10-11T12:43:11] INFO    Time for tea to steep: Checking requirements
-[2023-10-11T12:43:11] INFO    Time for tea to steep: Requirement(s) ready
-[2023-10-11T12:43:11] INFO    Time for tea to steep: Executing
-[2023-10-11T12:43:11] WARNING Tea needs to steep for 9s
+% iotaa iotaa.demo steeped_tea ./teatime
+[2023-10-19T11:57:31] INFO    Boiling water in cup: Initial state: Pending
+[2023-10-19T11:57:31] INFO    Boiling water in cup: Checking requirements
+[2023-10-19T11:57:31] INFO    Teabag in cup: Initial state: Pending
+[2023-10-19T11:57:31] INFO    Teabag in cup: Checking requirements
+[2023-10-19T11:57:31] INFO    Teabag in cup: Requirement(s) ready
+[2023-10-19T11:57:31] INFO    Teabag in cup: Executing
+[2023-10-19T11:57:31] INFO    Adding teabag to cup
+[2023-10-19T11:57:31] INFO    Teabag in cup: Final state: Ready
+[2023-10-19T11:57:31] INFO    Boiling water in cup: Requirement(s) ready
+[2023-10-19T11:57:31] INFO    Boiling water in cup: Executing
+[2023-10-19T11:57:31] INFO    Adding water to cup
+[2023-10-19T11:57:31] INFO    Boiling water in cup: Final state: Ready
+[2023-10-19T11:57:31] INFO    Steeped tea: Initial state: Pending
+[2023-10-19T11:57:31] INFO    Steeped tea: Checking requirements
+[2023-10-19T11:57:31] INFO    Steeped tea: Requirement(s) ready
+[2023-10-19T11:57:31] INFO    Steeped tea: Executing
+[2023-10-19T11:57:31] WARNING Tea needs to steep for 9s
 ```
 
 After waiting for the tea to steep:
 
 ```
 % iotaa iotaa.demo steeped_tea ./teatime
-[2023-10-11T12:44:09] INFO    Time for tea to steep: Initial state: Ready
+2023-10-19T11:57:57] INFO    Steeped tea: Initial state: Ready
 ```
 
 On-disk state:
