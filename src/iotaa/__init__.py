@@ -5,6 +5,7 @@ iotaa.core.
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import cache
 from hashlib import md5
@@ -17,6 +18,8 @@ from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 _graph = ns(assets={}, edges=set(), tasks=set())
+_graph_color: Dict[Any, str] = defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
+_graph_shape = ns(asset="box", task="ellipse")
 _state = ns(dry_run=False, initialized=False)
 
 
@@ -328,16 +331,31 @@ def _graph_emit() -> None:
     """
     Emit a task/asset graph in GraphViz dot format.
     """
-    colormap = {True: "seagreen", False: "orangered"}
-    colorof = {ref: colormap[ready()] for ref, ready in _graph.assets.items()}
+    colorof = {ref: _graph_color[ready()] for ref, ready in _graph.assets.items()}
     node_template = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-    h = lambda name: "_%s" % md5(str(name).encode("utf-8")).hexdigest()
-    f = lambda name, shape, color="grey": node_template % (h(name), color, name, shape)
-    nodes_t = [f(x, "ellipse") for x in _graph.tasks]
-    nodes_a = [f(ref, "box", colorof[ref]) for ref in _graph.assets.keys()]
-    edges = ["%s -> %s" % (h(parent), h(child)) for parent, child in _graph.edges]
-    graph = "digraph g {\n  %s\n}" % "\n  ".join(nodes_t + nodes_a + edges)
+    f = lambda name, shape, color=_graph_color[None]: node_template % (
+        _graph_name(name),
+        color,
+        name,
+        shape,
+    )
+    nodes_t = [f(x, _graph_shape.task) for x in _graph.tasks]
+    nodes_a = [f(ref, _graph_shape.asset, colorof[ref]) for ref in _graph.assets.keys()]
+    edges = [
+        "%s -> %s" % (_graph_name(parent), _graph_name(child)) for parent, child in _graph.edges
+    ]
+    graph = "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges))
     print(graph)
+
+
+def _graph_name(name: str) -> str:
+    """
+    Convert an iotaa asset/task name to a GraphViz-appropriate node name.
+
+    :param name: An iotaa asset/task name.
+    :return: A GraphViz-appropriate node name.
+    """
+    return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
 
 
 def _graph_udpate_from_requirements(taskname: str, alist: List[Asset]) -> None:

@@ -5,6 +5,7 @@ Tests for module iotaa.core.
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
 import re
+from hashlib import md5
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
@@ -397,8 +398,29 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
-def test__graph_emit():
-    pass  # TODO FIXME
+def test__graph_emit(capsys):
+    assets = {"foo": lambda: True, "bar": lambda: False}
+    edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
+    tasks = {"qux", "baz"}
+    with patch.object(iotaa, "_graph", iotaa.ns(assets=assets, edges=edges, tasks=tasks)):
+        iotaa._graph_emit()
+    node = '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
+    c, n, s = iotaa._graph_color, iotaa._graph_name, iotaa._graph_shape
+    lines = [
+        # assets:
+        *[node % (n(ref), c[ready()], ref, s.asset) for ref, ready in assets.items()],
+        # edges:
+        *["%s -> %s" % (n(parent), n(child)) for parent, child in edges],
+        # tasks:
+        *[node % (n(task), c[None], task, s.task) for task in tasks],
+    ]
+    expected = "digraph g {\n  %s\n}" % "\n  ".join(sorted(lines))
+    assert capsys.readouterr().out.strip() == expected
+
+
+def test__graph_name():
+    name = "foo"
+    assert iotaa._graph_name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
 
 
 @pytest.mark.parametrize("assets", simple_assets())
