@@ -406,15 +406,15 @@ def test__graph_emit(capsys):
         iotaa._graph_emit()
     out = capsys.readouterr().out.strip().split("\n")
     # How many asset nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s" % iotaa._graph_shape.asset in x])
+    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph_shape.asset in x])
     # How many task nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s" % iotaa._graph_shape.task in x])
+    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph_shape.task in x])
     # How many edges were graphed?
-    assert 3 == len([x for x in out if "->" in x])
+    assert 3 == len([x for x in out if " -> " in x])
     # How many assets were ready?
-    assert 1 == len([x for x in out if "color=%s" % iotaa._graph_color[True] in x])
+    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph_color[True] in x])
     # How many assets were pending?
-    assert 1 == len([x for x in out if "color=%s" % iotaa._graph_color[False] in x])
+    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph_color[False] in x])
 
 
 def test__graph_name():
