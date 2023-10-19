@@ -20,7 +20,7 @@ import iotaa
 
 @fixture
 def delegate_assets():
-    return (iotaa.Asset(ref=n, ready=lambda: True) for n in range(4))
+    return (iotaa.asset(ref=n, ready=lambda: True) for n in range(4))
 
 
 @fixture
@@ -29,9 +29,14 @@ def external_foo_scalar():
     def foo(path):
         f = path / "foo"
         yield f"external foo {f}"
-        yield iotaa.Asset(f, f.is_file)
+        yield iotaa.asset(f, f.is_file)
 
     return foo
+
+
+@fixture
+def empty_graph():
+    return iotaa.ns(assets={}, edges=set(), tasks=set())
 
 
 @fixture
@@ -64,7 +69,7 @@ def task_bar_list(external_foo_scalar):
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
-        yield [iotaa.Asset(f, f.is_file)]
+        yield [iotaa.asset(f, f.is_file)]
         yield [external_foo_scalar(path)]
         f.touch()
 
@@ -77,7 +82,7 @@ def task_bar_dict(external_foo_scalar):
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
-        yield {"path": iotaa.Asset(f, f.is_file)}
+        yield {"path": iotaa.asset(f, f.is_file)}
         yield [external_foo_scalar(path)]
         f.touch()
 
@@ -98,13 +103,22 @@ def logged(msg: str, caplog: LogCaptureFixture) -> bool:
     return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
 
+def simple_assets():
+    return [
+        None,
+        iotaa.asset("foo", lambda: True),
+        [iotaa.asset("foo", lambda: True), iotaa.asset("bar", lambda: True)],
+        {"baz": iotaa.asset("foo", lambda: True), "qux": iotaa.asset("bar", lambda: True)},
+    ]
+
+
 # Public API tests
 
 
 @pytest.mark.parametrize(
     # One without kwargs, one with:
     "asset",
-    [iotaa.Asset("foo", lambda: True), iotaa.Asset(ref="foo", ready=lambda: True)],
+    [iotaa.asset("foo", lambda: True), iotaa.asset(ref="foo", ready=lambda: True)],
 )
 def test_Asset(asset):
     assert asset.ref == "foo"
@@ -188,7 +202,7 @@ def test_main_mocked_up(tmp_path):
 
 def test_refs_dict():
     expected = "bar"
-    asset = iotaa.Asset(ref="bar", ready=lambda: True)
+    asset = iotaa.asset(ref="bar", ready=lambda: True)
     assert iotaa.refs(assets={"foo": asset})["foo"] == expected
     assert iotaa.refs(assets=[asset])[0] == expected
     assert iotaa.refs(assets=asset) == expected
@@ -387,12 +401,33 @@ def test__graph_emit():
     pass  # TODO FIXME
 
 
-def test__graph_update_from_requirements():
-    pass  # TODO FIXME
+@pytest.mark.parametrize("assets", simple_assets())
+def test__graph_update_from_requirements(assets, empty_graph):
+    taskname_req = "req"
+    taskname_this = "task"
+    alist = iotaa._listify(assets)
+    edges = {
+        0: set(),
+        1: {(taskname_this, taskname_req), (taskname_req, "foo")},
+        2: {(taskname_this, taskname_req), (taskname_req, "foo"), (taskname_req, "bar")},
+    }[len(alist)]
+    for a in alist:
+        setattr(a, "taskname", taskname_req)
+    with patch.object(iotaa, "_graph", empty_graph):
+        iotaa._graph_udpate_from_requirements(taskname_this, alist)
+        assert all(a() for a in iotaa._graph.assets.values())
+        assert iotaa._graph.tasks == ({taskname_req, taskname_this} if assets else {taskname_this})
+        assert iotaa._graph.edges == edges
 
 
-def test__graph_update_from_task():
-    pass  # TODO FIXME
+@pytest.mark.parametrize("assets", simple_assets())
+def test__graph_update_from_task(assets, empty_graph):
+    taskname = "task"
+    with patch.object(iotaa, "_graph", empty_graph):
+        iotaa._graph_update_from_task(taskname, assets)
+        assert all(a() for a in iotaa._graph.assets.values())
+        assert iotaa._graph.tasks == {taskname}
+        assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._listify(assets)}
 
 
 @pytest.mark.parametrize("val", [True, False])
@@ -402,7 +437,7 @@ def test__i_am_top_task(val):
 
 
 def test__listify():
-    a = iotaa.Asset(ref=None, ready=lambda: True)
+    a = iotaa.asset(ref=None, ready=lambda: True)
     assert iotaa._listify(assets=None) == []
     assert iotaa._listify(assets=a) == [a]
     assert iotaa._listify(assets=[a]) == [a]
@@ -438,8 +473,8 @@ def test__parse_args():
 
 
 def test__ready():
-    af = iotaa.Asset(ref=False, ready=lambda: False)
-    at = iotaa.Asset(ref=True, ready=lambda: True)
+    af = iotaa.asset(ref=False, ready=lambda: False)
+    at = iotaa.asset(ref=True, ready=lambda: True)
     assert iotaa._ready(None)
     assert iotaa._ready([at])
     assert iotaa._ready(at)
@@ -468,9 +503,23 @@ def test__report_readiness(caplog, vals):
     assert logged(f"task: {msg}", caplog)
 
 
-def test__task_final():
-    pass  # TODO FIXME
+@pytest.mark.parametrize("assets", simple_assets())
+def test__task_final(assets):
+    for a in iotaa._listify(assets):
+        assert getattr(a, "taskname", None) is None
+    assets = iotaa._task_final("task", assets)
+    for a in iotaa._listify(assets):
+        assert getattr(a, "taskname") == "task"
 
 
 def test__task_inital():
-    pass  # TODO FIXME
+    def f(taskname, n):
+        yield taskname
+        yield n
+
+    with patch.object(iotaa, "_state", iotaa.ns(initialized=False)):
+        tn = "task"
+        taskname, top, g = iotaa._task_initial(f, tn, n=88)
+        assert taskname == tn
+        assert top is True
+        assert next(g) == 88
