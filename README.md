@@ -544,7 +544,7 @@ The `-g` / `--graph` switch can be used to emit to `stdout` a description of the
 [2023-10-19T12:13:47] WARNING The perfect cup of tea: Final state: Pending
 ```
 
-The displayed image (ready assets are shown in green, pending ones in orange):
+The displayed image (tasks are ovals, assets (green => ready, orange => pending) are rectangles):
 
 ![teatime-dry-run-image](img/teatime-0.svg)
 
