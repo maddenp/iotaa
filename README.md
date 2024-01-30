@@ -2,54 +2,56 @@
 
 **It's One Thing After Another**
 
-A tiny workflow manager with semantics similar to those of [Luigi](https://github.com/spotify/luigi) but with tasks defined as decorated Python functions. `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
+A tiny workflow manager with semantics similar to those of [Luigi](https://github.com/spotify/luigi), but with tasks defined as decorated Python functions (or methods, but "functions" will be used in this document). `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 
 ## Workflows
 
 Workflows comprise:
 
-- Assets (observable external state -- typically files, but sometimes more abstract state, e.g. a time duration)
-- Requirement relationships between assets
-- Executable logic to make assets ready (e.g. create them)
+- Assets (observable external state -- typically a file, but sometimes more abstract state, e.g. a time duration)
+- Requirement relationships (dependencies) between assets
+- Executable logic to ready the assets (e.g. create them)
 
 ## Assets
 
 An asset (an instance of class `iotaa.Asset`) has two attributes:
 
-1. `ref`: A value, of any type, uniquely referring to the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, an ISO8601 timestamp)
-2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether or not the asset is ready to use
+1. `ref`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, or an ISO8601 timestamp)
+2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether the asset is ready to use
 
 Create an asset by calling `iotaa.asset()`.
 
 ## Tasks
 
-Task are functions that declare, by `yield`ing values to `iotaa`, a description of the assets represented by the task (aka the task's name), plus -- depending on task type -- one or more of: the assets themselves, other tasks that the task requires, and/or executable logic to make the task's asset ready. `iotaa` provides three Python decorators to define tasks:
+Task are functions that declare, by `yield`ing values to `iotaa`, the task name plus -- depending on task type -- one or both of: the assets themselves, and other tasks the task requires. The task name will be used in log messages detailing workflow progress, so descriptive names can be useful. Tasks that define and are responsibile for readying their assets provide, following the `yield` statements, executable logic readying those assets.
+
+`iotaa` provides three Python decorators to define tasks:
 
 ### `@task`
 
 The essential workflow function type. A `@task` function `yield`s, in order:
 
-1. A task name describing the assets being readied, for logging
-2. An asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- that the task is responsible for making ready
-3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires before it can ready its own assets
+1. A name describing the asset(s) being readied, for logging
+2. An asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- the task is responsible for readying
+3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- this task requires before it can ready its own assets
 
-Arbitrary Python statements may appear before and interspersed between the `yield` statements. If the assets of all required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will make the task's assets ready.
+Arbitrary Python statements may appear before and interspersed between the `yield` statements. If the assets of all required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will ready the task's assets.
 
 ### `@external`
 
-A function type representing a required asset that `iotaa` cannot make ready, or a `list` or `dict` of such assets. An `@external` function `yield`s, in order:
+A function type for representing assets that are required but cannot be readied by the workflow. An `@external` function `yield`s, in order:
 
-1. A task name describing the assets being readied, for logging
-2. A required asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- that must become ready via external means not under workflow control. (Specifying `None` may be nonsensical.)
+1. A name describing the asset(s) being readied, for logging
+2. A required asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- that must be readied by external means not under workflow control.
 
-As with `@task` functions, arbitrary Python statements may appear before and interspersed between these `yield` statements. However, no statements should follow the second and final `yield`: They will never execute since `@external` tasks are intended as passive wrappers around external state.
+As with `@task` functions, arbitrary Python statements may appear before and interspersed between these `yield` statements. However, no statements should follow the second and final `yield`: They will never execute since `@external` tasks are passive wrappers around external state.
 
 ### `@tasks`
 
-A function type serving as a container for other tasks. A `@tasks` function `yield`s, in order:
+A function type serving as a container for requiring other tasks without attempting to ready them. A `@tasks` function `yield`s, in order:
 
-1. A task name describing the assets being readied, for logging
-2. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires. (Specifying `None` may be nonsensical.)
+1. A name describing the assets being readied, for logging
+2. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires.
 
 As with `@external` tasks, no statements should follow the second and final `yield`, as they will never execute.
 
@@ -88,9 +90,9 @@ optional arguments:
 
 Specifying positional arguments `m f hello 88` would call task function `f` in module `m` with arguments `hello: str` and `88: int`. (Positional arguments `args` are parsed with Python's `json` library into Python values.)
 
-It is assumed that `m` is importable by Python due to being on `sys.path`, by any customary means, including via `PYTHONPATH`. However, if `m` -- more likely specified as `m.py` or `/path/to/m.py` -- is a valid absolute or relative (to the current directory) path to a file, its parent directory is automatically added by `iotaa` to `sys.path` so that it can be loaded, as a convenience.
+It is assumed that `m` is importable by Python by any customary means. However, if `m` is a valid absolute or relative path (and so more likely specified as `m.py` or `/path/to/m.py`), its parent directory is automatically added by `iotaa` to `sys.path` so that it can be loaded.
 
-A task tree of arbitrary complexity defined in module `m` may be entered at any point by specifying the appropriate task function `f`. Only `f` and its children will be (recursively) processed, resulting in partial execution of a potentially larger workflow graph.
+A task tree of arbitrary complexity defined in module `m` may be entered at any point by specifying the appropriate task function `f`. Only `f` and its children will be processed, resulting in partial execution of a potentially larger workflow graph.
 
 ### Programmatic Use
 
@@ -98,16 +100,16 @@ After installation, `import iotaa` for `from iotaa import ...` to access public 
 
 ### Dry-Run Mode
 
-Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `iotaa` in a mode where no post-`yield` statements in `@task` bodies are executed. When applications are written such that no state-changing statements precede the final `yield` statement, dry mode will report the current condition of the workflow, pointing out pending requirements that block workflow progress.
+Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `iotaa` in a mode where no post-`yield` statements in `@task` bodies are executed. When applications are written such that no state-changing statements precede the final `yield` statement, dry-run mode will report the current condition of the workflow, identifying pending requirements blocking workflow progress.
 
 ## Helpers
 
 Several public helper callables are available in the `iotaa` module:
 
 - `asset()` instantiates an asset to return from a task function.
-- `dryrun()` enables dry-run mode.
+- `dryrun()` activates dry-run mode.
 - `refs()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single asset) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
-- `logcfg()` configures Python's root logger to support `logging.info()` et al calls, which `iotaa` itself makes. It is called when the `iotaa` CLI is used, but could also be called by standalone applications with simple logging needs.
+- `logcfg()` configures Python's root logger to support `logging.info()` (et al.) calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically.
 - `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
 - `runconda()` runs a command in a subshell with a named conda environment activated.
@@ -122,7 +124,7 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 - A task may be instantiated in statements before the statement `yield`ing it to `iotaa`, but note that control will pass to it immediately. For example, a task might have, instead of the statement `yield foo(x)`, the separate statements `foo_assets = foo(x)` (first) and `yield foo` (later). In this case, control would be passed to `foo` (and potentially to a tree of tasks it requires) immediately upon evaluation of the expression `foo(x)`. This should be fine semantically, but be aware of the order of execution it implies.
 - For its dry-run mode to work correctly, `iotaa` assumes that no statements that change external state execute before the final `yield` statement in a task-function's body.
 - Tasks are cached and only executed once in the lifetime of the Python interpreter, so it is currently assumed that `iotaa` or an application embedding it will be invoked repeatedly (or, in happy cases, just once) to complete all tasks, with the Python interpreter exiting and restarting with each invocation. Support could be added to clear cached tasks to support applications that would run workflows repeatedly inside the same interpreter invocation. NB: Caching requires all arguments to task functions to be hashable.
-- Currently, `iotaa` is single-threaded, so it truly is "one thing after another". Concurrency for execution of mutually independent tasks could be added, but presumably requirement relationships would still exist between some tasks, so partial ordering and serialization would usually still exist.
+- Currently, `iotaa` is single-threaded, so it truly is "one thing after another". Concurrency for execution of mutually independent tasks could be added, but presumably requirement relationships would still exist between some tasks, so partial ordering and serialization would persist.
 - Currently, `iotaa` relies on Python's root logger. Support could be added for optional alternative use of a logger supplied by an application.
 
 ## Demo
@@ -166,7 +168,7 @@ def cup(basedir):
     path.mkdir(parents=True)
 ```
 
-They `yield` their names; the asset each is responsible for making ready; and the tasks they require -- `None` in this case, since they have no requirements. Following the final `yield`, they do what is necessary to ready their assets: `spoon()` ensures that the base directory exists, then creates the `spoon` file therein; `cup()` creates the `cup` directory that will contain the tea ingredients.
+They `yield` their names; the asset each is responsible for readying; and the tasks they require -- `None` in this case, since they have no requirements. Following the final `yield`, they do what is necessary to ready their assets: `spoon()` ensures that the base directory exists, then creates the `spoon` file therein; `cup()` creates the `cup` directory that will contain the tea ingredients.
 
 Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directoy is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
 
@@ -224,7 +226,7 @@ def steeped_tea(basedir):
         logging.warning("Tea needs to steep for %ss", remaining)
 ```
 
-Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `refs()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to make its asset (time passed) ready: It can only wait.
+Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `refs()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
 
 Note the statement
 
@@ -252,7 +254,7 @@ def teabag(basedir):
         yield x
 ```
 
-Finally, we have this workflow's only `@external` task, `box_of_teabags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of teabags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ that it represents. It `yield`s no task requirements, and has no executable statements to make the asset ready:
+Finally, we have this workflow's only `@external` task, `box_of_teabags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of teabags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ that it represents. It `yield`s no task requirements, and has no executable statements to ready the asset:
 
 ``` python
 @external
