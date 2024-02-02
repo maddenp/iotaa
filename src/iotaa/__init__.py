@@ -217,7 +217,7 @@ def external(f) -> Callable[..., _AssetT]:
     """
 
     @cache
-    def decorated_external(*args, **kwargs) -> _AssetT:
+    def __iotaa_external__(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
@@ -226,7 +226,7 @@ def external(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(taskname, assets)
 
-    return decorated_external
+    return __iotaa_external__
 
 
 def task(f) -> Callable[..., _AssetT]:
@@ -235,7 +235,7 @@ def task(f) -> Callable[..., _AssetT]:
     """
 
     @cache
-    def decorated_task(*args, **kwargs) -> _AssetT:
+    def __iotaa_task__(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
@@ -254,7 +254,7 @@ def task(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready_final, taskname=taskname)
         return _task_final(taskname, assets)
 
-    return decorated_task
+    return __iotaa_task__
 
 
 def tasks(f) -> Callable[..., _AssetT]:
@@ -263,7 +263,7 @@ def tasks(f) -> Callable[..., _AssetT]:
     """
 
     @cache
-    def decorated_tasks(*args, **kwargs) -> _AssetT:
+    def __iotaa_tasks__(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
@@ -273,7 +273,7 @@ def tasks(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(taskname, assets)
 
-    return decorated_tasks
+    return __iotaa_tasks__
 
 
 # Private functions
