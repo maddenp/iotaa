@@ -1,5 +1,5 @@
 """
-Tests for module iotaa.core.
+Tests for module iotaa.
 """
 
 # pylint: disable=missing-class-docstring
