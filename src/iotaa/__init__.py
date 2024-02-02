@@ -216,7 +216,7 @@ def tasknames(obj: object) -> List[str]:
     :param obj: An object.
     """
     f = lambda o: callable(o) and hasattr(o, "__name__") and re.match(r"^__iotaa_.+__$", o.__name__)
-    return [name for name in dir(obj) if f(getattr(obj, name))]
+    return sorted(name for name in dir(obj) if f(getattr(obj, name)))
 
 
 # Decorators

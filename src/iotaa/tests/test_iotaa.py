@@ -2,7 +2,10 @@
 Tests for module iotaa.core.
 """
 
-# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+# pylint: disable=protected-access
+# pylint: disable=redefined-outer-name
 
 import re
 from hashlib import md5
@@ -247,6 +250,26 @@ def test_runconda():
     with patch.object(iotaa, "run") as run:
         iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
         run.assert_called_once_with(taskname=taskname, cmd=fullcmd, cwd=None, env=None, log=False)
+
+
+def test_tasknames():
+    class C:
+        @iotaa.external
+        def foo(self):
+            pass
+
+        @iotaa.task
+        def bar(self):
+            pass
+
+        @iotaa.tasks
+        def baz(self):
+            pass
+
+        def qux(self):
+            pass
+
+    assert iotaa.tasknames(C()) == ["bar", "baz", "foo"]
 
 
 # Decorator tests
