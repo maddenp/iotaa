@@ -113,6 +113,7 @@ Several public helper callables are available in the `iotaa` module:
 - `main()` is the entry-point function for CLI use.
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
 - `runconda()` runs a command in a subshell with a named conda environment activated.
+- `tasks()` accepts an object (e.g. a module) and returns a list of names of iotaa tasks that are attributes of the object.
 
 ## Development
 

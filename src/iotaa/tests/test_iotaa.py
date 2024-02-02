@@ -1,8 +1,11 @@
 """
-Tests for module iotaa.core.
+Tests for module iotaa.
 """
 
-# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+# pylint: disable=protected-access
+# pylint: disable=redefined-outer-name
 
 import re
 from hashlib import md5
@@ -16,7 +19,7 @@ from pytest import fixture, raises
 
 import iotaa
 
-# Fixtures/Helpers
+# Fixtures
 
 
 @fixture
@@ -100,6 +103,24 @@ def tasks_baz(external_foo_scalar, task_bar_dict):
     return baz
 
 
+# Helpers
+
+
+def args(path, tasknames):
+    m = path / "a.py"
+    m.touch()
+    strs = ["foo", "88", "3.14", "true"]
+    return iotaa.Namespace(
+        args=strs,
+        dry_run=True,
+        function="a_function",
+        graph=True,
+        module=m,
+        tasknames=tasknames,
+        verbose=True,
+    )
+
+
 def logged(msg: str, caplog: LogCaptureFixture) -> bool:
     return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
@@ -174,30 +195,40 @@ def test_main_live_syspath(capsys, module_for_main):
 
 
 def test_main_mocked_up(tmp_path):
-    m = tmp_path / "a.py"
-    m.touch()
-    strs = ["foo", "88", "3.14", "true"]
     with patch.multiple(
-        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D
+        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
     ) as mocks:
         parse_args = mocks["_parse_args"]
-        parse_args.return_value = iotaa.Namespace(
-            args=strs,
-            dry_run=True,
-            function="a_function",
-            graph=True,
-            module=m,
-            verbose=True,
-        )
+        parse_args.return_value = args(path=tmp_path, tasknames=False)
         with patch.object(iotaa, "getattr", create=True) as getattr_:
             iotaa.main()
             import_module = mocks["import_module"]
             import_module.assert_called_once_with("a")
             getattr_.assert_called_once_with(import_module(), "a_function")
             getattr_().assert_called_once_with("foo", 88, 3.14, True)
-        mocks["dryrun"].assert_called_once()
+        mocks["dryrun"].assert_called_once_with()
         mocks["logcfg"].assert_called_once_with(verbose=True)
         mocks["_graph_emit"].assert_called_once_with()
+        parse_args.assert_called_once()
+
+
+def test_main_mocked_up_tasknames(tmp_path):
+    with patch.multiple(
+        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
+    ) as mocks:
+        parse_args = mocks["_parse_args"]
+        parse_args.return_value = args(path=tmp_path, tasknames=True)
+        with patch.object(iotaa, "getattr", create=True) as getattr_:
+            with raises(SystemExit) as e:
+                iotaa.main()
+            assert e.value.code == 0
+            import_module = mocks["import_module"]
+            import_module.assert_called_once_with("a")
+            getattr_.assert_not_called()
+            getattr_().assert_not_called()
+        mocks["dryrun"].assert_called_once_with()
+        mocks["logcfg"].assert_called_once_with(verbose=True)
+        mocks["_graph_emit"].assert_not_called()
         parse_args.assert_called_once()
 
 
@@ -247,6 +278,26 @@ def test_runconda():
     with patch.object(iotaa, "run") as run:
         iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
         run.assert_called_once_with(taskname=taskname, cmd=fullcmd, cwd=None, env=None, log=False)
+
+
+def test_tasknames():
+    class C:
+        @iotaa.external
+        def foo(self):
+            pass
+
+        @iotaa.task
+        def bar(self):
+            pass
+
+        @iotaa.tasks
+        def baz(self):
+            pass
+
+        def qux(self):
+            pass
+
+    assert iotaa.tasknames(C()) == ["bar", "baz", "foo"]
 
 
 # Decorator tests
