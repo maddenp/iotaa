@@ -190,6 +190,7 @@ def test_main_mocked_up(tmp_path):
             function="a_function",
             graph=True,
             module=m,
+            tasknames=False,
             verbose=True,
         )
         with patch.object(iotaa, "getattr", create=True) as getattr_:

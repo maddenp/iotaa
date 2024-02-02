@@ -104,12 +104,16 @@ def main() -> None:
     logcfg(verbose=args.verbose)
     if args.dry_run:
         dryrun()
-    m = Path(args.module)
-    if m.is_file():
-        sys.path.append(str(m.parent.resolve()))
-        args.module = m.stem
+    module = Path(args.module)
+    if module.is_file():
+        sys.path.append(str(module.parent.resolve()))
+        args.module = module.stem
+    modobj = import_module(args.module)
+    if args.tasknames:
+        print("Tasks in %s: %s" % (module, ", ".join(tasknames(modobj))))
+        sys.exit(0)
     reified = [_reify(arg) for arg in args.args]
-    getattr(import_module(args.module), args.function)(*reified)
+    getattr(modobj, args.function)(*reified)
     if args.graph:
         _graph_emit()
 
@@ -434,6 +438,7 @@ def _parse_args(raw: List[str]) -> Namespace:
     optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
+    optional.add_argument("-t", "--tasknames", action="store_true", help="list iotaa task names")
     optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
     return parser.parse_args(raw)
 
