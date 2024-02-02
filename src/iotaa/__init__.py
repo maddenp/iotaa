@@ -1,8 +1,9 @@
 """
-iotaa.core.
+iotaa.
 """
 
 import logging
+import re
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
@@ -206,6 +207,16 @@ def runconda(
         ]
     )
     return run(taskname=taskname, cmd=cmd, cwd=cwd, env=env, log=log)
+
+
+def tasknames(obj: object) -> List[str]:
+    """
+    Returns the names of iotaa tasks in the given object.
+
+    :param obj: An object.
+    """
+    f = lambda o: callable(o) and hasattr(o, "__name__") and re.match(r"^__iotaa_.+__$", o.__name__)
+    return [name for name in dir(obj) if f(getattr(obj, name))]
 
 
 # Decorators
