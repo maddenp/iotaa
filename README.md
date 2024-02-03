@@ -16,14 +16,14 @@ Workflows comprise:
 
 An asset (an instance of class `iotaa.Asset`) has two attributes:
 
-1. `ref`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesytem path, an S3 URI, or an ISO8601 timestamp)
+1. `ref`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesystem path, an S3 URI, or an ISO8601 timestamp)
 2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether the asset is ready to use
 
 Create an asset by calling `iotaa.asset()`.
 
 ## Tasks
 
-Task are functions that declare, by `yield`ing values to `iotaa`, the task name plus -- depending on task type -- one or both of: the assets themselves, and other tasks the task requires. The task name will be used in log messages detailing workflow progress, so descriptive names can be useful. Tasks that define and are responsibile for readying their assets provide, following the `yield` statements, executable logic readying those assets.
+Task are functions that declare, by `yield`ing values to `iotaa`, the task name plus -- depending on task type -- one or both of: the assets themselves, and other tasks the task requires. The task name will be used in log messages detailing workflow progress, so descriptive names can be useful. Tasks that define and are responsible for readying their assets provide, following the `yield` statements, executable logic readying those assets.
 
 `iotaa` provides three Python decorators to define tasks:
 
@@ -108,9 +108,9 @@ Several public helper callables are available in the `iotaa` module:
 
 - `asset()` instantiates an asset to return from a task function.
 - `dryrun()` activates dry-run mode.
-- `refs()` accepts a task object and returns a `dict` mapping `int` indexes (if the task `yield`s its assets as a `list` or as a single asset) or `str` (if the task `yield`s its assets as a `dict`) keys to the `ref` attributes of the task's assets.
 - `logcfg()` configures Python's root logger to support `logging.info()` (et al.) calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically.
 - `main()` is the entry-point function for CLI use.
+- `refs()` accepts the value returned by a `@task` or `@external` object and returns: the `ref` attribute of the value's scalar asset; a `dict` mapping `int` index keys to `ref` attributes of the value's `list` of assets; or a `dict` mapping `str` keys to the `ref` attributes of the value's `dict` of assets. (**NB** The tasks required by a `@tasks` function may return their assets as `dict`s, `list`s, or scalars. A `@tasks` function combines assets as a flat `list`. Order should be preserved, and `refs()` may be used to extract the assets' `ref` attributes, but selecting a specific asset from a specific required task may be tricky and error-prone.)
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
 - `runconda()` runs a command in a subshell with a named conda environment activated.
 - `tasks()` accepts an object (e.g. a module) and returns a list of names of iotaa tasks that are attributes of the object.
@@ -171,7 +171,7 @@ def cup(basedir):
 
 They `yield` their names; the asset each is responsible for readying; and the tasks they require -- `None` in this case, since they have no requirements. Following the final `yield`, they do what is necessary to ready their assets: `spoon()` ensures that the base directory exists, then creates the `spoon` file therein; `cup()` creates the `cup` directory that will contain the tea ingredients.
 
-Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directoy is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
+Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
 
 The `steeped_tea_with_sugar()` `@task` function is next:
 
@@ -538,7 +538,7 @@ teatime/
 
 ## Graphing
 
-The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow graph in [Grapviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
+The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
 
 ```
 % iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T svg)
