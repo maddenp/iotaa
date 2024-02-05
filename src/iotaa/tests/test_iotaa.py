@@ -31,6 +31,9 @@ def delegate_assets():
 def external_foo_scalar():
     @iotaa.external
     def foo(path):
+        """
+        EXTERNAL!
+        """
         f = path / "foo"
         yield f"external foo {f}"
         yield iotaa.asset(f, f.is_file)
@@ -97,6 +100,9 @@ def task_bar_list(external_foo_scalar):
 def task_bar_scalar(external_foo_scalar):
     @iotaa.task
     def bar(path):
+        """
+        TASK!
+        """
         f = path / "bar"
         yield f"task bar {f}"
         yield iotaa.asset(f, f.is_file)
@@ -110,6 +116,9 @@ def task_bar_scalar(external_foo_scalar):
 def tasks_baz(external_foo_scalar, task_bar_dict):
     @iotaa.tasks
     def baz(path):
+        """
+        TASKS!
+        """
         yield "tasks baz"
         yield [external_foo_scalar(path), task_bar_dict(path)]
 
@@ -314,6 +323,14 @@ def test_tasknames():
 
 
 # Decorator tests
+
+
+@pytest.mark.parametrize(
+    "docstring,task",
+    [("EXTERNAL!", "external_foo_scalar"), ("TASK!", "task_bar_scalar"), ("TASKS!", "tasks_baz")],
+)
+def test_docstrings(docstring, request, task):
+    assert request.getfixturevalue(task).__doc__.strip() == docstring
 
 
 def test_external_not_ready(external_foo_scalar, tmp_path):

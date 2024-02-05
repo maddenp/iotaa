@@ -241,6 +241,7 @@ def external(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(taskname, assets)
 
+    __iotaa_external__.__doc__ = f.__doc__
     return __iotaa_external__
 
 
@@ -269,6 +270,7 @@ def task(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready_final, taskname=taskname)
         return _task_final(taskname, assets)
 
+    __iotaa_task__.__doc__ = f.__doc__
     return __iotaa_task__
 
 
@@ -288,6 +290,7 @@ def tasks(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(taskname, assets)
 
+    __iotaa_tasks__.__doc__ = f.__doc__
     return __iotaa_tasks__
 
 
