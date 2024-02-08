@@ -316,16 +316,16 @@ def test_tasknames():
         def baz(self):
             pass
 
-        @iotaa.external(hidden=True)
-        def foo_hidden(self):
+        @iotaa.external
+        def _foo(self):
             pass
 
-        @iotaa.task(hidden=True)
-        def bar_hidden(self):
+        @iotaa.task
+        def _bar(self):
             pass
 
-        @iotaa.tasks(hidden=True)
-        def baz_hidden(self):
+        @iotaa.tasks
+        def _baz(self):
             pass
 
         def qux(self):

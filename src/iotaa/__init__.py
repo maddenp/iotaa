@@ -55,6 +55,7 @@ class Result:
 
 _Assets = Union[Dict[str, Asset], List[Asset]]
 _AssetT = Optional[Union[_Assets, Asset]]
+_TaskT = Callable[..., _AssetT]
 
 
 def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
@@ -90,7 +91,7 @@ def logcfg(verbose: bool = False) -> None:
 
 def main() -> None:
     """
-    Main entry point.
+    Main CLI entry point.
     """
 
     # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
@@ -215,9 +216,10 @@ def runconda(
 
 def tasknames(obj: object) -> List[str]:
     """
-    Returns the names of iotaa tasks in the given object.
+    The names of iotaa tasks in the given object.
 
     :param obj: An object.
+    :return: The names of iotaa tasks in the given object.
     """
     f = (
         lambda o: callable(o)
@@ -231,89 +233,79 @@ def tasknames(obj: object) -> List[str]:
 
 # Decorators
 
-_Task = Callable[..., _AssetT]
-_TaskDecorator = Callable[..., _Task]
-_TaskT = Union[_TaskDecorator, _Task]
 
-
-def external(f: Optional[Callable] = None, *, hidden: bool = False) -> _TaskT:
+def external(f: Callable) -> _TaskT:
     """
     The @external decorator for assets the workflow cannot produce.
+
+    :param f: The function being decorated.
+    :return: A decorated function.
     """
 
-    def decorator(f) -> _Task:
-        @cache
-        def __iotaa_external__(*args, **kwargs) -> _AssetT:
-            taskname, top, g = _task_initial(f, *args, **kwargs)
-            assets = next(g)
-            ready = _ready(assets)
-            if not ready or top:
-                _graph_update_from_task(taskname, assets)
-                _report_readiness(ready=ready, taskname=taskname, is_external=True)
-            return _task_final(taskname, assets)
+    @cache
+    def __iotaa_external__(*args, **kwargs) -> _AssetT:
+        taskname, top, g = _task_initial(f, *args, **kwargs)
+        assets = next(g)
+        ready = _ready(assets)
+        if not ready or top:
+            _graph_update_from_task(taskname, assets)
+            _report_readiness(ready=ready, taskname=taskname, is_external=True)
+        return _task_final(taskname, assets)
 
-        __iotaa_external__.__doc__ = f.__doc__
-        setattr(__iotaa_external__, "hidden", hidden)
-        return __iotaa_external__
-
-    return decorator(f) if f else decorator
+    return _set_metadata(f, __iotaa_external__)
 
 
-def task(f: Optional[Callable] = None, *, hidden: bool = False) -> _TaskT:
+def task(f: Callable) -> _TaskT:
     """
     The @task decorator for assets that the workflow can produce.
+
+    :param f: The function being decorated.
+    :return: A decorated function.
     """
 
-    def decorator(f) -> _Task:
-        @cache
-        def __iotaa_task__(*args, **kwargs) -> _AssetT:
-            taskname, top, g = _task_initial(f, *args, **kwargs)
-            assets = next(g)
-            ready_initial = _ready(assets)
-            if not ready_initial or top:
-                _graph_update_from_task(taskname, assets)
-                _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
-            if not ready_initial:
-                if _ready(_delegate(g, taskname)):
-                    logging.info("%s: Requirement(s) ready", taskname)
-                    _execute(g, taskname)
-                else:
-                    logging.info("%s: Requirement(s) pending", taskname)
-                    _report_readiness(ready=False, taskname=taskname)
-            ready_final = _ready(assets)
-            if ready_final != ready_initial:
-                _report_readiness(ready=ready_final, taskname=taskname)
-            return _task_final(taskname, assets)
+    @cache
+    def __iotaa_task__(*args, **kwargs) -> _AssetT:
+        taskname, top, g = _task_initial(f, *args, **kwargs)
+        assets = next(g)
+        ready_initial = _ready(assets)
+        if not ready_initial or top:
+            _graph_update_from_task(taskname, assets)
+            _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
+        if not ready_initial:
+            if _ready(_delegate(g, taskname)):
+                logging.info("%s: Requirement(s) ready", taskname)
+                _execute(g, taskname)
+            else:
+                logging.info("%s: Requirement(s) pending", taskname)
+                _report_readiness(ready=False, taskname=taskname)
+        ready_final = _ready(assets)
+        if ready_final != ready_initial:
+            _report_readiness(ready=ready_final, taskname=taskname)
+        return _task_final(taskname, assets)
 
-        __iotaa_task__.__doc__ = f.__doc__
-        setattr(__iotaa_task__, "hidden", hidden)
-        return __iotaa_task__
-
-    return decorator(f) if f else decorator
+    return _set_metadata(f, __iotaa_task__)
 
 
-def tasks(f: Optional[Callable] = None, *, hidden: bool = False) -> _TaskT:
+def tasks(f: Callable) -> _TaskT:
     """
     The @tasks decorator for collections of @task function calls.
+
+    :param f: The function being decorated.
+    :return: A decorated function.
     """
 
-    def decorator(f) -> _Task:
-        @cache
-        def __iotaa_tasks__(*args, **kwargs) -> _AssetT:
-            taskname, top, g = _task_initial(f, *args, **kwargs)
-            if top:
-                _report_readiness(ready=False, taskname=taskname, initial=True)
-            assets = _delegate(g, taskname)
-            ready = _ready(assets)
-            if not ready or top:
-                _report_readiness(ready=ready, taskname=taskname)
-            return _task_final(taskname, assets)
+    @cache
+    def __iotaa_tasks__(*args, **kwargs) -> _AssetT:
+        taskname, top, g = _task_initial(f, *args, **kwargs)
+        if top:
+            _report_readiness(ready=False, taskname=taskname, initial=True)
+        assets = _delegate(g, taskname)
+        ready = _ready(assets)
+        if not ready or top:
+            _report_readiness(ready=ready, taskname=taskname)
+        return _task_final(taskname, assets)
 
-        __iotaa_tasks__.__doc__ = f.__doc__
-        setattr(__iotaa_tasks__, "hidden", hidden)
-        return __iotaa_tasks__
-
-    return decorator(f) if f else decorator
+    return _set_metadata(f, __iotaa_tasks__)
 
 
 # Private functions
@@ -511,6 +503,19 @@ def _report_readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
+
+
+def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
+    """
+    Set metadata on a decorated function.
+
+    :param f_in: The function being decorated.
+    :param f_out: The decorated function to add metadata to.
+    :return: The decorated function with metadata set.
+    """
+    f_out.__doc__ = f_in.__doc__
+    setattr(f_out, "hidden", f_in.__name__.startswith("_"))
+    return f_out
 
 
 def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
