@@ -316,6 +316,18 @@ def test_tasknames():
         def baz(self):
             pass
 
+        @iotaa.external
+        def _foo(self):
+            pass
+
+        @iotaa.task
+        def _bar(self):
+            pass
+
+        @iotaa.tasks
+        def _baz(self):
+            pass
+
         def qux(self):
             pass
 

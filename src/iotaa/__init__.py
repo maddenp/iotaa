@@ -55,6 +55,7 @@ class Result:
 
 _Assets = Union[Dict[str, Asset], List[Asset]]
 _AssetT = Optional[Union[_Assets, Asset]]
+_TaskT = Callable[..., _AssetT]
 
 
 def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
@@ -90,7 +91,7 @@ def logcfg(verbose: bool = False) -> None:
 
 def main() -> None:
     """
-    Main entry point.
+    Main CLI entry point.
     """
 
     # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
@@ -215,20 +216,30 @@ def runconda(
 
 def tasknames(obj: object) -> List[str]:
     """
-    Returns the names of iotaa tasks in the given object.
+    The names of iotaa tasks in the given object.
 
     :param obj: An object.
+    :return: The names of iotaa tasks in the given object.
     """
-    f = lambda o: callable(o) and hasattr(o, "__name__") and re.match(r"^__iotaa_.+__$", o.__name__)
+    f = (
+        lambda o: callable(o)
+        and hasattr(o, "__name__")
+        and re.match(r"^__iotaa_.+__$", o.__name__)
+        and hasattr(o, "hidden")
+        and not o.hidden
+    )
     return sorted(name for name in dir(obj) if f(getattr(obj, name)))
 
 
 # Decorators
 
 
-def external(f) -> Callable[..., _AssetT]:
+def external(f: Callable) -> _TaskT:
     """
     The @external decorator for assets the workflow cannot produce.
+
+    :param f: The function being decorated.
+    :return: A decorated function.
     """
 
     @cache
@@ -241,13 +252,15 @@ def external(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(taskname, assets)
 
-    __iotaa_external__.__doc__ = f.__doc__
-    return __iotaa_external__
+    return _set_metadata(f, __iotaa_external__)
 
 
-def task(f) -> Callable[..., _AssetT]:
+def task(f: Callable) -> _TaskT:
     """
     The @task decorator for assets that the workflow can produce.
+
+    :param f: The function being decorated.
+    :return: A decorated function.
     """
 
     @cache
@@ -270,13 +283,15 @@ def task(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready_final, taskname=taskname)
         return _task_final(taskname, assets)
 
-    __iotaa_task__.__doc__ = f.__doc__
-    return __iotaa_task__
+    return _set_metadata(f, __iotaa_task__)
 
 
-def tasks(f) -> Callable[..., _AssetT]:
+def tasks(f: Callable) -> _TaskT:
     """
     The @tasks decorator for collections of @task function calls.
+
+    :param f: The function being decorated.
+    :return: A decorated function.
     """
 
     @cache
@@ -290,8 +305,7 @@ def tasks(f) -> Callable[..., _AssetT]:
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(taskname, assets)
 
-    __iotaa_tasks__.__doc__ = f.__doc__
-    return __iotaa_tasks__
+    return _set_metadata(f, __iotaa_tasks__)
 
 
 # Private functions
@@ -489,6 +503,19 @@ def _report_readiness(
         "Ready" if ready else "Pending",
         extmsg,
     )
+
+
+def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
+    """
+    Set metadata on a decorated function.
+
+    :param f_in: The function being decorated.
+    :param f_out: The decorated function to add metadata to.
+    :return: The decorated function with metadata set.
+    """
+    f_out.__doc__ = f_in.__doc__
+    setattr(f_out, "hidden", f_in.__name__.startswith("_"))
+    return f_out
 
 
 def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
