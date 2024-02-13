@@ -440,7 +440,7 @@ def _task_initial(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
 
 class Graph:
     """
-    ???
+    Graphviz digraph support.
     """
 
     def __init__(self):
@@ -449,7 +449,7 @@ class Graph:
     @property
     def color(self) -> Dict[Any, str]:
         """
-        ???
+        Graphviz colors.
         """
         return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
 
@@ -483,13 +483,13 @@ class Graph:
     @property
     def shape(self) -> ns:
         """
-        ???
+        Graphviz shapes.
         """
         return ns(asset="box", task="ellipse")
 
     def reset(self) -> None:
         """
-        ???
+        Reset graph state.
         """
         self.assets: dict = {}
         self.edges: set = set()
@@ -524,16 +524,16 @@ class Graph:
 
 class State:
     """
-    ???
+    Iotaa state.
     """
 
     def __init__(self):
         self.dry_run = False
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """
-        ???
+        Reset state.
         """
         self.initialized = False
 
