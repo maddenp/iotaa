@@ -7,6 +7,7 @@ Tests for module iotaa.
 # pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
 
+import logging
 import re
 from hashlib import md5
 from unittest.mock import ANY
@@ -43,7 +44,7 @@ def external_foo_scalar():
 
 @fixture
 def empty_graph():
-    return iotaa.Graph()
+    return iotaa._Graph()
 
 
 @fixture
@@ -187,7 +188,7 @@ def test_asset_kwargs():
 
 @pytest.mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
 def test_dryrun(args, expected):
-    with patch.object(iotaa, "_state", iotaa.State()):
+    with patch.object(iotaa, "_state", iotaa._State()):
         assert not iotaa._state.dry_run
         iotaa.dryrun(*args)
         assert iotaa._state.dry_run is expected
@@ -199,6 +200,16 @@ def test_logcfg(vals):
     with patch.object(iotaa.logging, "basicConfig") as basicConfig:
         iotaa.logcfg(verbose=verbose)
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
+
+
+def test_logset():
+    with patch.object(iotaa, "_log", iotaa._Logger()):
+        # Initially, logging uses the Python root logger:
+        assert iotaa._log.logger == logging.getLogger()
+        # But the logger can be swapped to use a logger of choice:
+        test_logger = logging.getLogger("test-logger")
+        iotaa.logset(test_logger)
+        assert iotaa._log.logger == test_logger
 
 
 def test_main_live_abspath(capsys, module_for_main):
@@ -494,7 +505,7 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
 
 
 def test__execute_dry_run(caplog, rungen):
-    with patch.object(iotaa, "_state", new=iotaa.State()) as _state:
+    with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
         _state.dry_run = True
         iotaa._execute(g=rungen, taskname="task")
     assert logged("task: SKIPPING (DRY RUN)", caplog)
@@ -513,7 +524,7 @@ def test__formatter():
 
 @pytest.mark.parametrize("val", [True, False])
 def test__i_am_top_task(val):
-    with patch.object(iotaa, "_state", new=iotaa.State()) as _state:
+    with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
         _state.initialized = not val
         assert iotaa._i_am_top_task() == val
 
@@ -586,8 +597,8 @@ def test__report_readiness(caplog, vals):
 
 
 def test__reset():
-    with patch.object(iotaa, "_graph", new=iotaa.Graph()):
-        with patch.object(iotaa, "_state", new=iotaa.State()):
+    with patch.object(iotaa, "_graph", new=iotaa._Graph()):
+        with patch.object(iotaa, "_state", new=iotaa._State()):
             iotaa._graph.assets["foo"] = "bar"
             iotaa._graph.edges.add("baz")
             iotaa._graph.tasks.add("qux")
@@ -630,7 +641,7 @@ def test__task_inital():
         yield taskname
         yield n
 
-    with patch.object(iotaa, "_state", iotaa.State()):
+    with patch.object(iotaa, "_state", iotaa._State()):
         tn = "task"
         taskname, top, g = iotaa._task_initial(f, tn, n=88)
         assert taskname == tn
@@ -641,11 +652,11 @@ def test__task_inital():
 # Graph tests
 
 
-def test_Graph_emit(capsys):
+def test__Graph_emit(capsys):
     assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
     tasks = {"qux", "baz"}
-    with patch.object(iotaa, "_graph", iotaa.Graph()) as graph:
+    with patch.object(iotaa, "_graph", iotaa._Graph()) as graph:
         graph.assets = assets
         graph.edges = edges
         graph.tasks = tasks
@@ -663,13 +674,13 @@ def test_Graph_emit(capsys):
     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
 
 
-def test_Graph_name():
+def test__Graph_name():
     name = "foo"
     assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
 
 
 @pytest.mark.parametrize("assets", simple_assets())
-def test_Graph_update_from_requirements(assets, empty_graph):
+def test__Graph_update_from_requirements(assets, empty_graph):
     taskname_req = "req"
     taskname_this = "task"
     alist = iotaa._listify(assets)
@@ -688,7 +699,7 @@ def test_Graph_update_from_requirements(assets, empty_graph):
 
 
 @pytest.mark.parametrize("assets", simple_assets())
-def test_Graph_update_from_task(assets, empty_graph):
+def test__Graph_update_from_task(assets, empty_graph):
     taskname = "task"
     with patch.object(iotaa, "_graph", empty_graph):
         iotaa._graph.update_from_task(taskname, assets)
