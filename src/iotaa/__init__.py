@@ -18,12 +18,6 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-_graph = ns(assets={}, edges=set(), tasks=set())
-_graph_color: Dict[Any, str] = defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
-_graph_shape = ns(asset="box", task="ellipse")
-_state = ns(dry_run=False, initialized=False)
-
-
 # Public API
 
 
@@ -69,11 +63,11 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     return Asset(ref, ready)
 
 
-def dryrun() -> None:
+def dryrun(enable: bool = True) -> None:
     """
-    Enable dry-run mode.
+    Enable (default) or disable dry-run mode.
     """
-    _state.dry_run = True
+    _state.dry_run = enable
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -116,7 +110,7 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     getattr(modobj, args.function)(*reified)
     if args.graph:
-        _graph_emit()
+        _graph.emit()
 
 
 def refs(assets: _AssetT) -> Any:
@@ -248,7 +242,7 @@ def external(f: Callable) -> _TaskT:
         assets = next(g)
         ready = _ready(assets)
         if not ready or top:
-            _graph_update_from_task(taskname, assets)
+            _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(taskname, assets)
 
@@ -269,7 +263,7 @@ def task(f: Callable) -> _TaskT:
         assets = next(g)
         ready_initial = _ready(assets)
         if not ready_initial or top:
-            _graph_update_from_task(taskname, assets)
+            _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
@@ -327,7 +321,7 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
 
     logging.info("%s: Checking requirements", taskname)
     alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-    _graph_udpate_from_requirements(taskname, alist)
+    _graph.update_from_requirements(taskname, alist)
     return alist
 
 
@@ -358,60 +352,6 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _graph_emit() -> None:
-    """
-    Emit a task/asset graph in Graphviz dot format.
-    """
-    f = lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]' % (
-        _graph_name(name),
-        _graph_color[ready],
-        name,
-        shape,
-    )
-    edges = ["%s -> %s" % (_graph_name(a), _graph_name(b)) for a, b in _graph.edges]
-    nodes_a = [f(ref, _graph_shape.asset, ready()) for ref, ready in _graph.assets.items()]
-    nodes_t = [f(x, _graph_shape.task) for x in _graph.tasks]
-    print("digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges)))
-
-
-def _graph_name(name: str) -> str:
-    """
-    Convert an iotaa asset/task name to a Graphviz-appropriate node name.
-
-    :param name: An iotaa asset/task name.
-    :return: A Graphviz-appropriate node name.
-    """
-    return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
-
-
-def _graph_udpate_from_requirements(taskname: str, alist: List[Asset]) -> None:
-    """
-    Update graph data structures with required-task info.
-
-    :param taskname: The current task's name.
-    :param alist: Flattened required-task assets.
-    """
-    asset_taskname = lambda a: getattr(a, "taskname", None)
-    _graph.assets.update({a.ref: a.ready for a in alist})
-    _graph.edges |= set((asset_taskname(a), a.ref) for a in alist)
-    _graph.edges |= set((taskname, asset_taskname(a)) for a in alist)
-    _graph.tasks |= set(asset_taskname(a) for a in alist)
-    _graph.tasks.add(taskname)
-
-
-def _graph_update_from_task(taskname: str, assets: _AssetT) -> None:
-    """
-    Update graph data structures with current task info.
-
-    :param taskname: The current task's name.
-    :param assets: A collection of assets, one asset, or None.
-    """
-    alist = _listify(assets)
-    _graph.assets.update({a.ref: a.ready for a in alist})
-    _graph.edges |= set((taskname, a.ref) for a in alist)
-    _graph.tasks.add(taskname)
-
-
 def _i_am_top_task() -> bool:
     """
     Is the calling task the task-tree entry point?
@@ -420,7 +360,7 @@ def _i_am_top_task() -> bool:
     """
     if _state.initialized:
         return False
-    _state.initialized = True
+    _reset()
     return True
 
 
@@ -505,6 +445,14 @@ def _report_readiness(
     )
 
 
+def _reset() -> None:
+    """
+    Reset state.
+    """
+    _graph.reset()
+    _state.reset()
+
+
 def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
     """
     Set metadata on a decorated function.
@@ -542,3 +490,114 @@ def _task_initial(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
     g = f(*args, **kwargs)
     taskname = next(g)
     return taskname, top, g
+
+
+class Graph:
+    """
+    Graphviz digraph support.
+    """
+
+    def __init__(self):
+        self.reset()
+
+    @property
+    def color(self) -> Dict[Any, str]:
+        """
+        Graphviz colors.
+        """
+        return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
+
+    def emit(self) -> None:
+        """
+        Emit a task/asset graph in Graphviz dot format.
+        """
+        f = (
+            lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
+            % (
+                self.name(name),
+                self.color[ready],
+                name,
+                shape,
+            )
+        )
+        edges = ["%s -> %s" % (self.name(a), self.name(b)) for a, b in self.edges]
+        nodes_a = [f(ref, self.shape.asset, ready()) for ref, ready in self.assets.items()]
+        nodes_t = [f(x, self.shape.task) for x in self.tasks]
+        print("digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges)))
+
+    def name(self, name: str) -> str:
+        """
+        Convert an iotaa asset/task name to a Graphviz-appropriate node name.
+
+        :param name: An iotaa asset/task name.
+        :return: A Graphviz-appropriate node name.
+        """
+        return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
+
+    @property
+    def shape(self) -> ns:
+        """
+        Graphviz shapes.
+        """
+        return ns(asset="box", task="ellipse")
+
+    def reset(self) -> None:
+        """
+        Reset graph state.
+        """
+        self.assets: dict = {}
+        self.edges: set = set()
+        self.tasks: set = set()
+
+    def update_from_requirements(self, taskname: str, alist: List[Asset]) -> None:
+        """
+        Update graph data structures with required-task info.
+
+        :param taskname: The current task's name.
+        :param alist: Flattened required-task assets.
+        """
+        asset_taskname = lambda a: getattr(a, "taskname", None)
+        self.assets.update({a.ref: a.ready for a in alist})
+        self.edges |= set((asset_taskname(a), a.ref) for a in alist)
+        self.edges |= set((taskname, asset_taskname(a)) for a in alist)
+        self.tasks |= set(asset_taskname(a) for a in alist)
+        self.tasks.add(taskname)
+
+    def update_from_task(self, taskname: str, assets: _AssetT) -> None:
+        """
+        Update graph data structures with current task info.
+
+        :param taskname: The current task's name.
+        :param assets: A collection of assets, one asset, or None.
+        """
+        alist = _listify(assets)
+        self.assets.update({a.ref: a.ready for a in alist})
+        self.edges |= set((taskname, a.ref) for a in alist)
+        self.tasks.add(taskname)
+
+
+class State:
+    """
+    Iotaa state.
+    """
+
+    def __init__(self):
+        self.dry_run = False
+        self.initialized = False
+        self.reset()
+
+    def initialize(self) -> None:
+        """
+        Mark iotaa as initialized.
+        """
+        self.initialized = True
+
+    def reset(self) -> None:
+        """
+        Reset state.
+        """
+        self.initialized = False
+
+
+_graph = Graph()
+_state = State()
