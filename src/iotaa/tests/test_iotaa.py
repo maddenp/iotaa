@@ -144,7 +144,7 @@ def test_asset_kwargs():
 
 @pytest.mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
 def test_dryrun(args, expected):
-    with patch.object(iotaa, "_state", iotaa.ns(dry_run=False)):
+    with patch.object(iotaa, "_state", iotaa.State()):
         assert not iotaa._state.dry_run
         iotaa.dryrun(*args)
         assert iotaa._state.dry_run is expected
@@ -382,7 +382,8 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
 
 
 def test__execute_dry_run(caplog, rungen):
-    with patch.object(iotaa, "_state", new=iotaa.ns(dry_run=True)):
+    with patch.object(iotaa, "_state", new=iotaa.State()) as _state:
+        _state.dry_run = True
         iotaa._execute(g=rungen, taskname="task")
     assert logged("task: SKIPPING (DRY RUN)", caplog)
 

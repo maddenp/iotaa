@@ -1,5 +1,5 @@
 """
-iotaa
+iotaa.
 """
 
 import logging
