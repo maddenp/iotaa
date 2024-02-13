@@ -399,62 +399,6 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
-def test__graph_emit(capsys):
-    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
-    edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
-    tasks = {"qux", "baz"}
-    with patch.object(iotaa, "_graph", iotaa.Graph()) as graph:
-        graph.assets = assets
-        graph.edges = edges
-        graph.tasks = tasks
-        iotaa._graph.emit()
-    out = capsys.readouterr().out.strip().split("\n")
-    # How many asset nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])
-    # How many task nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.task in x])
-    # How many edges were graphed?
-    assert 3 == len([x for x in out if " -> " in x])
-    # How many assets were ready?
-    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
-    # How many assets were pending?
-    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
-
-
-def test__graph_name():
-    name = "foo"
-    assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
-
-
-@pytest.mark.parametrize("assets", simple_assets())
-def test__graph_update_from_requirements(assets, empty_graph):
-    taskname_req = "req"
-    taskname_this = "task"
-    alist = iotaa._listify(assets)
-    edges = {
-        0: set(),
-        1: {(taskname_this, taskname_req), (taskname_req, "foo")},
-        2: {(taskname_this, taskname_req), (taskname_req, "foo"), (taskname_req, "bar")},
-    }[len(alist)]
-    for a in alist:
-        setattr(a, "taskname", taskname_req)
-    with patch.object(iotaa, "_graph", empty_graph):
-        iotaa._graph.update_from_requirements(taskname_this, alist)
-        assert all(a() for a in iotaa._graph.assets.values())
-        assert iotaa._graph.tasks == ({taskname_req, taskname_this} if assets else {taskname_this})
-        assert iotaa._graph.edges == edges
-
-
-@pytest.mark.parametrize("assets", simple_assets())
-def test__graph_update_from_task(assets, empty_graph):
-    taskname = "task"
-    with patch.object(iotaa, "_graph", empty_graph):
-        iotaa._graph.update_from_task(taskname, assets)
-        assert all(a() for a in iotaa._graph.assets.values())
-        assert iotaa._graph.tasks == {taskname}
-        assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._listify(assets)}
-
-
 @pytest.mark.parametrize("val", [True, False])
 def test__i_am_top_task(val):
     with patch.object(iotaa, "_state", new=iotaa.State()) as _state:
@@ -567,3 +511,62 @@ def test__task_inital():
         assert taskname == tn
         assert top is True
         assert next(g) == 88
+
+
+# Graph tests
+
+
+def test_Graph_emit(capsys):
+    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
+    edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
+    tasks = {"qux", "baz"}
+    with patch.object(iotaa, "_graph", iotaa.Graph()) as graph:
+        graph.assets = assets
+        graph.edges = edges
+        graph.tasks = tasks
+        iotaa._graph.emit()
+    out = capsys.readouterr().out.strip().split("\n")
+    # How many asset nodes were graphed?
+    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])
+    # How many task nodes were graphed?
+    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.task in x])
+    # How many edges were graphed?
+    assert 3 == len([x for x in out if " -> " in x])
+    # How many assets were ready?
+    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
+    # How many assets were pending?
+    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
+
+
+def test_Graph_name():
+    name = "foo"
+    assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
+
+
+@pytest.mark.parametrize("assets", simple_assets())
+def test_Graph_update_from_requirements(assets, empty_graph):
+    taskname_req = "req"
+    taskname_this = "task"
+    alist = iotaa._listify(assets)
+    edges = {
+        0: set(),
+        1: {(taskname_this, taskname_req), (taskname_req, "foo")},
+        2: {(taskname_this, taskname_req), (taskname_req, "foo"), (taskname_req, "bar")},
+    }[len(alist)]
+    for a in alist:
+        setattr(a, "taskname", taskname_req)
+    with patch.object(iotaa, "_graph", empty_graph):
+        iotaa._graph.update_from_requirements(taskname_this, alist)
+        assert all(a() for a in iotaa._graph.assets.values())
+        assert iotaa._graph.tasks == ({taskname_req, taskname_this} if assets else {taskname_this})
+        assert iotaa._graph.edges == edges
+
+
+@pytest.mark.parametrize("assets", simple_assets())
+def test_Graph_update_from_task(assets, empty_graph):
+    taskname = "task"
+    with patch.object(iotaa, "_graph", empty_graph):
+        iotaa._graph.update_from_task(taskname, assets)
+        assert all(a() for a in iotaa._graph.assets.values())
+        assert iotaa._graph.tasks == {taskname}
+        assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._listify(assets)}
