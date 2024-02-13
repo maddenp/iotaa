@@ -47,8 +47,9 @@ class Result:
     success: bool
 
 
-_Assets = Union[Dict[str, Asset], List[Asset]]
-_AssetT = Optional[Union[_Assets, Asset]]
+_AssetsT = Union[Dict[str, Asset], List[Asset]]
+_AssetT = Optional[Union[_AssetsT, Asset]]
+
 _TaskT = Callable[..., _AssetT]
 
 
@@ -291,7 +292,7 @@ def task(f: Callable) -> _TaskT:
 
 def tasks(f: Callable) -> _TaskT:
     """
-    The @tasks decorator for collections of @task function calls.
+    The @tasks decorator for collections of @task (or @external) function calls.
 
     :param f: The function being decorated.
     :return: A decorated function.
@@ -311,7 +312,7 @@ def tasks(f: Callable) -> _TaskT:
     return _set_metadata(f, __iotaa_tasks__)
 
 
-# Private functions
+# Private functions and classes
 
 
 def _delegate(g: Generator, taskname: str) -> List[Asset]:
@@ -506,7 +507,7 @@ class _Graph:
     Graphviz digraph support.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset()
 
     @property
@@ -605,10 +606,10 @@ class _Logger:
 
 class _State:
     """
-    Iotaa state.
+    Global iotaa state.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.dry_run = False
         self.initialized = False
         self.reset()
