@@ -218,8 +218,6 @@ def external(f) -> Callable[..., _AssetT]:
         if not ready or top:
             _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        if top:
-            _reset()
         return _task_final(taskname, assets)
 
     return decorated_external
@@ -248,8 +246,6 @@ def task(f) -> Callable[..., _AssetT]:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        if top:
-            _reset()
         return _task_final(taskname, assets)
 
     return decorated_task
@@ -269,8 +265,6 @@ def tasks(f) -> Callable[..., _AssetT]:
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        if top:
-            _reset()
         return _task_final(taskname, assets)
 
     return decorated_tasks
@@ -334,7 +328,7 @@ def _i_am_top_task() -> bool:
     """
     if _state.initialized:
         return False
-    _state.initialize()
+    _reset()
     return True
 
 
