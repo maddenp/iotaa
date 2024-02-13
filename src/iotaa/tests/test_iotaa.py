@@ -142,11 +142,12 @@ def test_asset_kwargs():
     assert a.ready()
 
 
-def test_dryrun():
+@pytest.mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
+def test_dryrun(args, expected):
     with patch.object(iotaa, "_state", iotaa.ns(dry_run=False)):
         assert not iotaa._state.dry_run
-        iotaa.dryrun()
-        assert iotaa._state.dry_run
+        iotaa.dryrun(*args)
+        assert iotaa._state.dry_run is expected
 
 
 @pytest.mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])

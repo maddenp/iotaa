@@ -1,5 +1,5 @@
 """
-iotaa.
+iotaa
 """
 
 import logging
@@ -61,11 +61,11 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     return Asset(ref, ready)
 
 
-def dryrun() -> None:
+def dryrun(enable: bool = True) -> None:
     """
-    Enable dry-run mode.
+    Enable (default) or disable dry-run mode.
     """
-    _state.dry_run = True
+    _state.dry_run = enable
 
 
 def logcfg(verbose: bool = False) -> None:
