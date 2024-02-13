@@ -7,6 +7,7 @@ Tests for module iotaa.
 # pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
 
+import logging
 import re
 from hashlib import md5
 from unittest.mock import ANY
@@ -199,6 +200,16 @@ def test_logcfg(vals):
     with patch.object(iotaa.logging, "basicConfig") as basicConfig:
         iotaa.logcfg(verbose=verbose)
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
+
+
+def test_logset():
+    with patch.object(iotaa, "_log", iotaa._Logger()):
+        # Initially, logging uses the Python root logger:
+        assert iotaa._log.logger == logging.getLogger()
+        # But the logger can be swapped to use a logger of choice:
+        test_logger = logging.getLogger("test-logger")
+        iotaa.logset(test_logger)
+        assert iotaa._log.logger == test_logger
 
 
 def test_main_live_abspath(capsys, module_for_main):

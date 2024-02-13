@@ -109,6 +109,7 @@ Several public helper callables are available in the `iotaa` module:
 - `asset()` instantiates an asset to return from a task function.
 - `dryrun()` activates dry-run mode.
 - `logcfg()` configures Python's root logger to support `logging.info()` (et al.) calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically.
+- `logset()` accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it.
 - `main()` is the entry-point function for CLI use.
 - `refs()` accepts the value returned by a `@task` or `@external` object and returns: the `ref` attribute of the value's scalar asset; a `dict` mapping `int` index keys to `ref` attributes of the value's `list` of assets; or a `dict` mapping `str` keys to the `ref` attributes of the value's `dict` of assets. (**NB** The tasks required by a `@tasks` function may return their assets as `dict`s, `list`s, or scalars. A `@tasks` function combines assets as a flat `list`. Order should be preserved, and `refs()` may be used to extract the assets' `ref` attributes, but selecting a specific asset from a specific required task may be tricky and error-prone.)
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.

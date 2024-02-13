@@ -83,6 +83,15 @@ def logcfg(verbose: bool = False) -> None:
     )
 
 
+def logset(logger: logging.Logger) -> None:
+    """
+    Log hereafter via the given logger.
+
+    :param logger: The logger to log to.
+    """
+    _log.logger = logger
+
+
 def main() -> None:
     """
     Main CLI entry point.
@@ -152,23 +161,23 @@ def run(
     :return: The stderr, stdout and success info.
     """
     indent = "  "
-    logging.info("%s: Running: %s", taskname, cmd)
+    _log.info("%s: Running: %s", taskname, cmd)
     if cwd:
-        logging.info("%s: %sin %s", taskname, indent, cwd)
+        _log.info("%s: %sin %s", taskname, indent, cwd)
     if env:
-        logging.info("%s: %swith environment variables:", taskname, indent)
+        _log.info("%s: %swith environment variables:", taskname, indent)
         for key, val in env.items():
-            logging.info("%s: %s%s=%s", taskname, indent * 2, key, val)
+            _log.info("%s: %s%s=%s", taskname, indent * 2, key, val)
     try:
         output = check_output(
             cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
         )
-        logfunc = logging.info
+        logfunc = _log.info
         success = True
     except CalledProcessError as e:
         output = e.output
-        logging.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
-        logfunc = logging.error
+        _log.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
+        logfunc = _log.error
         success = False
     if output and (log or not success):
         logfunc("%s: %sOutput:", taskname, indent)
@@ -267,10 +276,10 @@ def task(f: Callable) -> _TaskT:
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
             if _ready(_delegate(g, taskname)):
-                logging.info("%s: Requirement(s) ready", taskname)
+                _log.info("%s: Requirement(s) ready", taskname)
                 _execute(g, taskname)
             else:
-                logging.info("%s: Requirement(s) pending", taskname)
+                _log.info("%s: Requirement(s) pending", taskname)
                 _report_readiness(ready=False, taskname=taskname)
         ready_final = _ready(assets)
         if ready_final != ready_initial:
@@ -319,7 +328,7 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     # it to a list for iteration. The value of each task-function call is a collection of assets,
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
-    logging.info("%s: Checking requirements", taskname)
+    _log.info("%s: Checking requirements", taskname)
     alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
     _graph.update_from_requirements(taskname, alist)
     return alist
@@ -333,10 +342,10 @@ def _execute(g: Generator, taskname: str) -> None:
     :param taskname: The current task's name.
     """
     if _state.dry_run:
-        logging.info("%s: SKIPPING (DRY RUN)", taskname)
+        _log.info("%s: SKIPPING (DRY RUN)", taskname)
         return
     try:
-        logging.info("%s: Executing", taskname)
+        _log.info("%s: Executing", taskname)
         next(g)
     except StopIteration:
         pass
@@ -435,7 +444,7 @@ def _report_readiness(
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
     extmsg = " (EXTERNAL)" if is_external and not ready else ""
-    logf = logging.info if initial or ready else logging.warning
+    logf = _log.info if initial or ready else _log.warning
     logf(
         "%s: %s: %s%s",
         taskname,
@@ -576,6 +585,24 @@ class _Graph:
         self.tasks.add(taskname)
 
 
+class _Logger:
+    """
+    Support for swappable loggers.
+    """
+
+    def __init__(self) -> None:
+        self.logger = logging.getLogger()  # default to Python root logger.
+
+    def __getattr__(self, attr: str) -> Any:
+        """
+        Delegate attribute access to the currently-used logger.
+
+        :param attr: The attribute to access.
+        :returns: The requested attribute.
+        """
+        return getattr(self.logger, attr)
+
+
 class _State:
     """
     Iotaa state.
@@ -600,4 +627,5 @@ class _State:
 
 
 _graph = _Graph()
+_log = _Logger()
 _state = _State()
