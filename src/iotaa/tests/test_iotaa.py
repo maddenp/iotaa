@@ -491,6 +491,19 @@ def test__reset():
             assert not iotaa._state.initialized
 
 
+def test__reset_via_task():
+    with patch.object(iotaa, "_reset") as _reset:
+
+        @iotaa.external
+        def noop():
+            yield "noop"
+            yield iotaa.asset("noop", lambda: True)
+
+        _reset.assert_not_called()
+        noop()
+        _reset.assert_called_once_with()
+
+
 @pytest.mark.parametrize("assets", simple_assets())
 def test__task_final(assets):
     for a in iotaa._listify(assets):
