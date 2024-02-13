@@ -328,7 +328,7 @@ def _i_am_top_task() -> bool:
     """
     if _state.initialized:
         return False
-    _state.reset()
+    _state.initialize()
     return True
 
 
@@ -529,7 +529,14 @@ class State:
 
     def __init__(self):
         self.dry_run = False
+        self.initialized = False
         self.reset()
+
+    def initialize(self) -> None:
+        """
+        Mark iotaa as initialized.
+        """
+        self.initialized = True
 
     def reset(self) -> None:
         """
