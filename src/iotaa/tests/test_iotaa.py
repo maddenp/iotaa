@@ -210,24 +210,6 @@ def test_refs_dict():
     assert iotaa.refs(assets=None) is None
 
 
-def test_reset():
-    with patch.object(iotaa, "_graph", new=iotaa.Graph()):
-        with patch.object(iotaa, "_state", new=iotaa.State()):
-            iotaa._graph.assets["foo"] = "bar"
-            iotaa._graph.edges.add("baz")
-            iotaa._graph.tasks.add("qux")
-            iotaa._state.initialize()
-            assert iotaa._graph.assets
-            assert iotaa._graph.edges
-            assert iotaa._graph.tasks
-            assert iotaa._state.initialized
-            iotaa.reset()
-            assert not iotaa._graph.assets
-            assert not iotaa._graph.edges
-            assert not iotaa._graph.tasks
-            assert not iotaa._state.initialized
-
-
 def test_run_failure(caplog):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     cmd = "expr 1 / 0"
@@ -545,6 +527,24 @@ def test__report_readiness(caplog, vals):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
+
+
+def test__reset():
+    with patch.object(iotaa, "_graph", new=iotaa.Graph()):
+        with patch.object(iotaa, "_state", new=iotaa.State()):
+            iotaa._graph.assets["foo"] = "bar"
+            iotaa._graph.edges.add("baz")
+            iotaa._graph.tasks.add("qux")
+            iotaa._state.initialize()
+            assert iotaa._graph.assets
+            assert iotaa._graph.edges
+            assert iotaa._graph.tasks
+            assert iotaa._state.initialized
+            iotaa._reset()
+            assert not iotaa._graph.assets
+            assert not iotaa._graph.edges
+            assert not iotaa._graph.tasks
+            assert not iotaa._state.initialized
 
 
 @pytest.mark.parametrize("assets", simple_assets())
