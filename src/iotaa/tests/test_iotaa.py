@@ -402,19 +402,22 @@ def test__graph_emit(capsys):
     assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
     tasks = {"qux", "baz"}
-    with patch.object(iotaa, "_graph", iotaa.ns(assets=assets, edges=edges, tasks=tasks)):
+    with patch.object(iotaa, "_graph", iotaa.Graph()) as graph:
+        graph.assets = assets
+        graph.edges = edges
+        graph.tasks = tasks
         iotaa._graph_emit()
     out = capsys.readouterr().out.strip().split("\n")
     # How many asset nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph_shape.asset in x])
+    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])
     # How many task nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph_shape.task in x])
+    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.task in x])
     # How many edges were graphed?
     assert 3 == len([x for x in out if " -> " in x])
     # How many assets were ready?
-    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph_color[True] in x])
+    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
     # How many assets were pending?
-    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph_color[False] in x])
+    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
 
 
 def test__graph_name():
@@ -453,7 +456,8 @@ def test__graph_update_from_task(assets, empty_graph):
 
 @pytest.mark.parametrize("val", [True, False])
 def test__i_am_top_task(val):
-    with patch.object(iotaa, "_state", new=iotaa.ns(initialized=not val)):
+    with patch.object(iotaa, "_state", new=iotaa.State()) as _state:
+        _state.initialized = not val
         assert iotaa._i_am_top_task() == val
 
 
@@ -538,7 +542,7 @@ def test__task_inital():
         yield taskname
         yield n
 
-    with patch.object(iotaa, "_state", iotaa.ns(initialized=False)):
+    with patch.object(iotaa, "_state", iotaa.State()):
         tn = "task"
         taskname, top, g = iotaa._task_initial(f, tn, n=88)
         assert taskname == tn

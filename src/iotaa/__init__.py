@@ -1,5 +1,5 @@
 """
-iotaa.core.
+iotaa.
 """
 
 import logging
@@ -17,10 +17,56 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-_graph = ns(assets={}, edges=set(), tasks=set())
-_graph_color: Dict[Any, str] = defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
-_graph_shape = ns(asset="box", task="ellipse")
-_state = ns(dry_run=False, initialized=False)
+
+class Graph:
+    """
+    ???
+    """
+
+    def __init__(self):
+        self.reset()
+
+    @property
+    def color(self) -> Dict[Any, str]:
+        """
+        ???
+        """
+        return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
+
+    @property
+    def shape(self) -> ns:
+        """
+        ???
+        """
+        return ns(asset="box", task="ellipse")
+
+    def reset(self) -> None:
+        """
+        ???
+        """
+        self.assets: dict = {}
+        self.edges: set = set()
+        self.tasks: set = set()
+
+
+class State:
+    """
+    ???
+    """
+
+    def __init__(self):
+        self.dry_run = False
+        self.reset()
+
+    def reset(self):
+        """
+        ???
+        """
+        self.initialized = False
+
+
+_graph = Graph()
+_state = State()
 
 
 # Public API
@@ -332,13 +378,13 @@ def _graph_emit() -> None:
     """
     f = lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]' % (
         _graph_name(name),
-        _graph_color[ready],
+        _graph.color[ready],
         name,
         shape,
     )
     edges = ["%s -> %s" % (_graph_name(a), _graph_name(b)) for a, b in _graph.edges]
-    nodes_a = [f(ref, _graph_shape.asset, ready()) for ref, ready in _graph.assets.items()]
-    nodes_t = [f(x, _graph_shape.task) for x in _graph.tasks]
+    nodes_a = [f(ref, _graph.shape.asset, ready()) for ref, ready in _graph.assets.items()]
+    nodes_t = [f(x, _graph.shape.task) for x in _graph.tasks]
     print("digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges)))
 
 
@@ -388,7 +434,7 @@ def _i_am_top_task() -> bool:
     """
     if _state.initialized:
         return False
-    _state.initialized = True
+    _state.reset()
     return True
 
 

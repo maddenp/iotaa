@@ -30,7 +30,9 @@ pretty = true
 disable = [
   "consider-using-f-string",
   "disallowed-name",
+  "global-statement",
   "invalid-name",
+  "too-few-public-methods",
   "too-many-arguments",
   "unnecessary-lambda-assignment",
 ]
