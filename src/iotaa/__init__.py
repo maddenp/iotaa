@@ -128,6 +128,14 @@ def refs(assets: _AssetT) -> Any:
     return None
 
 
+def reset() -> None:
+    """
+    Reset state.
+    """
+    _graph.reset()
+    _state.reset()
+
+
 def run(
     taskname: str,
     cmd: str,
