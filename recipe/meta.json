@@ -1,5 +1,5 @@
 {
-  "build": "0",
+  "build": "py_0",
   "buildnum": "0",
   "name": "iotaa",
   "packages": {
@@ -16,5 +16,5 @@
     ],
     "run": []
   },
-  "version": "0.4.0"
+  "version": "0.6.0"
 }
