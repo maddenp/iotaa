@@ -37,7 +37,7 @@ def external_foo_scalar():
 
 @fixture
 def empty_graph():
-    return iotaa.ns(assets={}, edges=set(), tasks=set())
+    return iotaa.Graph()
 
 
 @fixture
@@ -177,28 +177,27 @@ def test_main_mocked_up(tmp_path):
     m = tmp_path / "a.py"
     m.touch()
     strs = ["foo", "88", "3.14", "true"]
-    with patch.multiple(
-        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D
-    ) as mocks:
-        parse_args = mocks["_parse_args"]
-        parse_args.return_value = iotaa.Namespace(
-            args=strs,
-            dry_run=True,
-            function="a_function",
-            graph=True,
-            module=m,
-            verbose=True,
-        )
-        with patch.object(iotaa, "getattr", create=True) as getattr_:
-            iotaa.main()
-            import_module = mocks["import_module"]
-            import_module.assert_called_once_with("a")
-            getattr_.assert_called_once_with(import_module(), "a_function")
-            getattr_().assert_called_once_with("foo", 88, 3.14, True)
-        mocks["dryrun"].assert_called_once()
-        mocks["logcfg"].assert_called_once_with(verbose=True)
-        mocks["_graph_emit"].assert_called_once_with()
-        parse_args.assert_called_once()
+    with patch.multiple(iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D) as mocks:
+        with patch.object(iotaa._graph, "emit") as emit:
+            parse_args = mocks["_parse_args"]
+            parse_args.return_value = iotaa.Namespace(
+                args=strs,
+                dry_run=True,
+                function="a_function",
+                graph=True,
+                module=m,
+                verbose=True,
+            )
+            with patch.object(iotaa, "getattr", create=True) as getattr_:
+                iotaa.main()
+                import_module = mocks["import_module"]
+                import_module.assert_called_once_with("a")
+                getattr_.assert_called_once_with(import_module(), "a_function")
+                getattr_().assert_called_once_with("foo", 88, 3.14, True)
+            mocks["dryrun"].assert_called_once()
+            mocks["logcfg"].assert_called_once_with(verbose=True)
+            emit.assert_called_once_with()
+            parse_args.assert_called_once()
 
 
 def test_refs_dict():
@@ -337,7 +336,7 @@ def test__delegate_scalar(caplog, delegate_assets):
     def f():
         yield a1
 
-    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
         assert iotaa._delegate(f(), "task") == [a1]
         gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
@@ -349,7 +348,7 @@ def test__delegate_empty_dict_and_empty_list(caplog):
     def f():
         yield [{}, []]
 
-    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
         assert not iotaa._delegate(f(), "task")
         gufr.assert_called_once_with("task", [])
     assert logged("task: Checking requirements", caplog)
@@ -362,7 +361,7 @@ def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
     def f():
         yield [{"foo": a1, "bar": a2}, [a3, a4]]
 
-    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
         assert iotaa._delegate(f(), "task") == [a1, a2, a3, a4]
         gufr.assert_called_once_with("task", [a1, a2, a3, a4])
     assert logged("task: Checking requirements", caplog)
@@ -375,7 +374,7 @@ def test__delegate_none_and_scalar(caplog, delegate_assets):
     def f():
         yield [None, a1]
 
-    with patch.object(iotaa, "_graph_udpate_from_requirements") as gufr:
+    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
         assert iotaa._delegate(f(), "task") == [a1]
         gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
@@ -406,7 +405,7 @@ def test__graph_emit(capsys):
         graph.assets = assets
         graph.edges = edges
         graph.tasks = tasks
-        iotaa._graph_emit()
+        iotaa._graph.emit()
     out = capsys.readouterr().out.strip().split("\n")
     # How many asset nodes were graphed?
     assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])
@@ -422,7 +421,7 @@ def test__graph_emit(capsys):
 
 def test__graph_name():
     name = "foo"
-    assert iotaa._graph_name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
+    assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
 
 
 @pytest.mark.parametrize("assets", simple_assets())
@@ -438,7 +437,7 @@ def test__graph_update_from_requirements(assets, empty_graph):
     for a in alist:
         setattr(a, "taskname", taskname_req)
     with patch.object(iotaa, "_graph", empty_graph):
-        iotaa._graph_udpate_from_requirements(taskname_this, alist)
+        iotaa._graph.update_from_requirements(taskname_this, alist)
         assert all(a() for a in iotaa._graph.assets.values())
         assert iotaa._graph.tasks == ({taskname_req, taskname_this} if assets else {taskname_this})
         assert iotaa._graph.edges == edges
@@ -448,7 +447,7 @@ def test__graph_update_from_requirements(assets, empty_graph):
 def test__graph_update_from_task(assets, empty_graph):
     taskname = "task"
     with patch.object(iotaa, "_graph", empty_graph):
-        iotaa._graph_update_from_task(taskname, assets)
+        iotaa._graph.update_from_task(taskname, assets)
         assert all(a() for a in iotaa._graph.assets.values())
         assert iotaa._graph.tasks == {taskname}
         assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._listify(assets)}
