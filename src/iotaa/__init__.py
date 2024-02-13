@@ -492,7 +492,7 @@ def _task_initial(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
     return taskname, top, g
 
 
-class Graph:
+class _Graph:
     """
     Graphviz digraph support.
     """
@@ -576,7 +576,7 @@ class Graph:
         self.tasks.add(taskname)
 
 
-class State:
+class _State:
     """
     Iotaa state.
     """
@@ -599,5 +599,5 @@ class State:
         self.initialized = False
 
 
-_graph = Graph()
-_state = State()
+_graph = _Graph()
+_state = _State()
