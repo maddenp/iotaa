@@ -219,40 +219,42 @@ def test_main_live_syspath(capsys, module_for_main):
 
 def test_main_mocked_up(tmp_path):
     with patch.multiple(
-        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
+        iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
     ) as mocks:
-        parse_args = mocks["_parse_args"]
-        parse_args.return_value = args(path=tmp_path, tasknames=False)
-        with patch.object(iotaa, "getattr", create=True) as getattr_:
-            iotaa.main()
-            import_module = mocks["import_module"]
-            import_module.assert_called_once_with("a")
-            getattr_.assert_called_once_with(import_module(), "a_function")
-            getattr_().assert_called_once_with("foo", 88, 3.14, True)
-        mocks["dryrun"].assert_called_once_with()
-        mocks["logcfg"].assert_called_once_with(verbose=True)
-        mocks["_graph_emit"].assert_called_once_with()
-        parse_args.assert_called_once()
+        with patch.object(iotaa._graph, "emit") as emit:
+            parse_args = mocks["_parse_args"]
+            parse_args.return_value = args(path=tmp_path, tasknames=False)
+            with patch.object(iotaa, "getattr", create=True) as getattr_:
+                iotaa.main()
+                import_module = mocks["import_module"]
+                import_module.assert_called_once_with("a")
+                getattr_.assert_called_once_with(import_module(), "a_function")
+                getattr_().assert_called_once_with("foo", 88, 3.14, True)
+            mocks["dryrun"].assert_called_once_with()
+            mocks["logcfg"].assert_called_once_with(verbose=True)
+            emit.assert_called_once_with()
+            parse_args.assert_called_once()
 
 
 def test_main_mocked_up_tasknames(tmp_path):
     with patch.multiple(
-        iotaa, _graph_emit=D, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
+        iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
     ) as mocks:
-        parse_args = mocks["_parse_args"]
-        parse_args.return_value = args(path=tmp_path, tasknames=True)
-        with patch.object(iotaa, "getattr", create=True) as getattr_:
-            with raises(SystemExit) as e:
-                iotaa.main()
-            assert e.value.code == 0
-            import_module = mocks["import_module"]
-            import_module.assert_called_once_with("a")
-            getattr_.assert_not_called()
-            getattr_().assert_not_called()
-        mocks["dryrun"].assert_called_once_with()
-        mocks["logcfg"].assert_called_once_with(verbose=True)
-        mocks["_graph_emit"].assert_not_called()
-        parse_args.assert_called_once()
+        with patch.object(iotaa._graph, "emit") as emit:
+            parse_args = mocks["_parse_args"]
+            parse_args.return_value = args(path=tmp_path, tasknames=True)
+            with patch.object(iotaa, "getattr", create=True) as getattr_:
+                with raises(SystemExit) as e:
+                    iotaa.main()
+                assert e.value.code == 0
+                import_module = mocks["import_module"]
+                import_module.assert_called_once_with("a")
+                getattr_.assert_not_called()
+                getattr_().assert_not_called()
+            mocks["dryrun"].assert_called_once_with()
+            mocks["logcfg"].assert_called_once_with(verbose=True)
+            emit.assert_not_called()
+            parse_args.assert_called_once()
 
 
 def test_refs():
