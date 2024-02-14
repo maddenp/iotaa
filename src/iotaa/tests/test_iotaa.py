@@ -194,6 +194,17 @@ def test_dryrun(args, expected):
         assert iotaa._state.dry_run is expected
 
 
+def test_graph():
+
+    @iotaa.external
+    def noop():
+        yield "noop"
+        yield iotaa.asset("noop", lambda: True)
+
+    noop()
+    assert iotaa.graph().startswith("digraph")
+
+
 @pytest.mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
 def test_logcfg(vals):
     verbose, level = vals
@@ -232,7 +243,7 @@ def test_main_mocked_up(tmp_path):
     with patch.multiple(
         iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
     ) as mocks:
-        with patch.object(iotaa._graph, "emit") as emit:
+        with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
             parse_args = mocks["_parse_args"]
             parse_args.return_value = args(path=tmp_path, tasknames=False)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
@@ -243,7 +254,7 @@ def test_main_mocked_up(tmp_path):
                 getattr_().assert_called_once_with("foo", 88, 3.14, True)
             mocks["dryrun"].assert_called_once_with()
             mocks["logcfg"].assert_called_once_with(verbose=True)
-            emit.assert_called_once_with()
+            __repr__.assert_called_once()
             parse_args.assert_called_once()
 
 
@@ -251,7 +262,7 @@ def test_main_mocked_up_tasknames(tmp_path):
     with patch.multiple(
         iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
     ) as mocks:
-        with patch.object(iotaa._graph, "emit") as emit:
+        with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
             parse_args = mocks["_parse_args"]
             parse_args.return_value = args(path=tmp_path, tasknames=True)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
@@ -264,7 +275,7 @@ def test_main_mocked_up_tasknames(tmp_path):
                 getattr_().assert_not_called()
             mocks["dryrun"].assert_called_once_with()
             mocks["logcfg"].assert_called_once_with(verbose=True)
-            emit.assert_not_called()
+            __repr__.assert_not_called()
             parse_args.assert_called_once()
 
 
@@ -652,7 +663,7 @@ def test__task_inital():
 # Graph tests
 
 
-def test__Graph_emit(capsys):
+def test__Graph___repr__(capsys):
     assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
     tasks = {"qux", "baz"}
@@ -660,7 +671,7 @@ def test__Graph_emit(capsys):
         graph.assets = assets
         graph.edges = edges
         graph.tasks = tasks
-        iotaa._graph.emit()
+        print(iotaa._graph)
     out = capsys.readouterr().out.strip().split("\n")
     # How many asset nodes were graphed?
     assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])

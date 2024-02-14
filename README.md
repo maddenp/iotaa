@@ -108,6 +108,7 @@ Several public helper callables are available in the `iotaa` module:
 
 - `asset()` instantiates an asset to return from a task function.
 - `dryrun()` activates dry-run mode.
+- `graph()` returns a Graphviz representation of the most recent task execution tree.
 - `logcfg()` configures Python's root logger to support `logging.info()` (et al.) calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically.
 - `logset()` accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it.
 - `main()` is the entry-point function for CLI use.

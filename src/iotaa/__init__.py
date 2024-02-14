@@ -2,6 +2,8 @@
 iotaa.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import sys
@@ -18,7 +20,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
-# Public API
+# Public return-value classes:
 
 
 @dataclass
@@ -47,10 +49,149 @@ class Result:
     success: bool
 
 
+# Types:
+
 _AssetsT = Union[Dict[str, Asset], List[Asset]]
 _AssetT = Optional[Union[_AssetsT, Asset]]
-
 _TaskT = Callable[..., _AssetT]
+
+# Private helper classes and their instances:
+
+
+class _Graph:
+    """
+    Graphviz digraph support.
+    """
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def __repr__(self) -> str:
+        """
+        Returns the task/asset graph in Graphviz dot format.
+        """
+        f = (
+            lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
+            % (
+                self.name(name),
+                self.color[ready],
+                name,
+                shape,
+            )
+        )
+        edges = ["%s -> %s" % (self.name(a), self.name(b)) for a, b in self.edges]
+        nodes_a = [f(ref, self.shape.asset, ready()) for ref, ready in self.assets.items()]
+        nodes_t = [f(x, self.shape.task) for x in self.tasks]
+        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges))
+
+    @property
+    def color(self) -> Dict[Any, str]:
+        """
+        Graphviz colors.
+        """
+        return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
+
+    def name(self, name: str) -> str:
+        """
+        Convert an iotaa asset/task name to a Graphviz-appropriate node name.
+
+        :param name: An iotaa asset/task name.
+        :return: A Graphviz-appropriate node name.
+        """
+        return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
+
+    @property
+    def shape(self) -> ns:
+        """
+        Graphviz shapes.
+        """
+        return ns(asset="box", task="ellipse")
+
+    def reset(self) -> None:
+        """
+        Reset graph state.
+        """
+        self.assets: dict = {}
+        self.edges: set = set()
+        self.tasks: set = set()
+
+    def update_from_requirements(self, taskname: str, alist: List[Asset]) -> None:
+        """
+        Update graph data structures with required-task info.
+
+        :param taskname: The current task's name.
+        :param alist: Flattened required-task assets.
+        """
+        asset_taskname = lambda a: getattr(a, "taskname", None)
+        self.assets.update({a.ref: a.ready for a in alist})
+        self.edges |= set((asset_taskname(a), a.ref) for a in alist)
+        self.edges |= set((taskname, asset_taskname(a)) for a in alist)
+        self.tasks |= set(asset_taskname(a) for a in alist)
+        self.tasks.add(taskname)
+
+    def update_from_task(self, taskname: str, assets: _AssetT) -> None:
+        """
+        Update graph data structures with current task info.
+
+        :param taskname: The current task's name.
+        :param assets: A collection of assets, one asset, or None.
+        """
+        alist = _listify(assets)
+        self.assets.update({a.ref: a.ready for a in alist})
+        self.edges |= set((taskname, a.ref) for a in alist)
+        self.tasks.add(taskname)
+
+
+_graph = _Graph()
+
+
+class _Logger:
+    """
+    Support for swappable loggers.
+    """
+
+    def __init__(self) -> None:
+        self.logger = logging.getLogger()  # default to Python root logger.
+
+    def __getattr__(self, attr: str) -> Any:
+        """
+        Delegate attribute access to the currently-used logger.
+
+        :param attr: The attribute to access.
+        :returns: The requested attribute.
+        """
+        return getattr(self.logger, attr)
+
+
+_log = _Logger()
+
+
+class _State:
+    """
+    Global iotaa state.
+    """
+
+    def __init__(self) -> None:
+        self.dry_run = False
+        self.initialized = False
+        self.reset()
+
+    def initialize(self) -> None:
+        """
+        Mark iotaa as initialized.
+        """
+        self.initialized = True
+
+    def reset(self) -> None:
+        """
+        Reset state.
+        """
+        self.initialized = False
+
+
+_state = _State()
+
+# Public API functions:
 
 
 def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
@@ -69,6 +210,13 @@ def dryrun(enable: bool = True) -> None:
     Enable (default) or disable dry-run mode.
     """
     _state.dry_run = enable
+
+
+def graph() -> str:
+    """
+    Returns the Graphivz graph of the most recent task execution tree.
+    """
+    return str(_graph)
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -120,7 +268,7 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     getattr(modobj, args.function)(*reified)
     if args.graph:
-        _graph.emit()
+        print(_graph)
 
 
 def refs(assets: _AssetT) -> Any:
@@ -235,7 +383,7 @@ def tasknames(obj: object) -> List[str]:
     return sorted(name for name in dir(obj) if f(getattr(obj, name)))
 
 
-# Decorators
+# Public task-graph decorator functions:
 
 
 def external(f: Callable) -> _TaskT:
@@ -312,7 +460,7 @@ def tasks(f: Callable) -> _TaskT:
     return _set_metadata(f, __iotaa_tasks__)
 
 
-# Private functions and classes
+# Private helper functions:
 
 
 def _delegate(g: Generator, taskname: str) -> List[Asset]:
@@ -500,133 +648,3 @@ def _task_initial(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
     g = f(*args, **kwargs)
     taskname = next(g)
     return taskname, top, g
-
-
-class _Graph:
-    """
-    Graphviz digraph support.
-    """
-
-    def __init__(self) -> None:
-        self.reset()
-
-    @property
-    def color(self) -> Dict[Any, str]:
-        """
-        Graphviz colors.
-        """
-        return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
-
-    def emit(self) -> None:
-        """
-        Emit a task/asset graph in Graphviz dot format.
-        """
-        f = (
-            lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-            % (
-                self.name(name),
-                self.color[ready],
-                name,
-                shape,
-            )
-        )
-        edges = ["%s -> %s" % (self.name(a), self.name(b)) for a, b in self.edges]
-        nodes_a = [f(ref, self.shape.asset, ready()) for ref, ready in self.assets.items()]
-        nodes_t = [f(x, self.shape.task) for x in self.tasks]
-        print("digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges)))
-
-    def name(self, name: str) -> str:
-        """
-        Convert an iotaa asset/task name to a Graphviz-appropriate node name.
-
-        :param name: An iotaa asset/task name.
-        :return: A Graphviz-appropriate node name.
-        """
-        return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
-
-    @property
-    def shape(self) -> ns:
-        """
-        Graphviz shapes.
-        """
-        return ns(asset="box", task="ellipse")
-
-    def reset(self) -> None:
-        """
-        Reset graph state.
-        """
-        self.assets: dict = {}
-        self.edges: set = set()
-        self.tasks: set = set()
-
-    def update_from_requirements(self, taskname: str, alist: List[Asset]) -> None:
-        """
-        Update graph data structures with required-task info.
-
-        :param taskname: The current task's name.
-        :param alist: Flattened required-task assets.
-        """
-        asset_taskname = lambda a: getattr(a, "taskname", None)
-        self.assets.update({a.ref: a.ready for a in alist})
-        self.edges |= set((asset_taskname(a), a.ref) for a in alist)
-        self.edges |= set((taskname, asset_taskname(a)) for a in alist)
-        self.tasks |= set(asset_taskname(a) for a in alist)
-        self.tasks.add(taskname)
-
-    def update_from_task(self, taskname: str, assets: _AssetT) -> None:
-        """
-        Update graph data structures with current task info.
-
-        :param taskname: The current task's name.
-        :param assets: A collection of assets, one asset, or None.
-        """
-        alist = _listify(assets)
-        self.assets.update({a.ref: a.ready for a in alist})
-        self.edges |= set((taskname, a.ref) for a in alist)
-        self.tasks.add(taskname)
-
-
-class _Logger:
-    """
-    Support for swappable loggers.
-    """
-
-    def __init__(self) -> None:
-        self.logger = logging.getLogger()  # default to Python root logger.
-
-    def __getattr__(self, attr: str) -> Any:
-        """
-        Delegate attribute access to the currently-used logger.
-
-        :param attr: The attribute to access.
-        :returns: The requested attribute.
-        """
-        return getattr(self.logger, attr)
-
-
-class _State:
-    """
-    Global iotaa state.
-    """
-
-    def __init__(self) -> None:
-        self.dry_run = False
-        self.initialized = False
-        self.reset()
-
-    def initialize(self) -> None:
-        """
-        Mark iotaa as initialized.
-        """
-        self.initialized = True
-
-    def reset(self) -> None:
-        """
-        Reset state.
-        """
-        self.initialized = False
-
-
-_graph = _Graph()
-_log = _Logger()
-_state = _State()
