@@ -23,4 +23,4 @@ test:
     - pytest
 about:
   home: https://github.com/maddenp/iotaa
-  license: APACHE
+  license: Apache-2.0
