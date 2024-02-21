@@ -1,12 +1,12 @@
 package:
   name: iotaa
-  version: 0.7.1 # reset build number
+  version: 0.7.2
 source:
   path: ../src
 build:
   include_recipe: false
   noarch: python
-  number: 2
+  number: 0
 requirements:
   build:
     - pip

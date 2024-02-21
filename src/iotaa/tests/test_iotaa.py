@@ -9,6 +9,7 @@ Tests for module iotaa.
 
 import logging
 import re
+import sys
 from hashlib import md5
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
@@ -301,6 +302,8 @@ def test_run_failure(caplog):
 
 
 def test_run_success(caplog, tmp_path):
+    if sys.platform.startswith("win"):
+        pytest.skip("unsupported platform")
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     cmd = "echo hello $FOO"
     assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log=True)
