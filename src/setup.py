@@ -17,15 +17,8 @@ name_conda = meta["name"]
 name_py = name_conda.replace("-", "_")
 
 setup(
-    entry_points={
-        "console_scripts": [
-            "iotaa = %s:main" % name_py,
-        ]
-    },
+    entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
     name=name_conda,
-    packages=find_packages(
-        exclude=["%s.tests" % name_py],
-        include=[name_py, "%s.*" % name_py],
-    ),
+    packages=find_packages(include=[name_py, "%s.*" % name_py]),
     version=meta["version"],
 )
