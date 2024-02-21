@@ -7,9 +7,11 @@ import os
 
 from setuptools import find_packages, setup  # type: ignore
 
-recipe = os.environ.get("RECIPE_DIR", "../recipe")
-with open(os.path.join(recipe, "meta.json"), "r", encoding="utf-8") as f:
-    meta = json.load(f)
+if os.environ.get("CONDA_BUILD"):
+    meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")}
+else:
+    with open("../recipe/meta.json", "r", encoding="utf-8") as f:
+        meta = json.load(f)
 
 name_conda = meta["name"]
 name_py = name_conda.replace("-", "_")

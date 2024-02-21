@@ -1,12 +1,12 @@
 package:
   name: iotaa
-  version: 0.7.1
+  version: 0.7.1 # reset build number
 source:
   path: ../src
 build:
   include_recipe: false
   noarch: python
-  number: 0
+  number: 1
 requirements:
   build:
     - pip
@@ -23,4 +23,4 @@ test:
     - pytest
 about:
   home: https://github.com/maddenp/iotaa
-  license: Apache-2.0
+  license: APACHE
