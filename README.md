@@ -2,7 +2,7 @@
 
 **It's One Thing After Another**
 
-A tiny workflow manager with semantics similar to those of [Luigi](https://github.com/spotify/luigi), but with tasks defined as decorated Python functions (or methods, but "functions" will be used in this document). `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
+A simple workflow engine with semantics inspired by [Luigi](https://github.com/spotify/luigi) and tasks expressed as decorated Python functions (or methods, but "functions" will be used in this document). `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 
 ## Workflows
 
