@@ -2,6 +2,7 @@ name: ci
 env:
   ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
   GH_TOKEN: ${{ github.token }}
+  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 on:
   push:
     branches:
