@@ -4,4 +4,4 @@ set +ux
 source conda/etc/profile.d/conda.sh
 conda activate
 set -ux
-python -m build --no-isolation src
+python -m build --no-isolation --wheel src
