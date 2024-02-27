@@ -24,8 +24,8 @@ jobs:
       - name: Publish conda package
         run: .github/scripts/conda-package-release
       - name: Build PyPI package
-        run:  .github/scripts/pypy-package-build
+        run:  .github/scripts/pypi-package-build
       - name: Release PyPI package
-        run:  .github/scripts/pypy-package-release
+        run:  .github/scripts/pypi-package-release
       - name: Tag
         run: .github/scripts/tag-create
