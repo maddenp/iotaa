@@ -27,7 +27,8 @@ setup(
     data_files=[(".", ["meta.json"])],
     description="A simple workflow engine",
     entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
-    long_description="A simple workflow engine with semantics inspired by Luigi and tasks expressed as decorated Python functions",
+    long_description=""" A simple workflow engine with semantics inspired by Luigi and tasks
+                         expressed as decorated Python functions """,
     name=name_conda,
     packages=find_packages(include=[name_py, "%s.*" % name_py]),
     url="https://github.com/maddenp/iotaa",

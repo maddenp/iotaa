@@ -174,7 +174,6 @@ class _State:
     def __init__(self) -> None:
         self.dry_run = False
         self.initialized = False
-        self.reset()
 
     def initialize(self) -> None:
         """
@@ -402,7 +401,7 @@ def external(f: Callable) -> _TaskT:
         if not ready or top:
             _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_final(taskname, assets)
+        return _task_final(top, taskname, assets)
 
     return _set_metadata(f, __iotaa_external__)
 
@@ -433,7 +432,7 @@ def task(f: Callable) -> _TaskT:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        return _task_final(taskname, assets)
+        return _task_final(top, taskname, assets)
 
     return _set_metadata(f, __iotaa_task__)
 
@@ -455,7 +454,7 @@ def tasks(f: Callable) -> _TaskT:
         ready = _ready(assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(taskname, assets)
+        return _task_final(top, taskname, assets)
 
     return _set_metadata(f, __iotaa_tasks__)
 
@@ -518,7 +517,8 @@ def _i_am_top_task() -> bool:
     """
     if _state.initialized:
         return False
-    _reset()
+    _state.initialize()
+    _graph.reset()
     return True
 
 
@@ -603,14 +603,6 @@ def _report_readiness(
     )
 
 
-def _reset() -> None:
-    """
-    Reset state.
-    """
-    _graph.reset()
-    _state.reset()
-
-
 def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
     """
     Set metadata on a decorated function.
@@ -624,14 +616,17 @@ def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
     return f_out
 
 
-def _task_final(taskname: str, assets: _AssetT) -> _AssetT:
+def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
     """
     Final steps common to all task types.
 
+    :param top: Is this the top task?
     :param taskname: The current task's name.
     :param assets: A collection of assets, one asset, or None.
     :return: The same assets that were provided as input.
     """
+    if top:
+        _state.reset()
     for a in _listify(assets):
         setattr(a, "taskname", taskname)
     return assets

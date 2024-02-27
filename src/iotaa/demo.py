@@ -42,8 +42,7 @@ def cup(basedir):
 @task
 def steeped_tea_with_sugar(basedir):
     # Add sugar to the steeped tea. Requires tea to have steeped.
-    for x in ingredient(basedir, "sugar", "Sugar", steeped_tea):
-        yield x
+    yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
 
 
 @task
@@ -72,15 +71,13 @@ def steeped_tea(basedir):
 @task
 def steeping_tea(basedir):
     # Pour boiling water over the tea. Requires teabag in cup.
-    for x in ingredient(basedir, "water", "Boiling water", teabag):
-        yield x
+    yield from ingredient(basedir, "water", "Boiling water", teabag)
 
 
 @task
 def teabag(basedir):
     # Place tea bag in the cup. Requires box of teabags.
-    for x in ingredient(basedir, "teabag", "Teabag", box_of_teabags):
-        yield x
+    yield from ingredient(basedir, "teabag", "Teabag", box_of_teabags)
 
 
 @external

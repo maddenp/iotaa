@@ -610,42 +610,27 @@ def test__report_readiness(caplog, vals):
     assert logged(f"task: {msg}", caplog)
 
 
-def test__reset():
-    with patch.object(iotaa, "_graph", new=iotaa._Graph()):
-        with patch.object(iotaa, "_state", new=iotaa._State()):
-            iotaa._graph.assets["foo"] = "bar"
-            iotaa._graph.edges.add("baz")
-            iotaa._graph.tasks.add("qux")
-            iotaa._state.initialize()
-            assert iotaa._graph.assets
-            assert iotaa._graph.edges
-            assert iotaa._graph.tasks
-            assert iotaa._state.initialized
-            iotaa._reset()
-            assert not iotaa._graph.assets
-            assert not iotaa._graph.edges
-            assert not iotaa._graph.tasks
-            assert not iotaa._state.initialized
+def test_state_reset_via_task():
 
+    @iotaa.external
+    def noop():
+        yield "noop"
+        yield iotaa.asset("noop", lambda: True)
 
-def test__reset_via_task():
-    with patch.object(iotaa, "_reset") as _reset:
-
-        @iotaa.external
-        def noop():
-            yield "noop"
-            yield iotaa.asset("noop", lambda: True)
-
-        _reset.assert_not_called()
-        noop()
-        _reset.assert_called_once_with()
+    with patch.object(iotaa._graph, "reset") as reset_graph:
+        with patch.object(iotaa._state, "reset") as reset_state:
+            reset_graph.assert_not_called()
+            reset_state.assert_not_called()
+            noop()
+            reset_graph.assert_called_once_with()
+            reset_state.assert_called_once_with()
 
 
 @pytest.mark.parametrize("assets", simple_assets())
 def test__task_final(assets):
     for a in iotaa._listify(assets):
         assert getattr(a, "taskname", None) is None
-    assets = iotaa._task_final("task", assets)
+    assets = iotaa._task_final(False, "task", assets)
     for a in iotaa._listify(assets):
         assert getattr(a, "taskname") == "task"
 
@@ -663,7 +648,7 @@ def test__task_inital():
         assert next(g) == 88
 
 
-# Graph tests
+# _Graph tests
 
 
 def test__Graph___repr__(capsys):
@@ -688,9 +673,32 @@ def test__Graph___repr__(capsys):
     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
 
 
+def test__Graph_color():
+    assert isinstance(iotaa._graph.color, dict)
+
+
 def test__Graph_name():
     name = "foo"
     assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
+
+
+def test__Graph_shape():
+    assert iotaa._graph.shape.asset == "box"
+    assert iotaa._graph.shape.task == "ellipse"
+
+
+def test__Graph_reset():
+    with patch.object(iotaa, "_graph", iotaa._Graph()) as _graph:
+        _graph.assets["some"] = "asset"
+        _graph.edges.add("some-edge")
+        _graph.tasks.add("some-task")
+        assert _graph.assets
+        assert _graph.edges
+        assert _graph.tasks
+        _graph.reset()
+        assert not _graph.assets
+        assert not _graph.edges
+        assert not _graph.tasks
 
 
 @pytest.mark.parametrize("assets", simple_assets())
@@ -720,3 +728,26 @@ def test__Graph_update_from_task(assets, empty_graph):
         assert all(a() for a in iotaa._graph.assets.values())
         assert iotaa._graph.tasks == {taskname}
         assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._listify(assets)}
+
+
+# _State tests
+
+
+def test__State():
+    with patch.object(iotaa, "_state", iotaa._State()) as _state:
+        assert not _state.dry_run
+        assert not _state.initialized
+
+
+def test__State_initialize():
+    with patch.object(iotaa, "_state", iotaa._State()) as _state:
+        _state.initialize()
+        assert _state.initialized
+
+
+def test__State_reset():
+    with patch.object(iotaa, "_state", iotaa._State()) as _state:
+        _state.initialize()
+        assert _state.initialized
+        _state.reset()
+        assert not _state.initialized
