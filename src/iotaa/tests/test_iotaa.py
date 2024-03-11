@@ -11,6 +11,7 @@ import logging
 import re
 import sys
 from hashlib import md5
+from textwrap import dedent
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
@@ -127,10 +128,45 @@ def tasks_baz(external_foo_scalar, task_bar_dict):
     return baz
 
 
+@fixture
+def task_class():
+    class C:
+        @iotaa.external
+        def foo(self):
+            """
+            The foo task.
+            """
+
+        @iotaa.task
+        def bar(self):
+            pass
+
+        @iotaa.tasks
+        def baz(self):
+            pass
+
+        @iotaa.external
+        def _foo(self):
+            pass
+
+        @iotaa.task
+        def _bar(self):
+            pass
+
+        @iotaa.tasks
+        def _baz(self):
+            pass
+
+        def qux(self):
+            pass
+
+    return C
+
+
 # Helpers
 
 
-def args(path, tasknames):
+def args(path, tasks):
     m = path / "a.py"
     m.touch()
     strs = ["foo", "88", "3.14", "true"]
@@ -140,7 +176,7 @@ def args(path, tasknames):
         function="a_function",
         graph=True,
         module=m,
-        tasknames=tasknames,
+        tasks=tasks,
         verbose=True,
     )
 
@@ -246,7 +282,7 @@ def test_main_mocked_up(tmp_path):
     ) as mocks:
         with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
             parse_args = mocks["_parse_args"]
-            parse_args.return_value = args(path=tmp_path, tasknames=False)
+            parse_args.return_value = args(path=tmp_path, tasks=False)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 iotaa.main()
                 import_module = mocks["import_module"]
@@ -265,7 +301,7 @@ def test_main_mocked_up_tasknames(tmp_path):
     ) as mocks:
         with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
             parse_args = mocks["_parse_args"]
-            parse_args.return_value = args(path=tmp_path, tasknames=True)
+            parse_args.return_value = args(path=tmp_path, tasks=True)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 with raises(SystemExit) as e:
                     iotaa.main()
@@ -330,36 +366,8 @@ def test_runconda():
         run.assert_called_once_with(taskname=taskname, cmd=fullcmd, cwd=None, env=None, log=False)
 
 
-def test_tasknames():
-    class C:
-        @iotaa.external
-        def foo(self):
-            pass
-
-        @iotaa.task
-        def bar(self):
-            pass
-
-        @iotaa.tasks
-        def baz(self):
-            pass
-
-        @iotaa.external
-        def _foo(self):
-            pass
-
-        @iotaa.task
-        def _bar(self):
-            pass
-
-        @iotaa.tasks
-        def _baz(self):
-            pass
-
-        def qux(self):
-            pass
-
-    assert iotaa.tasknames(C()) == ["bar", "baz", "foo"]
+def test_tasknames(task_class):
+    assert iotaa.tasknames(task_class()) == ["bar", "baz", "foo"]
 
 
 # Decorator tests
@@ -551,32 +559,37 @@ def test__listify():
     assert iotaa._listify(assets={"a": a}) == [a]
 
 
-def test__parse_args():
-    # Specifying module, function, and two args (standard logging, no graph):
-    a0 = iotaa._parse_args(raw="a_module a_function arg1 arg2".split(" "))
-    assert a0.module == "a_module"
-    assert a0.function == "a_function"
-    assert a0.graph is False
-    assert a0.args == ["arg1", "arg2"]
-    assert a0.verbose is False
-    # Specifying module, function, two args (verbose logging, no graph):
-    a1 = iotaa._parse_args(raw="a_module a_function arg1 arg2 --verbose".split(" "))
-    assert a1.module == "a_module"
-    assert a1.function == "a_function"
-    assert a1.graph is False
-    assert a1.args == ["arg1", "arg2"]
-    assert a1.verbose is True
-    # Specifying module, function, but no args (standard logging):
-    a2 = iotaa._parse_args(raw="a_module a_function --graph".split(" "))
-    assert a2.module == "a_module"
-    assert a2.function == "a_function"
-    assert a2.graph is True
-    assert a2.args == []
-    assert a2.verbose is False
-    # It is an error to specify just a module with no function:
+@pytest.mark.parametrize("graph", [None, "-g", "--graph"])
+@pytest.mark.parametrize("tasks", [None, "-t", "--tasks"])
+@pytest.mark.parametrize("verbose", [None, "-v", "--verbose"])
+def test__parse_args(graph, tasks, verbose):
+    raw = ["a_module", "a_function", "arg1", "arg2"]
+    if graph:
+        raw.append(graph)
+    if tasks:
+        raw.append(tasks)
+    if verbose:
+        raw.append(verbose)
+    args = iotaa._parse_args(raw=raw)
+    assert args.module == "a_module"
+    assert args.function == "a_function"
+    assert args.args == ["arg1", "arg2"]
+    assert args.graph is bool(graph)
+    assert args.tasks is bool(tasks)
+    assert args.verbose is bool(verbose)
+
+
+def test__parse_args_missing_task_no():
     with raises(SystemExit) as e:
-        iotaa._parse_args(raw="just_a_module".split(" "))
-    assert e.value.code == 2
+        iotaa._parse_args(raw=["a_module"])
+    assert e.value.code == 1
+
+
+@pytest.mark.parametrize("switch", ["-t", "--tasks"])
+def test__parse_args_missing_task_ok(switch):
+    args = iotaa._parse_args(raw=["a_module", switch])
+    assert args.module == "a_module"
+    assert args.tasks is True
 
 
 def test__ready():
@@ -608,6 +621,19 @@ def test__report_readiness(caplog, vals):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
+
+
+def test__show_tasks(capsys, task_class):
+    with raises(SystemExit):
+        iotaa._show_tasks(name="X", obj=task_class)
+    expected = """
+    Tasks in X:
+      bar
+      baz
+      foo
+        The foo task.
+    """
+    assert capsys.readouterr().out.strip() == dedent(expected).strip()
 
 
 def test_state_reset_via_task():

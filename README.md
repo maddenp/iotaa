@@ -59,23 +59,37 @@ As with `@external` tasks, no statements should follow the second and final `yie
 
 ### Installation
 
-- In a conda environment: `conda install -c maddenp iotaa`, or
-- In a Python `venv` environment, from the `src/` directory of an `iotaa` git clone: `pip install --prefix /path/to/venv .`, or
+Installation via a `conda` package at [anaconda.org](https://anaconda.org/conda-forge/iotaa):
+
+- Into an existing, activated conda environment: `conda install -c conda-forge iotaa`
+- Into a new environment called `iotaa`: `conda create -n iotaa -c conda-forge iotaa`
+
+Installation via a `pip` package at [pypi.org](https://pypi.org/project/iotaa/):
+
+- Into an existing, activated `venv` environment: `pip install iotaa`
+
+Installation via local source, from the `src/` directory of an `iotaa` git clone:
+
+- Into an existing, activated `venv` environment: `pip install .`
+- Into an arbitrary directory (e.g. directory to be added to `PYTHONPATH`, or path to a `venv`): `pip install --prefix /some/path .`
+
+Integration into another package:
+
 - Copy the `src/iotaa/__init__.py` module as `iotaa.py` to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
 
 ### CLI Use
 
 ```
 % iotaa --help
-usage: iotaa [-d] [-h] [-g] [-v] module function [args ...]
+usage: iotaa [-d] [-h] [-g] [-t] [-v] module [function] [args ...]
 
 positional arguments:
   module
-    application module
+    application module name or path
   function
-    task function
+    task name
   args
-    function arguments
+    task arguments
 
 optional arguments:
   -d, --dry-run
@@ -84,8 +98,10 @@ optional arguments:
     show help and exit
   -g, --graph
     emit Graphviz dot to stdout
+  -t, --tasks
+    show available tasks
   -v, --verbose
-    verbose logging
+    enable verbose logging
 ```
 
 Specifying positional arguments `m f hello 88` would call task function `f` in module `m` with arguments `hello: str` and `88: int`. (Positional arguments `args` are parsed with Python's `json` library into Python values.)
@@ -93,6 +109,8 @@ Specifying positional arguments `m f hello 88` would call task function `f` in m
 It is assumed that `m` is importable by Python by any customary means. However, if `m` is a valid absolute or relative path (and so more likely specified as `m.py` or `/path/to/m.py`), its parent directory is automatically added by `iotaa` to `sys.path` so that it can be loaded.
 
 A task tree of arbitrary complexity defined in module `m` may be entered at any point by specifying the appropriate task function `f`. Only `f` and its children will be processed, resulting in partial execution of a potentially larger workflow graph.
+
+The `function` argument is optional (and ignored) if the `-t` / `--tasks` option, which lists the names of tasks in `module`, is specified.
 
 ### Programmatic Use
 
@@ -115,7 +133,7 @@ Several public helper callables are available in the `iotaa` module:
 - `refs()` accepts the value returned by a `@task` or `@external` object and returns: the `ref` attribute of the value's scalar asset; a `dict` mapping `int` index keys to `ref` attributes of the value's `list` of assets; or a `dict` mapping `str` keys to the `ref` attributes of the value's `dict` of assets. (**NB** The tasks required by a `@tasks` function may return their assets as `dict`s, `list`s, or scalars. A `@tasks` function combines assets as a flat `list`. Order should be preserved, and `refs()` may be used to extract the assets' `ref` attributes, but selecting a specific asset from a specific required task may be tricky and error-prone.)
 - `run()` runs a command in a subshell -- functionality commonly needed in workflows.
 - `runconda()` runs a command in a subshell with a named conda environment activated.
-- `tasks()` accepts an object (e.g. a module) and returns a list of names of iotaa tasks that are attributes of the object.
+- `tasknames()` accepts an object (e.g. a module) and returns a list of names of tasks that are attributes of the object. (This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.)
 
 ## Development
 

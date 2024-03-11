@@ -17,6 +17,7 @@ from itertools import chain
 from json import JSONDecodeError, loads
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
+from types import ModuleType
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
@@ -256,14 +257,14 @@ def main() -> None:
     logcfg(verbose=args.verbose)
     if args.dry_run:
         dryrun()
-    module = Path(args.module)
-    if module.is_file():
-        sys.path.append(str(module.parent.resolve()))
-        args.module = module.stem
-    modobj = import_module(args.module)
-    if args.tasknames:
-        print("Tasks in %s: %s" % (module, ", ".join(tasknames(modobj))))
-        sys.exit(0)
+    modname = args.module
+    modpath = Path(modname)
+    if modpath.is_file():
+        sys.path.append(str(modpath.parent.resolve()))
+        modname = modpath.stem
+    modobj = import_module(modname)
+    if args.tasks:
+        _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     getattr(modobj, args.function)(*reified)
     if args.graph:
@@ -546,16 +547,20 @@ def _parse_args(raw: List[str]) -> Namespace:
     :return: Parsed command-line arguments.
     """
     parser = ArgumentParser(add_help=False, formatter_class=_formatter)
-    parser.add_argument("module", help="application module", type=str)
-    parser.add_argument("function", help="task function", type=str)
-    parser.add_argument("args", help="function arguments", nargs="*")
+    parser.add_argument("module", help="application module name or path", type=str)
+    parser.add_argument("function", help="task name", type=str, nargs="?")
+    parser.add_argument("args", help="task arguments", type=str, nargs="*")
     optional = parser.add_argument_group("optional arguments")
     optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
-    optional.add_argument("-t", "--tasknames", action="store_true", help="list iotaa task names")
-    optional.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
-    return parser.parse_args(raw)
+    optional.add_argument("-t", "--tasks", action="store_true", help="show available tasks")
+    optional.add_argument("-v", "--verbose", action="store_true", help="enable verbose logging")
+    args = parser.parse_args(raw)
+    if not args.function and not args.tasks:
+        print("Request --tasks or specify task name")
+        sys.exit(1)
+    return args
 
 
 def _ready(assets: _AssetT) -> bool:
@@ -614,6 +619,21 @@ def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
     f_out.__doc__ = f_in.__doc__
     setattr(f_out, "hidden", f_in.__name__.startswith("_"))
     return f_out
+
+
+def _show_tasks(name: str, obj: ModuleType) -> None:
+    """
+    Print names and descriptions of tasks available in module.
+
+    :param name: The name of the task-bearing object (e.g. module).
+    :param obj: The task-bearing object itself.
+    """
+    print("Tasks in %s:" % name)
+    for t in tasknames(obj):
+        print("  %s" % t)
+        if doc := getattr(obj, t).__doc__:
+            print("    %s" % doc.strip().split("\n")[0])
+    sys.exit(0)
 
 
 def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
