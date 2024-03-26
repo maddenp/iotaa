@@ -10,6 +10,7 @@ Tests for module iotaa.
 import logging
 import re
 import sys
+from abc import abstractmethod
 from hashlib import md5
 from textwrap import dedent
 from unittest.mock import ANY
@@ -131,6 +132,12 @@ def tasks_baz(external_foo_scalar, task_bar_dict):
 @fixture
 def task_class():
     class C:
+
+        @iotaa.task
+        @abstractmethod
+        def asdf(self):
+            pass
+
         @iotaa.external
         def foo(self):
             """

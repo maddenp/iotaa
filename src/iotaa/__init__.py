@@ -373,13 +373,16 @@ def tasknames(obj: object) -> List[str]:
     :param obj: An object.
     :return: The names of iotaa tasks in the given object.
     """
-    f = (
-        lambda o: callable(o)
-        and hasattr(o, "__name__")
-        and re.match(r"^__iotaa_.+__$", o.__name__)
-        and hasattr(o, "hidden")
-        and not o.hidden
-    )
+
+    def f(o):
+        return (
+            callable(o)
+            and hasattr(o, "__name__")
+            and re.match(r"^__iotaa_.+__$", o.__name__)
+            and not o.abstract
+            and not o.hidden
+        )
+
     return sorted(name for name in dir(obj) if f(getattr(obj, name)))
 
 
@@ -617,6 +620,7 @@ def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
     :return: The decorated function with metadata set.
     """
     f_out.__doc__ = f_in.__doc__
+    setattr(f_out, "abstract", hasattr(f_in, "__isabstractmethod__"))
     setattr(f_out, "hidden", f_in.__name__.startswith("_"))
     return f_out
 
