@@ -421,7 +421,7 @@ def test_task_not_ready(caplog, request, task, tmp_path, val):
     assert val(iotaa.refs(assets)) == f_bar
     assert not val(assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Requirement(s) pending", caplog)
+    assert logged(f"task bar {f_bar}: Requirement(s) not ready", caplog)
 
 
 @pytest.mark.parametrize(
@@ -620,7 +620,7 @@ def test__reify():
     "vals",
     [
         (True, False, True, "Initial state: Ready"),
-        (False, True, False, "State: Pending (EXTERNAL)"),
+        (False, True, False, "State: Not Ready (EXTERNAL)"),
     ],
 )
 def test__report_readiness(caplog, vals):
@@ -685,7 +685,7 @@ def test__task_inital():
 
 
 def test__Graph___repr__(capsys):
-    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
+    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar not ready
     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
     tasks = {"qux", "baz"}
     with patch.object(iotaa, "_graph", iotaa._Graph()) as graph:
@@ -702,7 +702,7 @@ def test__Graph___repr__(capsys):
     assert 3 == len([x for x in out if " -> " in x])
     # How many assets were ready?
     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
-    # How many assets were pending?
+    # How many assets were not ready?
     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
 
 

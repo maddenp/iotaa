@@ -431,7 +431,7 @@ def task(f: Callable) -> _TaskT:
                 _log.info("%s: Requirement(s) ready", taskname)
                 _execute(g, taskname)
             else:
-                _log.info("%s: Requirement(s) pending", taskname)
+                _log.info("%s: Requirement(s) not ready", taskname)
                 _report_readiness(ready=False, taskname=taskname)
         ready_final = _ready(assets)
         if ready_final != ready_initial:
@@ -606,7 +606,7 @@ def _report_readiness(
         "%s: %s: %s%s",
         taskname,
         "State" if is_external else "Initial state" if initial else "Final state",
-        "Ready" if ready else "Pending",
+        "Ready" if ready else "Not Ready",
         extmsg,
     )
 
