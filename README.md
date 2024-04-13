@@ -307,7 +307,7 @@ Let's run this workflow with the `iotaa` command-line tool, requesting that the 
 [2023-10-19T11:49:43] INFO    Boiling water in cup: Checking requirements
 [2023-10-19T11:49:43] INFO    Teabag in cup: Initial state: Not Ready
 [2023-10-19T11:49:43] INFO    Teabag in cup: Checking requirements
-[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Not Ready (EXTERNAL)
+[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Not Ready (external asset)
 [2023-10-19T11:49:43] INFO    Teabag in cup: Requirement(s) not ready
 [2023-10-19T11:49:43] WARNING Teabag in cup: Final state: Not Ready
 [2023-10-19T11:49:43] INFO    Boiling water in cup: Requirement(s) not ready
@@ -353,7 +353,7 @@ teatime
 Note the blocker:
 
 ```
-[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Not Ready (EXTERNAL)
+[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Not Ready (external asset)
 ```
 
 The file `teatime/box-of-teabags` cannot be created by the workflow, as it is declared `@external`. Let's create it externally:

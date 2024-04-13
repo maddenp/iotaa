@@ -620,7 +620,7 @@ def test__reify():
     "vals",
     [
         (True, False, True, "Initial state: Ready"),
-        (False, True, False, "State: Not Ready (EXTERNAL)"),
+        (False, True, False, "State: Not Ready (external asset)"),
     ],
 )
 def test__report_readiness(caplog, vals):

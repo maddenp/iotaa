@@ -600,7 +600,7 @@ def _report_readiness(
     :param is_external: Is this an @external task?
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
-    extmsg = " (EXTERNAL)" if is_external and not ready else ""
+    extmsg = " (external asset)" if is_external and not ready else ""
     logf = _log.info if initial or ready else _log.warning
     logf(
         "%s: %s: %s%s",
