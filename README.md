@@ -23,7 +23,7 @@ Assets are created by calling calling `iotaa.asset()`.
 
 ## Tasks
 
-Task are functions that declare, by `yield`ing values to `iotaa`, the task name and -- depending on task type -- one or both of: the assets themselves, and any other task(s) the task requires. The task name is used to construct log messages detailing workflow progress, so descriptive names can be useful. Tasks that define and are responsible for readying their assets provide, following the `yield` statements, executable logic that does whatever is needed to make those assets "ready".
+Task are functions that declare, by `yield`ing values to `iotaa`, the task name and -- depending on task type -- one or both of: the task's asset(s), and any other task(s) the task requires. The task name is used to construct log messages detailing workflow progress, so descriptive names can be useful. Tasks that define and are responsible for readying their asset(s) provide, following the `yield` statements, executable logic that does whatever is needed to ready the asset(s).
 
 `iotaa` provides three Python decorators to define tasks:
 
@@ -33,9 +33,9 @@ The essential workflow function type, a `@task` function `yield`s, in order:
 
 1. Its name
 2. An asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- the task is responsible for readying
-3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- the task requires before it can ready its assets
+3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- the task requires before it can ready its asset(s)
 
-Arbitrary Python statements may appear before and interspersed between the `yield` statements. If the assets of all required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will ready the task's assets.
+Arbitrary Python statements may appear before and interspersed between the `yield` statements. If all assets of any required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will ready this task's asset(s).
 
 ### `@tasks`
 
@@ -48,7 +48,7 @@ No statements should follow the second and final `yield`, as they will never exe
 
 ### `@external`
 
-An `@external` function represents required assets that cannot be readied by the workflow and `yield`s, in order:
+An `@external` function represents zero or more required assets that cannot be readied by the workflow and `yield`s, in order:
 
 1. Its name
 2. A required asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- that must be readied by external means not under workflow control.
