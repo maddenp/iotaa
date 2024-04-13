@@ -122,9 +122,9 @@ Use the CLI `--dry-mode` switch (or call `dryrun()` programmatically) to run `io
 
 ## Helpers
 
-A number of public helper callables are available in the `iotaa` module:
+A number of public helper functions are available in the `iotaa` module:
 
-| Callable      | Description |
+| Funcion       | Description |
 | ------------- | ----------- |
 | `asset()`     | Instantiates an asset to return from a task function. |
 | `dryrun()`    | Activates dry-run mode. |
