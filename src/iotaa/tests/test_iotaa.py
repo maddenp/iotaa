@@ -446,6 +446,37 @@ def test_task_ready(caplog, request, task, tmp_path, val):
     assert logged(f"task bar {f_bar}: Requirement(s) ready", caplog)
 
 
+def test_tasks_structured():
+    a = iotaa.asset(ref="a", ready=lambda: True)
+
+    @iotaa.external
+    def tdict():
+        yield "dict"
+        yield {"foo": a, "bar": a}
+
+    @iotaa.external
+    def tlist():
+        yield "list"
+        yield [a, a]
+
+    @iotaa.external
+    def tscalar():
+        yield "scalar"
+        yield a
+
+    @iotaa.tasks
+    def structured():
+        yield "structured"
+        yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
+
+    assets = structured()
+    assert isinstance(assets, dict)
+    # pylint: disable=unsubscriptable-object
+    assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
+    assert iotaa.refs(assets["list"]) == ["a", "a"]
+    assert iotaa.refs(assets["scalar"]) == "a"
+
+
 def test_tasks_not_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
