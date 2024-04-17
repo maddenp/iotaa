@@ -496,17 +496,6 @@ def test__delegate_scalar(caplog, delegate_assets):
     assert logged("task: Checking requirements", caplog)
 
 
-# def test__delegate_empty_dict_and_empty_list(caplog):
-#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-#     assets: iotaa._AssetsT = [{}, []]
-#     def f():
-#         yield assets
-#     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-#         assert iotaa._delegate(f(), "task") == assets
-#         gufr.assert_called_once_with("task", [])
-#     assert logged("task: Checking requirements", caplog)
-
-
 def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, a2, a3, a4 = delegate_assets
@@ -545,6 +534,10 @@ def test__execute_dry_run(caplog, rungen):
 def test__execute_live(caplog, rungen):
     iotaa._execute(g=rungen, taskname="task")
     assert logged("task: Executing", caplog)
+
+
+def test__flatten():
+    assert False
 
 
 def test__formatter():
@@ -632,6 +625,10 @@ def test__report_readiness(caplog, vals):
     assert logged(f"task: {msg}", caplog)
 
 
+def test__set_metadata():
+    assert False
+
+
 def test__show_tasks(capsys, task_class):
     with raises(SystemExit):
         iotaa._show_tasks(name="X", obj=task_class)
@@ -643,22 +640,6 @@ def test__show_tasks(capsys, task_class):
         The foo task.
     """
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
-
-
-def test_state_reset_via_task():
-
-    @iotaa.external
-    def noop():
-        yield "noop"
-        yield iotaa.asset("noop", lambda: True)
-
-    with patch.object(iotaa._graph, "reset") as reset_graph:
-        with patch.object(iotaa._state, "reset") as reset_state:
-            reset_graph.assert_not_called()
-            reset_state.assert_not_called()
-            noop()
-            reset_graph.assert_called_once_with()
-            reset_state.assert_called_once_with()
 
 
 @pytest.mark.parametrize("assets", simple_assets())
@@ -786,3 +767,22 @@ def test__State_reset():
         assert _state.initialized
         _state.reset()
         assert not _state.initialized
+
+
+# Misc tests
+
+
+def test_state_reset_via_task():
+
+    @iotaa.external
+    def noop():
+        yield "noop"
+        yield iotaa.asset("noop", lambda: True)
+
+    with patch.object(iotaa._graph, "reset") as reset_graph:
+        with patch.object(iotaa._state, "reset") as reset_state:
+            reset_graph.assert_not_called()
+            reset_state.assert_not_called()
+            noop()
+            reset_graph.assert_called_once_with()
+            reset_state.assert_called_once_with()
