@@ -471,9 +471,9 @@ def test_tasks_structured():
         yield "structured"
         yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
 
-    assets = structured()
-    assert isinstance(assets, dict)
-    # pylint: disable=unsubscriptable-object
+    retval = structured()
+    assert isinstance(retval, dict)
+    assets = {**retval}
     assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
     assert iotaa.refs(assets["list"]) == ["a", "a"]
     assert iotaa.refs(assets["scalar"]) == "a"
