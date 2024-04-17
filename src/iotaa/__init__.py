@@ -134,7 +134,7 @@ class _Graph:
         Update graph data structures with current task info.
 
         :param taskname: The current task's name.
-        :param assets: A collection of assets, one asset, or None.
+        :param assets: An asset, a collection of assets, or None.
         """
         alist = _listify(assets)
         self.assets.update({a.ref: a.ready for a in alist})
@@ -274,7 +274,7 @@ def refs(assets: _AssetT) -> Any:
     """
     Extract and return asset references.
 
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     :return: Asset reference(s) in the same shape (e.g. dict, list, scalar, None) as the asets.
     """
 
@@ -501,10 +501,9 @@ def _execute(g: Generator, taskname: str) -> None:
 
 def _flatten(assets: _AssetT) -> List[Asset]:
     """
-    Return a simple list of assets formed by collapsing potentially nested lists. of assets into a
-    simple list.
+    Return a simple list of assets formed by collapsing potentially nested lists.
 
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     """
     return list(filter(None, chain(*[_listify(a) for a in _listify(assets)])))
 
@@ -536,7 +535,7 @@ def _listify(assets: _AssetT) -> List[Asset]:
     """
     Return a list representation of the provided asset(s) (may be empty).
 
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     """
     if assets is None:
         return []
@@ -575,7 +574,7 @@ def _ready(assets: _AssetT) -> bool:
     """
     Readiness of the specified asset(s).
 
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     :return: Are all the assets ready?
     """
     return all(a.ready() for a in _flatten(assets))
@@ -651,7 +650,7 @@ def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
 
     :param top: Is this the top task?
     :param taskname: The current task's name.
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     :return: The same assets that were provided as input.
     """
     if top:
