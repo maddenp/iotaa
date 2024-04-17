@@ -33,6 +33,11 @@ def delegate_assets():
 
 
 @fixture
+def empty_graph():
+    return iotaa._Graph()
+
+
+@fixture
 def external_foo_scalar():
     @iotaa.external
     def foo(path):
@@ -44,11 +49,6 @@ def external_foo_scalar():
         yield iotaa.asset(f, f.is_file)
 
     return foo
-
-
-@fixture
-def empty_graph():
-    return iotaa._Graph()
 
 
 @fixture

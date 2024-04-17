@@ -273,20 +273,16 @@ def main() -> None:
 
 def refs(assets: _AssetT) -> Any:
     """
-    Extract and return asset identity objects.
+    Extract and return asset references.
 
     :param assets: A collection of assets, one asset, or None.
-    :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
-        as the provided assets.
+    :return: Asset reference(s) in the same shape (e.g. dict, list, scalar, None) as the asets.
     """
-
-    # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
-    # scalar types are included in a compound type.
 
     if isinstance(assets, dict):
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
-        return {i: v.ref for i, v in enumerate(assets)}
+        return [a.ref for a in assets]
     if isinstance(assets, Asset):
         return assets.ref
     return None
