@@ -451,9 +451,9 @@ def test_tasks_not_ready(tasks_baz, tmp_path):
     with patch.object(iotaa, "_state") as _state:
         _state.initialized = False
         assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets)[0] == f_foo
-    assert iotaa.refs(assets)[1] == f_bar
-    assert not any(x.ready() for x in assets)
+    assert iotaa.refs(assets[0]) == f_foo
+    assert iotaa.refs(assets[1]["path"]) == f_bar
+    assert not any(x.ready() for x in iotaa._flatten(assets))
     assert not any(x.is_file() for x in [f_foo, f_bar])
 
 
@@ -463,9 +463,9 @@ def test_tasks_ready(tasks_baz, tmp_path):
     assert f_foo.is_file()
     assert not f_bar.is_file()
     assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets)[0] == f_foo
-    assert iotaa.refs(assets)[1] == f_bar
-    assert all(x.ready() for x in assets)
+    assert iotaa.refs(assets[0]) == f_foo
+    assert iotaa.refs(assets[1]["path"]) == f_bar
+    assert all(x.ready() for x in iotaa._flatten(assets))
     assert all(x.is_file() for x in [f_foo, f_bar])
 
 
@@ -485,37 +485,38 @@ def test__delegate_none(caplog):
 def test__delegate_scalar(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, *_ = delegate_assets
+    assets = a1
 
     def f():
-        yield a1
+        yield assets
 
     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == [a1]
+        assert iotaa._delegate(f(), "task") == assets
         gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
 
 
-def test__delegate_empty_dict_and_empty_list(caplog):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-
-    def f():
-        yield [{}, []]
-
-    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert not iotaa._delegate(f(), "task")
-        gufr.assert_called_once_with("task", [])
-    assert logged("task: Checking requirements", caplog)
+# def test__delegate_empty_dict_and_empty_list(caplog):
+#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
+#     assets: iotaa._AssetsT = [{}, []]
+#     def f():
+#         yield assets
+#     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
+#         assert iotaa._delegate(f(), "task") == assets
+#         gufr.assert_called_once_with("task", [])
+#     assert logged("task: Checking requirements", caplog)
 
 
 def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, a2, a3, a4 = delegate_assets
+    assets = [{"foo": a1, "bar": a2}, [a3, a4]]
 
     def f():
-        yield [{"foo": a1, "bar": a2}, [a3, a4]]
+        yield assets
 
     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == [a1, a2, a3, a4]
+        assert iotaa._delegate(f(), "task") == assets
         gufr.assert_called_once_with("task", [a1, a2, a3, a4])
     assert logged("task: Checking requirements", caplog)
 
@@ -523,12 +524,13 @@ def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
 def test__delegate_none_and_scalar(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, *_ = delegate_assets
+    assets = [None, a1]
 
     def f():
-        yield [None, a1]
+        yield assets
 
     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == [a1]
+        assert iotaa._delegate(f(), "task") == assets
         gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
 

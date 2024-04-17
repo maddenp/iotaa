@@ -427,7 +427,8 @@ def task(f: Callable) -> _TaskT:
             _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
-            if _ready(_delegate(g, taskname)):
+            required_assets = _delegate(g, taskname)
+            if _ready(required_assets):
                 _log.info("%s: Requirement(s) ready", taskname)
                 _execute(g, taskname)
             else:
@@ -454,11 +455,11 @@ def tasks(f: Callable) -> _TaskT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
-        assets = _delegate(g, taskname)
-        ready = _ready(assets)
+        required_assets = _delegate(g, taskname)
+        ready = _ready(required_assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(top, taskname, assets)
+        return _task_final(top, taskname, required_assets)
 
     return _set_metadata(f, __iotaa_tasks__)
 
@@ -466,7 +467,7 @@ def tasks(f: Callable) -> _TaskT:
 # Private helper functions:
 
 
-def _delegate(g: Generator, taskname: str) -> List[Asset]:
+def _delegate(g: Generator, taskname: str) -> _AssetsT:
     """
     Delegate execution to the current task's requirement(s).
 
@@ -481,9 +482,9 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     _log.info("%s: Checking requirements", taskname)
-    alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-    _graph.update_from_requirements(taskname, alist)
-    return alist
+    assets = next(g)
+    _graph.update_from_requirements(taskname, _flatten(assets))
+    return assets
 
 
 def _execute(g: Generator, taskname: str) -> None:
@@ -501,6 +502,16 @@ def _execute(g: Generator, taskname: str) -> None:
         next(g)
     except StopIteration:
         pass
+
+
+def _flatten(assets: _AssetT) -> List[Asset]:
+    """
+    Return a simple list of assets formed by collapsing potentially nested lists. of assets into a
+    simple list.
+
+    :param assets: A collection of assets, one asset, or None.
+    """
+    return list(filter(None, chain(*[_listify(a) for a in _listify(assets)])))
 
 
 def _formatter(prog: str) -> HelpFormatter:
@@ -528,10 +539,9 @@ def _i_am_top_task() -> bool:
 
 def _listify(assets: _AssetT) -> List[Asset]:
     """
-    Return a list representation of the provided asset(s).
+    Return a list representation of the provided asset(s) (may be empty).
 
     :param assets: A collection of assets, one asset, or None.
-    :return: A possibly empty list of assets.
     """
     if assets is None:
         return []
@@ -573,7 +583,7 @@ def _ready(assets: _AssetT) -> bool:
     :param assets: A collection of assets, one asset, or None.
     :return: Are all the assets ready?
     """
-    return all(a.ready() for a in _listify(assets))
+    return all(a.ready() for a in _flatten(assets))
 
 
 def _reify(s: str) -> Any:
@@ -651,7 +661,7 @@ def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
     """
     if top:
         _state.reset()
-    for a in _listify(assets):
+    for a in _flatten(assets):
         setattr(a, "taskname", taskname)
     return assets
 
