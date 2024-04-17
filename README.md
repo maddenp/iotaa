@@ -132,7 +132,7 @@ A number of public helper functions are available in the `iotaa` module:
 | `logcfg()`    | Configures Python's root logger to support `logging.info()` (et al.) calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically. |
 | `logset()`    | Accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it. |
 | `main()`      | The entry-point function for CLI use. |
-| `refs()`      | Accepts the value returned by a `@task` or `@external` object and returns: the `ref` attribute of the value's scalar asset; a `dict` mapping `int` index keys to `ref` attributes of the value's `list` of assets; or a `dict` mapping `str` keys to the `ref` attributes of the value's `dict` of assets. (**NB** The tasks required by a `@tasks` function may return their assets as `dict`s, `list`s, or scalars. A `@tasks` function combines assets as a flat `list`. Order should be preserved, and `refs()` may be used to extract the assets' `ref` attributes, but selecting a specific asset from a specific required task may be tricky and error-prone.) |
+| `refs()`      | Accepts the value returned by a decorated task function and returns `ref` values of the assets in the same structure as returned by the function.
 | `run()`       | Runs a command in a subshell. |
 | `runconda()`  | Runs a command in a subshell with a named conda environment activated. |
 | `tasknames()` | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
