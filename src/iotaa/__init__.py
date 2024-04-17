@@ -52,8 +52,7 @@ class Result:
 
 # Types:
 
-_AssetsT = Union[Dict[str, Asset], List[Asset]]
-_AssetT = Optional[Union[_AssetsT, Asset]]
+_AssetT = Optional[Union[Asset, Dict[str, Asset], List[Asset]]]
 _TaskT = Callable[..., _AssetT]
 
 # Private helper classes and their instances:
@@ -135,7 +134,7 @@ class _Graph:
         Update graph data structures with current task info.
 
         :param taskname: The current task's name.
-        :param assets: A collection of assets, one asset, or None.
+        :param assets: An asset, a collection of assets, or None.
         """
         alist = _listify(assets)
         self.assets.update({a.ref: a.ready for a in alist})
@@ -273,20 +272,16 @@ def main() -> None:
 
 def refs(assets: _AssetT) -> Any:
     """
-    Extract and return asset identity objects.
+    Extract and return asset references.
 
-    :param assets: A collection of assets, one asset, or None.
-    :return: Identity object(s) for the asset(s), in the same shape (e.g. dict, list, scalar, None)
-        as the provided assets.
+    :param assets: An asset, a collection of assets, or None.
+    :return: Asset reference(s) in the same shape (e.g. dict, list, scalar, None) as the asets.
     """
-
-    # The Any return type is unfortunate, but avoids "not indexible" typechecker complaints when
-    # scalar types are included in a compound type.
 
     if isinstance(assets, dict):
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
-        return {i: v.ref for i, v in enumerate(assets)}
+        return [a.ref for a in assets]
     if isinstance(assets, Asset):
         return assets.ref
     return None
@@ -427,11 +422,12 @@ def task(f: Callable) -> _TaskT:
             _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
-            if _ready(_delegate(g, taskname)):
+            required_assets = _delegate(g, taskname)
+            if _ready(required_assets):
                 _log.info("%s: Requirement(s) ready", taskname)
                 _execute(g, taskname)
             else:
-                _log.info("%s: Requirement(s) pending", taskname)
+                _log.info("%s: Requirement(s) not ready", taskname)
                 _report_readiness(ready=False, taskname=taskname)
         ready_final = _ready(assets)
         if ready_final != ready_initial:
@@ -454,11 +450,11 @@ def tasks(f: Callable) -> _TaskT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
-        assets = _delegate(g, taskname)
-        ready = _ready(assets)
+        required_assets = _delegate(g, taskname)
+        ready = _ready(required_assets)
         if not ready or top:
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(top, taskname, assets)
+        return _task_final(top, taskname, required_assets)
 
     return _set_metadata(f, __iotaa_tasks__)
 
@@ -466,7 +462,7 @@ def tasks(f: Callable) -> _TaskT:
 # Private helper functions:
 
 
-def _delegate(g: Generator, taskname: str) -> List[Asset]:
+def _delegate(g: Generator, taskname: str) -> _AssetT:
     """
     Delegate execution to the current task's requirement(s).
 
@@ -481,9 +477,9 @@ def _delegate(g: Generator, taskname: str) -> List[Asset]:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     _log.info("%s: Checking requirements", taskname)
-    alist = list(filter(None, chain(*[_listify(a) for a in _listify(next(g))])))
-    _graph.update_from_requirements(taskname, alist)
-    return alist
+    assets = next(g)
+    _graph.update_from_requirements(taskname, _flatten(assets))
+    return assets
 
 
 def _execute(g: Generator, taskname: str) -> None:
@@ -501,6 +497,15 @@ def _execute(g: Generator, taskname: str) -> None:
         next(g)
     except StopIteration:
         pass
+
+
+def _flatten(assets: _AssetT) -> List[Asset]:
+    """
+    Return a simple list of assets formed by collapsing potentially nested lists.
+
+    :param assets: An asset, a collection of assets, or None.
+    """
+    return list(filter(None, chain(*[_listify(a) for a in _listify(assets)])))
 
 
 def _formatter(prog: str) -> HelpFormatter:
@@ -528,10 +533,9 @@ def _i_am_top_task() -> bool:
 
 def _listify(assets: _AssetT) -> List[Asset]:
     """
-    Return a list representation of the provided asset(s).
+    Return a list representation of the provided asset(s) (may be empty).
 
-    :param assets: A collection of assets, one asset, or None.
-    :return: A possibly empty list of assets.
+    :param assets: An asset, a collection of assets, or None.
     """
     if assets is None:
         return []
@@ -570,10 +574,10 @@ def _ready(assets: _AssetT) -> bool:
     """
     Readiness of the specified asset(s).
 
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     :return: Are all the assets ready?
     """
-    return all(a.ready() for a in _listify(assets))
+    return all(a.ready() for a in _flatten(assets))
 
 
 def _reify(s: str) -> Any:
@@ -600,18 +604,18 @@ def _report_readiness(
     :param is_external: Is this an @external task?
     :param initial: Is this a initial (i.e. pre-run) readiness report?
     """
-    extmsg = " (EXTERNAL)" if is_external and not ready else ""
+    extmsg = " (external asset)" if is_external and not ready else ""
     logf = _log.info if initial or ready else _log.warning
     logf(
         "%s: %s: %s%s",
         taskname,
         "State" if is_external else "Initial state" if initial else "Final state",
-        "Ready" if ready else "Pending",
+        "Ready" if ready else "Not Ready",
         extmsg,
     )
 
 
-def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
+def _set_metadata(f_in: Callable, f_out: _TaskT) -> _TaskT:
     """
     Set metadata on a decorated function.
 
@@ -646,12 +650,12 @@ def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
 
     :param top: Is this the top task?
     :param taskname: The current task's name.
-    :param assets: A collection of assets, one asset, or None.
+    :param assets: An asset, a collection of assets, or None.
     :return: The same assets that were provided as input.
     """
     if top:
         _state.reset()
-    for a in _listify(assets):
+    for a in _flatten(assets):
         setattr(a, "taskname", taskname)
     return assets
 

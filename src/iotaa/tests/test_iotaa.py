@@ -2,10 +2,10 @@
 Tests for module iotaa.
 """
 
-# pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
+# pylint: disable=use-implicit-booleaness-not-comparison
 
 import logging
 import re
@@ -32,6 +32,11 @@ def delegate_assets():
 
 
 @fixture
+def empty_graph():
+    return iotaa._Graph()
+
+
+@fixture
 def external_foo_scalar():
     @iotaa.external
     def foo(path):
@@ -43,11 +48,6 @@ def external_foo_scalar():
         yield iotaa.asset(f, f.is_file)
 
     return foo
-
-
-@fixture
-def empty_graph():
-    return iotaa._Graph()
 
 
 @fixture
@@ -132,6 +132,9 @@ def tasks_baz(external_foo_scalar, task_bar_dict):
 @fixture
 def task_class():
     class C:
+        """
+        Class C.
+        """
 
         @iotaa.task
         @abstractmethod
@@ -421,7 +424,7 @@ def test_task_not_ready(caplog, request, task, tmp_path, val):
     assert val(iotaa.refs(assets)) == f_bar
     assert not val(assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Requirement(s) pending", caplog)
+    assert logged(f"task bar {f_bar}: Requirement(s) not ready", caplog)
 
 
 @pytest.mark.parametrize(
@@ -445,15 +448,46 @@ def test_task_ready(caplog, request, task, tmp_path, val):
     assert logged(f"task bar {f_bar}: Requirement(s) ready", caplog)
 
 
+def test_tasks_structured():
+    a = iotaa.asset(ref="a", ready=lambda: True)
+
+    @iotaa.external
+    def tdict():
+        yield "dict"
+        yield {"foo": a, "bar": a}
+
+    @iotaa.external
+    def tlist():
+        yield "list"
+        yield [a, a]
+
+    @iotaa.external
+    def tscalar():
+        yield "scalar"
+        yield a
+
+    @iotaa.tasks
+    def structured():
+        yield "structured"
+        yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
+
+    retval = structured()
+    assert isinstance(retval, dict)
+    assets = {**retval}
+    assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
+    assert iotaa.refs(assets["list"]) == ["a", "a"]
+    assert iotaa.refs(assets["scalar"]) == "a"
+
+
 def test_tasks_not_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     with patch.object(iotaa, "_state") as _state:
         _state.initialized = False
         assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets)[0] == f_foo
-    assert iotaa.refs(assets)[1] == f_bar
-    assert not any(x.ready() for x in assets)
+    assert iotaa.refs(assets[0]) == f_foo
+    assert iotaa.refs(assets[1]["path"]) == f_bar
+    assert not any(x.ready() for x in iotaa._flatten(assets))
     assert not any(x.is_file() for x in [f_foo, f_bar])
 
 
@@ -463,9 +497,9 @@ def test_tasks_ready(tasks_baz, tmp_path):
     assert f_foo.is_file()
     assert not f_bar.is_file()
     assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets)[0] == f_foo
-    assert iotaa.refs(assets)[1] == f_bar
-    assert all(x.ready() for x in assets)
+    assert iotaa.refs(assets[0]) == f_foo
+    assert iotaa.refs(assets[1]["path"]) == f_bar
+    assert all(x.ready() for x in iotaa._flatten(assets))
     assert all(x.is_file() for x in [f_foo, f_bar])
 
 
@@ -485,37 +519,27 @@ def test__delegate_none(caplog):
 def test__delegate_scalar(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, *_ = delegate_assets
+    assets = a1
 
     def f():
-        yield a1
+        yield assets
 
     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == [a1]
+        assert iotaa._delegate(f(), "task") == assets
         gufr.assert_called_once_with("task", [a1])
-    assert logged("task: Checking requirements", caplog)
-
-
-def test__delegate_empty_dict_and_empty_list(caplog):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-
-    def f():
-        yield [{}, []]
-
-    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert not iotaa._delegate(f(), "task")
-        gufr.assert_called_once_with("task", [])
     assert logged("task: Checking requirements", caplog)
 
 
 def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, a2, a3, a4 = delegate_assets
+    assets = [{"foo": a1, "bar": a2}, [a3, a4]]
 
     def f():
-        yield [{"foo": a1, "bar": a2}, [a3, a4]]
+        yield assets
 
     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == [a1, a2, a3, a4]
+        assert iotaa._delegate(f(), "task") == assets
         gufr.assert_called_once_with("task", [a1, a2, a3, a4])
     assert logged("task: Checking requirements", caplog)
 
@@ -523,12 +547,13 @@ def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
 def test__delegate_none_and_scalar(caplog, delegate_assets):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     a1, *_ = delegate_assets
+    assets = [None, a1]
 
     def f():
-        yield [None, a1]
+        yield assets
 
     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == [a1]
+        assert iotaa._delegate(f(), "task") == assets
         gufr.assert_called_once_with("task", [a1])
     assert logged("task: Checking requirements", caplog)
 
@@ -543,6 +568,16 @@ def test__execute_dry_run(caplog, rungen):
 def test__execute_live(caplog, rungen):
     iotaa._execute(g=rungen, taskname="task")
     assert logged("task: Executing", caplog)
+
+
+def test__flatten():
+    a = iotaa.asset(ref=None, ready=lambda: True)
+    assert iotaa._flatten(None) == []
+    assert iotaa._flatten([]) == []
+    assert iotaa._flatten({}) == []
+    assert iotaa._flatten(a) == [a]
+    assert iotaa._flatten([a, a]) == [a, a]
+    assert iotaa._flatten({"foo": a, "bar": a}) == [a, a]
 
 
 def test__formatter():
@@ -620,7 +655,7 @@ def test__reify():
     "vals",
     [
         (True, False, True, "Initial state: Ready"),
-        (False, True, False, "State: Pending (EXTERNAL)"),
+        (False, True, False, "State: Not Ready (external asset)"),
     ],
 )
 def test__report_readiness(caplog, vals):
@@ -628,6 +663,19 @@ def test__report_readiness(caplog, vals):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
+
+
+def test__set_metadata():
+    def _f_in():
+        "Testing"
+
+    def f_out():
+        pass
+
+    iotaa._set_metadata(_f_in, f_out)
+    assert f_out.__doc__ == "Testing"
+    assert f_out.abstract is False  # type: ignore
+    assert f_out.hidden is True  # type: ignore
 
 
 def test__show_tasks(capsys, task_class):
@@ -641,22 +689,6 @@ def test__show_tasks(capsys, task_class):
         The foo task.
     """
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
-
-
-def test_state_reset_via_task():
-
-    @iotaa.external
-    def noop():
-        yield "noop"
-        yield iotaa.asset("noop", lambda: True)
-
-    with patch.object(iotaa._graph, "reset") as reset_graph:
-        with patch.object(iotaa._state, "reset") as reset_state:
-            reset_graph.assert_not_called()
-            reset_state.assert_not_called()
-            noop()
-            reset_graph.assert_called_once_with()
-            reset_state.assert_called_once_with()
 
 
 @pytest.mark.parametrize("assets", simple_assets())
@@ -685,7 +717,7 @@ def test__task_inital():
 
 
 def test__Graph___repr__(capsys):
-    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar pending
+    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar not ready
     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
     tasks = {"qux", "baz"}
     with patch.object(iotaa, "_graph", iotaa._Graph()) as graph:
@@ -702,7 +734,7 @@ def test__Graph___repr__(capsys):
     assert 3 == len([x for x in out if " -> " in x])
     # How many assets were ready?
     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
-    # How many assets were pending?
+    # How many assets were not ready?
     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
 
 
@@ -784,3 +816,22 @@ def test__State_reset():
         assert _state.initialized
         _state.reset()
         assert not _state.initialized
+
+
+# Misc tests
+
+
+def test_state_reset_via_task():
+
+    @iotaa.external
+    def noop():
+        yield "noop"
+        yield iotaa.asset("noop", lambda: True)
+
+    with patch.object(iotaa._graph, "reset") as reset_graph:
+        with patch.object(iotaa._state, "reset") as reset_state:
+            reset_graph.assert_not_called()
+            reset_state.assert_not_called()
+            noop()
+            reset_graph.assert_called_once_with()
+            reset_state.assert_called_once_with()
