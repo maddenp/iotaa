@@ -52,8 +52,7 @@ class Result:
 
 # Types:
 
-_AssetsT = Union[Dict[str, Asset], List[Asset]]
-_AssetT = Optional[Union[_AssetsT, Asset]]
+_AssetT = Optional[Union[Asset, Dict[str, Asset], List[Asset]]]
 _TaskT = Callable[..., _AssetT]
 
 # Private helper classes and their instances:
@@ -463,7 +462,7 @@ def tasks(f: Callable) -> _TaskT:
 # Private helper functions:
 
 
-def _delegate(g: Generator, taskname: str) -> _AssetsT:
+def _delegate(g: Generator, taskname: str) -> _AssetT:
     """
     Delegate execution to the current task's requirement(s).
 
@@ -617,7 +616,7 @@ def _report_readiness(
     )
 
 
-def _set_metadata(f_in: Callable, f_out: Callable) -> Callable:
+def _set_metadata(f_in: Callable, f_out: _TaskT) -> _TaskT:
     """
     Set metadata on a decorated function.
 
