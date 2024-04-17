@@ -2,7 +2,6 @@
 Tests for module iotaa.
 """
 
-# pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
@@ -133,6 +132,9 @@ def tasks_baz(external_foo_scalar, task_bar_dict):
 @fixture
 def task_class():
     class C:
+        """
+        Class C.
+        """
 
         @iotaa.task
         @abstractmethod
