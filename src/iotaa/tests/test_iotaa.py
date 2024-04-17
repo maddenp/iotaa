@@ -6,6 +6,7 @@ Tests for module iotaa.
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
+# pylint: disable=use-implicit-booleaness-not-comparison
 
 import logging
 import re
@@ -537,7 +538,13 @@ def test__execute_live(caplog, rungen):
 
 
 def test__flatten():
-    assert False
+    a = iotaa.asset(ref=None, ready=lambda: True)
+    assert iotaa._flatten(None) == []
+    assert iotaa._flatten([]) == []
+    assert iotaa._flatten({}) == []
+    assert iotaa._flatten(a) == [a]
+    assert iotaa._flatten([a, a]) == [a, a]
+    assert iotaa._flatten({"foo": a, "bar": a}) == [a, a]
 
 
 def test__formatter():
@@ -626,7 +633,16 @@ def test__report_readiness(caplog, vals):
 
 
 def test__set_metadata():
-    assert False
+    def _f_in():
+        "Testing"
+
+    def f_out():
+        pass
+
+    iotaa._set_metadata(_f_in, f_out)
+    assert f_out.__doc__ == "Testing"
+    assert f_out.abstract is False  # type: ignore
+    assert f_out.hidden is True  # type: ignore
 
 
 def test__show_tasks(capsys, task_class):
