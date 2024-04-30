@@ -136,7 +136,7 @@ class _Graph:
         :param taskname: The current task's name.
         :param assets: An asset, a collection of assets, or None.
         """
-        alist = _listify(assets)
+        alist = _flatten(assets)
         self.assets.update({a.ref: a.ready for a in alist})
         self.edges |= set((taskname, a.ref) for a in alist)
         self.tasks.add(taskname)
@@ -499,13 +499,18 @@ def _execute(g: Generator, taskname: str) -> None:
         pass
 
 
-def _flatten(assets: _AssetT) -> List[Asset]:
+def _flatten(assets: Union[_AssetT, Dict[str, _AssetT], List[_AssetT]]) -> List[Asset]:
     """
-    Return a simple list of assets formed by collapsing potentially nested lists.
+    Return a simple list of assets formed by collapsing potentially nested collections.
 
     :param assets: An asset, a collection of assets, or None.
     """
-    return list(filter(None, chain(*[_listify(a) for a in _listify(assets)])))
+    if assets is None:
+        return []
+    if isinstance(assets, Asset):
+        return [assets]
+    xs = assets if isinstance(assets, list) else assets.values()
+    return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
 
 
 def _formatter(prog: str) -> HelpFormatter:
@@ -529,21 +534,6 @@ def _i_am_top_task() -> bool:
     _state.initialize()
     _graph.reset()
     return True
-
-
-def _listify(assets: _AssetT) -> List[Asset]:
-    """
-    Return a list representation of the provided asset(s) (may be empty).
-
-    :param assets: An asset, a collection of assets, or None.
-    """
-    if assets is None:
-        return []
-    if isinstance(assets, Asset):
-        return [assets]
-    if isinstance(assets, dict):
-        return list(assets.values())
-    return assets
 
 
 def _parse_args(raw: List[str]) -> Namespace:

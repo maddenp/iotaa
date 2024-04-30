@@ -331,14 +331,6 @@ There's lots to see during the first invocation. Most of the tasks start and end
 [2023-10-19T11:49:43] INFO    A spoon: Final state: Ready
 ```
 
-```
-[2023-10-19T11:49:43] INFO    A cup: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    A cup: Checking requirements
-[2023-10-19T11:49:43] INFO    A cup: Requirement(s) ready
-[2023-10-19T11:49:43] INFO    A cup: Executing
-[2023-10-19T11:49:43] INFO    A cup: Final state: Ready
-```
-
 We will see in subsequent workflow invocations that these tasks are not revisited, as their assets will be found to be ready.
 
 The on-disk workflow state is:
