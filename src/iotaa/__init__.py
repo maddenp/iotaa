@@ -136,7 +136,7 @@ class _Graph:
         :param taskname: The current task's name.
         :param assets: An asset, a collection of assets, or None.
         """
-        alist = _listify(assets)
+        alist = _flatten(assets)
         self.assets.update({a.ref: a.ready for a in alist})
         self.edges |= set((taskname, a.ref) for a in alist)
         self.tasks.add(taskname)
@@ -534,21 +534,6 @@ def _i_am_top_task() -> bool:
     _state.initialize()
     _graph.reset()
     return True
-
-
-def _listify(assets: _AssetT) -> List[Asset]:
-    """
-    Return a list representation of the provided asset(s) (may be empty).
-
-    :param assets: An asset, a collection of assets, or None.
-    """
-    if assets is None:
-        return []
-    if isinstance(assets, Asset):
-        return [assets]
-    if isinstance(assets, dict):
-        return list(assets.values())
-    return assets
 
 
 def _parse_args(raw: List[str]) -> Namespace:

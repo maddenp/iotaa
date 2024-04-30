@@ -594,14 +594,6 @@ def test__i_am_top_task(val):
         assert iotaa._i_am_top_task() == val
 
 
-def test__listify():
-    a = iotaa.asset(ref=None, ready=lambda: True)
-    assert iotaa._listify(assets=None) == []
-    assert iotaa._listify(assets=a) == [a]
-    assert iotaa._listify(assets=[a]) == [a]
-    assert iotaa._listify(assets={"a": a}) == [a]
-
-
 @pytest.mark.parametrize("graph", [None, "-g", "--graph"])
 @pytest.mark.parametrize("tasks", [None, "-t", "--tasks"])
 @pytest.mark.parametrize("verbose", [None, "-v", "--verbose"])
@@ -694,10 +686,10 @@ def test__show_tasks(capsys, task_class):
 
 @pytest.mark.parametrize("assets", simple_assets())
 def test__task_final(assets):
-    for a in iotaa._listify(assets):
+    for a in iotaa._flatten(assets):
         assert getattr(a, "taskname", None) is None
     assets = iotaa._task_final(False, "task", assets)
-    for a in iotaa._listify(assets):
+    for a in iotaa._flatten(assets):
         assert getattr(a, "taskname") == "task"
 
 
@@ -771,7 +763,7 @@ def test__Graph_reset():
 def test__Graph_update_from_requirements(assets, empty_graph):
     taskname_req = "req"
     taskname_this = "task"
-    alist = iotaa._listify(assets)
+    alist = iotaa._flatten(assets)
     edges = {
         0: set(),
         1: {(taskname_this, taskname_req), (taskname_req, "foo")},
@@ -793,7 +785,7 @@ def test__Graph_update_from_task(assets, empty_graph):
         iotaa._graph.update_from_task(taskname, assets)
         assert all(a() for a in iotaa._graph.assets.values())
         assert iotaa._graph.tasks == {taskname}
-        assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._listify(assets)}
+        assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._flatten(assets)}
 
 
 # _State tests
