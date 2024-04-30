@@ -578,6 +578,7 @@ def test__flatten():
     assert iotaa._flatten(a) == [a]
     assert iotaa._flatten([a, a]) == [a, a]
     assert iotaa._flatten({"foo": a, "bar": a}) == [a, a]
+    assert iotaa._flatten([None, a, [a, a], {"foo": a, "bar": a}]) == [a, a, a, a, a]
 
 
 def test__formatter():

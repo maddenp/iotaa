@@ -499,13 +499,18 @@ def _execute(g: Generator, taskname: str) -> None:
         pass
 
 
-def _flatten(assets: _AssetT) -> List[Asset]:
+def _flatten(assets: Union[_AssetT, Dict[str, _AssetT], List[_AssetT]]) -> List[Asset]:
     """
-    Return a simple list of assets formed by collapsing potentially nested lists.
+    Return a simple list of assets formed by collapsing potentially nested collections.
 
     :param assets: An asset, a collection of assets, or None.
     """
-    return list(filter(None, chain(*[_listify(a) for a in _listify(assets)])))
+    if assets is None:
+        return []
+    if isinstance(assets, Asset):
+        return [assets]
+    xs = assets if isinstance(assets, list) else assets.values()
+    return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
 
 
 def _formatter(prog: str) -> HelpFormatter:
