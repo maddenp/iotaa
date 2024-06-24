@@ -19,7 +19,7 @@ from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from types import SimpleNamespace as ns
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Callable, Generator, Optional, Union
 
 # Public return-value classes:
 
@@ -52,7 +52,7 @@ class Result:
 
 # Types:
 
-_AssetT = Optional[Union[Asset, Dict[str, Asset], List[Asset]]]
+_AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 _TaskT = Callable[..., _AssetT]
 
 # Private helper classes and their instances:
@@ -85,7 +85,7 @@ class _Graph:
         return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges))
 
     @property
-    def color(self) -> Dict[Any, str]:
+    def color(self) -> dict[Any, str]:
         """
         Graphviz colors.
         """
@@ -115,7 +115,7 @@ class _Graph:
         self.edges: set = set()
         self.tasks: set = set()
 
-    def update_from_requirements(self, taskname: str, alist: List[Asset]) -> None:
+    def update_from_requirements(self, taskname: str, alist: list[Asset]) -> None:
         """
         Update graph data structures with required-task info.
 
@@ -291,7 +291,7 @@ def run(
     taskname: str,
     cmd: str,
     cwd: Optional[Union[Path, str]] = None,
-    env: Optional[Dict[str, str]] = None,
+    env: Optional[dict[str, str]] = None,
     log: Optional[bool] = False,
 ) -> Result:
     """
@@ -336,7 +336,7 @@ def runconda(
     taskname: str,
     cmd: str,
     cwd: Optional[Union[Path, str]] = None,
-    env: Optional[Dict[str, str]] = None,
+    env: Optional[dict[str, str]] = None,
     log: Optional[bool] = False,
 ) -> Result:
     """
@@ -361,7 +361,7 @@ def runconda(
     return run(taskname=taskname, cmd=cmd, cwd=cwd, env=env, log=log)
 
 
-def tasknames(obj: object) -> List[str]:
+def tasknames(obj: object) -> list[str]:
     """
     The names of iotaa tasks in the given object.
 
@@ -499,7 +499,7 @@ def _execute(g: Generator, taskname: str) -> None:
         pass
 
 
-def _flatten(assets: Union[_AssetT, Dict[str, _AssetT], List[_AssetT]]) -> List[Asset]:
+def _flatten(assets: Union[_AssetT, dict[str, _AssetT], list[_AssetT]]) -> list[Asset]:
     """
     Return a simple list of assets formed by collapsing potentially nested collections.
 
@@ -536,7 +536,7 @@ def _i_am_top_task() -> bool:
     return True
 
 
-def _parse_args(raw: List[str]) -> Namespace:
+def _parse_args(raw: list[str]) -> Namespace:
     """
     Parse command-line arguments.
 
@@ -650,7 +650,7 @@ def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
     return assets
 
 
-def _task_initial(f: Callable, *args, **kwargs) -> Tuple[str, bool, Generator]:
+def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     """
     Inital steps common to all task types.
 
