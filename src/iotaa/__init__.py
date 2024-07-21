@@ -10,7 +10,7 @@ import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import cache
+from functools import cache, wraps
 from hashlib import md5
 from importlib import import_module
 from itertools import chain
@@ -372,10 +372,9 @@ def tasknames(obj: object) -> list[str]:
     def f(o):
         return (
             callable(o)
-            and hasattr(o, "__name__")
-            and re.match(r"^__iotaa_.+__$", o.__name__)
-            and not o.abstract
-            and not o.hidden
+            and getattr(o, "__iotaa_task__", False)
+            and not o.__iotaa_abstract__
+            and not o.__iotaa_hidden__
         )
 
     return sorted(name for name in dir(obj) if f(getattr(obj, name)))
@@ -393,7 +392,8 @@ def external(f: Callable) -> _TaskT:
     """
 
     @cache
-    def __iotaa_external__(*args, **kwargs) -> _AssetT:
+    @wraps(f)
+    def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         assets = next(g)
         ready = _ready(assets)
@@ -402,7 +402,7 @@ def external(f: Callable) -> _TaskT:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(top, taskname, assets)
 
-    return _set_metadata(f, __iotaa_external__)
+    return _set_metadata(f, g)
 
 
 def task(f: Callable) -> _TaskT:
@@ -414,7 +414,8 @@ def task(f: Callable) -> _TaskT:
     """
 
     @cache
-    def __iotaa_task__(*args, **kwargs) -> _AssetT:
+    @wraps(f)
+    def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         assets = next(g)
         ready_initial = _ready(assets)
@@ -434,7 +435,7 @@ def task(f: Callable) -> _TaskT:
             _report_readiness(ready=ready_final, taskname=taskname)
         return _task_final(top, taskname, assets)
 
-    return _set_metadata(f, __iotaa_task__)
+    return _set_metadata(f, g)
 
 
 def tasks(f: Callable) -> _TaskT:
@@ -446,7 +447,8 @@ def tasks(f: Callable) -> _TaskT:
     """
 
     @cache
-    def __iotaa_tasks__(*args, **kwargs) -> _AssetT:
+    @wraps(f)
+    def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
         if top:
             _report_readiness(ready=False, taskname=taskname, initial=True)
@@ -456,7 +458,7 @@ def tasks(f: Callable) -> _TaskT:
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(top, taskname, required_assets)
 
-    return _set_metadata(f, __iotaa_tasks__)
+    return _set_metadata(f, g)
 
 
 # Private helper functions:
@@ -613,9 +615,9 @@ def _set_metadata(f_in: Callable, f_out: _TaskT) -> _TaskT:
     :param f_out: The decorated function to add metadata to.
     :return: The decorated function with metadata set.
     """
-    f_out.__doc__ = f_in.__doc__
-    setattr(f_out, "abstract", hasattr(f_in, "__isabstractmethod__"))
-    setattr(f_out, "hidden", f_in.__name__.startswith("_"))
+    setattr(f_out, "__iotaa_abstract__", hasattr(f_in, "__isabstractmethod__"))
+    setattr(f_out, "__iotaa_hidden__", f_in.__name__.startswith("_"))
+    setattr(f_out, "__iotaa_task__", True)
     return f_out
 
 

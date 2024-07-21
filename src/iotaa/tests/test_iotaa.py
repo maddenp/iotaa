@@ -666,9 +666,8 @@ def test__set_metadata():
         pass
 
     iotaa._set_metadata(_f_in, f_out)
-    assert f_out.__doc__ == "Testing"
-    assert f_out.abstract is False  # type: ignore
-    assert f_out.hidden is True  # type: ignore
+    assert f_out.__iotaa_abstract__ is False  # type: ignore
+    assert f_out.__iotaa_hidden__ is True  # type: ignore
 
 
 def test__show_tasks(capsys, task_class):
