@@ -371,8 +371,7 @@ def tasknames(obj: object) -> list[str]:
 
     def f(o):
         return (
-            callable(o)
-            and getattr(o, "__iotaa_task__", False)
+            getattr(o, "__iotaa_task__", False)
             and not hasattr(o, "__isabstractmethod__")
             and not o.__name__.startswith("_")
         )
