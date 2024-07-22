@@ -373,8 +373,8 @@ def tasknames(obj: object) -> list[str]:
         return (
             callable(o)
             and getattr(o, "__iotaa_task__", False)
-            and not o.__iotaa_abstract__
-            and not o.__iotaa_hidden__
+            and not hasattr(o, "__isabstractmethod__")
+            and not o.__name__.startswith("_")
         )
 
     return sorted(name for name in dir(obj) if f(getattr(obj, name)))
@@ -402,7 +402,7 @@ def external(f: Callable) -> _TaskT:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(top, taskname, assets)
 
-    return _set_metadata(g)
+    return _mark_task(g)
 
 
 def task(f: Callable) -> _TaskT:
@@ -435,7 +435,7 @@ def task(f: Callable) -> _TaskT:
             _report_readiness(ready=ready_final, taskname=taskname)
         return _task_final(top, taskname, assets)
 
-    return _set_metadata(g)
+    return _mark_task(g)
 
 
 def tasks(f: Callable) -> _TaskT:
@@ -458,7 +458,7 @@ def tasks(f: Callable) -> _TaskT:
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(top, taskname, required_assets)
 
-    return _set_metadata(g)
+    return _mark_task(g)
 
 
 # Private helper functions:
@@ -538,6 +538,16 @@ def _i_am_top_task() -> bool:
     return True
 
 
+def _mark_task(f: _TaskT) -> _TaskT:
+    """
+    Returns a function, marked as an iotaa task.
+
+    :param g: The function to mark.
+    """
+    setattr(f, "__iotaa_task__", True)
+    return f
+
+
 def _parse_args(raw: list[str]) -> Namespace:
     """
     Parse command-line arguments.
@@ -605,19 +615,6 @@ def _report_readiness(
         "Ready" if ready else "Not Ready",
         extmsg,
     )
-
-
-def _set_metadata(g: _TaskT) -> _TaskT:
-    """
-    Set metadata on a decorated function.
-
-    :param g: The decorated function to add metadata to.
-    :return: The decorated function with metadata set.
-    """
-    setattr(g, "__iotaa_abstract__", hasattr(g, "__isabstractmethod__"))
-    setattr(g, "__iotaa_hidden__", g.__name__.startswith("_"))
-    setattr(g, "__iotaa_task__", True)
-    return g
 
 
 def _show_tasks(name: str, obj: ModuleType) -> None:
