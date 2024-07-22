@@ -594,6 +594,16 @@ def test__i_am_top_task(val):
         assert iotaa._i_am_top_task() == val
 
 
+def test__mark_task():
+
+    def f():
+        pass
+
+    assert not hasattr(f, "__iotaa_task__")
+    assert iotaa._mark_task(f) is f
+    assert hasattr(f, "__iotaa_task__")
+
+
 @pytest.mark.parametrize("graph", [None, "-g", "--graph"])
 @pytest.mark.parametrize("tasks", [None, "-t", "--tasks"])
 @pytest.mark.parametrize("verbose", [None, "-v", "--verbose"])
@@ -656,19 +666,6 @@ def test__report_readiness(caplog, vals):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
     assert logged(f"task: {msg}", caplog)
-
-
-def test__set_metadata():
-    def _f_in():
-        "Testing"
-
-    def f_out():
-        pass
-
-    iotaa._set_metadata(_f_in, f_out)
-    assert f_out.__doc__ == "Testing"
-    assert f_out.abstract is False  # type: ignore
-    assert f_out.hidden is True  # type: ignore
 
 
 def test__show_tasks(capsys, task_class):
