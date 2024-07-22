@@ -659,15 +659,23 @@ def test__report_readiness(caplog, vals):
 
 
 def test__set_metadata():
-    def _f_in():
-        "Testing"
 
-    def f_out():
+    def g1():
         pass
 
-    iotaa._set_metadata(_f_in, f_out)
-    assert f_out.__iotaa_abstract__ is False  # type: ignore
-    assert f_out.__iotaa_hidden__ is True  # type: ignore
+    class C:
+        """C"""
+
+        @abstractmethod
+        def _g2(self):
+            pass
+
+    iotaa._set_metadata(g1)
+    assert getattr(g1, "__iotaa_abstract__") is False
+    assert getattr(g1, "__iotaa_hidden__") is False
+    iotaa._set_metadata(C._g2)
+    assert getattr(C._g2, "__iotaa_abstract__") is True
+    assert getattr(C._g2, "__iotaa_hidden__") is True
 
 
 def test__show_tasks(capsys, task_class):

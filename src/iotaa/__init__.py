@@ -402,7 +402,7 @@ def external(f: Callable) -> _TaskT:
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
         return _task_final(top, taskname, assets)
 
-    return _set_metadata(f, g)
+    return _set_metadata(g)
 
 
 def task(f: Callable) -> _TaskT:
@@ -435,7 +435,7 @@ def task(f: Callable) -> _TaskT:
             _report_readiness(ready=ready_final, taskname=taskname)
         return _task_final(top, taskname, assets)
 
-    return _set_metadata(f, g)
+    return _set_metadata(g)
 
 
 def tasks(f: Callable) -> _TaskT:
@@ -458,7 +458,7 @@ def tasks(f: Callable) -> _TaskT:
             _report_readiness(ready=ready, taskname=taskname)
         return _task_final(top, taskname, required_assets)
 
-    return _set_metadata(f, g)
+    return _set_metadata(g)
 
 
 # Private helper functions:
@@ -607,18 +607,17 @@ def _report_readiness(
     )
 
 
-def _set_metadata(f_in: Callable, f_out: _TaskT) -> _TaskT:
+def _set_metadata(g: _TaskT) -> _TaskT:
     """
     Set metadata on a decorated function.
 
-    :param f_in: The function being decorated.
-    :param f_out: The decorated function to add metadata to.
+    :param g: The decorated function to add metadata to.
     :return: The decorated function with metadata set.
     """
-    setattr(f_out, "__iotaa_abstract__", hasattr(f_in, "__isabstractmethod__"))
-    setattr(f_out, "__iotaa_hidden__", f_in.__name__.startswith("_"))
-    setattr(f_out, "__iotaa_task__", True)
-    return f_out
+    setattr(g, "__iotaa_abstract__", hasattr(g, "__isabstractmethod__"))
+    setattr(g, "__iotaa_hidden__", g.__name__.startswith("_"))
+    setattr(g, "__iotaa_task__", True)
+    return g
 
 
 def _show_tasks(name: str, obj: ModuleType) -> None:
