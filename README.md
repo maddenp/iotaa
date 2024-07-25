@@ -19,7 +19,7 @@ An asset (an instance of class `iotaa.Asset`) has two attributes:
 1. `ref`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesystem path, an S3 URI, an ISO8601 timestamp)
 2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether the asset is "ready", i.e. safe to use by a requiring task
 
-Assets are created by calling calling `iotaa.asset()`.
+Assets are created by calling `iotaa.asset()`.
 
 ## Tasks
 
