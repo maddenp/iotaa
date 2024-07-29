@@ -53,6 +53,8 @@ class Result:
 # Types:
 
 _AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
+_JSONT = Optional[Union[bool, dict, float, int, list, str]]
 _TaskT = Callable[..., _AssetT]
 
 # Private helper classes and their instances:
@@ -463,6 +465,24 @@ def tasks(f: Callable) -> _TaskT:
 # Private helper functions:
 
 
+def _cacheable(o: _JSONT) -> _CacheableT:
+    """
+    Returns a cacheable version of the given value.
+
+    :param o: Some value.
+    """
+
+    class hdict(dict):  # pylint: disable=missing-class-docstring
+        def __hash__(self):
+            return hash(tuple(sorted(self.items())))
+
+    if isinstance(o, dict):
+        return hdict({k: _cacheable(v) for k, v in o.items()})
+    if isinstance(o, list):
+        return tuple(_cacheable(v) for v in o)
+    return o
+
+
 def _delegate(g: Generator, taskname: str) -> _AssetT:
     """
     Delegate execution to the current task's requirement(s).
@@ -581,7 +601,7 @@ def _ready(assets: _AssetT) -> bool:
     return all(a.ready() for a in _flatten(assets))
 
 
-def _reify(s: str) -> Any:
+def _reify(s: str) -> _CacheableT:
     """
     Convert strings, when possible, to more specifically typed objects.
 
@@ -589,23 +609,10 @@ def _reify(s: str) -> Any:
     :return: A more Pythonic represetnation of the input string.
     """
 
-    class hdict(dict):
-        """
-        A dict with a hash value.
-        """
-
-        def __hash__(self):
-            return hash(tuple(sorted(self.items())))
-
     try:
-        o = loads(s)
+        return _cacheable(loads(s))
     except JSONDecodeError:
-        o = loads(f'"{s}"')
-    if isinstance(o, dict):
-        return hdict(o)
-    if isinstance(o, list):
-        return tuple(o)
-    return o
+        return _cacheable(loads(f'"{s}"'))
 
 
 def _report_readiness(

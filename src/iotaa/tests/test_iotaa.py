@@ -506,6 +506,27 @@ def test_tasks_ready(tasks_baz, tmp_path):
 # Private function tests
 
 
+def test__cacheable():
+    a = {
+        "bool": True,
+        "dict": {"dict": {1: 2}, "list": [1, 2]},
+        "float": 3.14,
+        "int": 88,
+        "list": [{1: 2}, [1, 2]],
+        "str": "hello",
+    }
+    b = iotaa._cacheable(a)
+    assert b == {
+        "bool": True,
+        "dict": {"dict": {1: 2}, "list": (1, 2)},
+        "float": 3.14,
+        "int": 88,
+        "list": ({1: 2}, (1, 2)),
+        "str": "hello",
+    }
+    assert hash(b) is not None
+
+
 def test__delegate_none(caplog):
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
 
