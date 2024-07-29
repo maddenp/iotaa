@@ -19,7 +19,7 @@ from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from types import SimpleNamespace as ns
-from typing import Any, Callable, Generator, Optional, Union
+from typing import Any, Callable, Generator, NoReturn, Optional, Union
 
 # Public return-value classes:
 
@@ -588,10 +588,24 @@ def _reify(s: str) -> Any:
     :param s: The string to convert.
     :return: A more Pythonic represetnation of the input string.
     """
+
+    class hdict(dict):
+        """
+        A dict with a hash value.
+        """
+
+        def __hash__(self):
+            return hash(tuple(sorted(self.items())))
+
     try:
-        return loads(s)
+        o = loads(s)
     except JSONDecodeError:
-        return loads(f'"{s}"')
+        o = loads(f'"{s}"')
+    if isinstance(o, dict):
+        return hdict(o)
+    if isinstance(o, list):
+        return tuple(o)
+    return o
 
 
 def _report_readiness(
