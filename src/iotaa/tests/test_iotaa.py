@@ -652,6 +652,10 @@ def test__ready():
 def test__reify():
     strs = ["foo", "88", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 88, 3.14, True]
+    assert iotaa._reify("[1, 2]") == (1, 2)
+    o = iotaa._reify('{"b": 2, "a": 1}')
+    assert o == {"a": 1, "b": 2}
+    assert hash(o) == hash((("a", 1), ("b", 2)))
 
 
 @pytest.mark.parametrize(
