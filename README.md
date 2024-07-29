@@ -104,7 +104,7 @@ optional arguments:
     enable verbose logging
 ```
 
-Specifying positional arguments `m f hello 88` would call task function `f` in module `m` with arguments `hello: str` and `88: int`. Positional arguments `args` are parsed with the `json` library into Python values.
+Specifying positional arguments `m f hello 88` would call task function `f` in module `m` with arguments `hello: str` and `88: int`. Positional arguments `args` are parsed with the `json` library into Python values. To support intra-run idempotence (i.e. multiple tasks may depend on the same task, but the latter will only be evaluated/executed once), JSON values parsed to Python `dict` objects will be converted to a hashable (and therefore cacheable) `dict` subtype, and `list` objects will be converted to `tuple`s. Both should be treated as read-only in `iotaa` application code.
 
 It is assumed that `m` is importable by Python by any customary means. However, if `m` is a valid absolute or relative path (and so more likely specified as `m.py` or `/path/to/m.py`), its parent directory is automatically added by `iotaa` to `sys.path` so that it can be loaded.
 
