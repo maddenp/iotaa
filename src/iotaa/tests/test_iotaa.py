@@ -625,6 +625,12 @@ def test__mark_task():
     assert hasattr(f, "__iotaa_task__")
 
 
+def test__next(caplog):
+    with raises(SystemExit):
+        iotaa._next(iter([]), "foo")
+    assert logged("Failed to get foo: Check yield statements.", caplog)
+
+
 @pytest.mark.parametrize("graph", [None, "-g", "--graph"])
 @pytest.mark.parametrize("tasks", [None, "-t", "--tasks"])
 @pytest.mark.parametrize("verbose", [None, "-v", "--verbose"])

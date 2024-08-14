@@ -19,7 +19,7 @@ from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from types import SimpleNamespace as ns
-from typing import Any, Callable, Generator, NoReturn, Optional, Union
+from typing import Any, Callable, Generator, Iterator, NoReturn, Optional, Union
 
 # Public return-value classes:
 
@@ -396,7 +396,7 @@ def external(f: Callable) -> _TaskT:
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
-        assets = next(g)
+        assets = _next(g, "assets")
         ready = _ready(assets)
         if not ready or top:
             _graph.update_from_task(taskname, assets)
@@ -418,7 +418,7 @@ def task(f: Callable) -> _TaskT:
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
-        assets = next(g)
+        assets = _next(g, "assets")
         ready_initial = _ready(assets)
         if not ready_initial or top:
             _graph.update_from_task(taskname, assets)
@@ -472,8 +472,12 @@ def _cacheable(o: _JSONT) -> _CacheableT:
     :param o: Some value.
     """
 
-    class hdict(dict):  # pylint: disable=missing-class-docstring
-        def __hash__(self):
+    class hdict(dict):
+        """
+        A dict with a hash value.
+        """
+
+        def __hash__(self):  # type: ignore
             return hash(tuple(sorted(self.items())))
 
     if isinstance(o, dict):
@@ -498,7 +502,7 @@ def _delegate(g: Generator, taskname: str) -> _AssetT:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     _log.info("%s: Checking requirements", taskname)
-    assets = next(g)
+    assets = _next(g, "requirements")
     _graph.update_from_requirements(taskname, _flatten(assets))
     return assets
 
@@ -565,6 +569,19 @@ def _mark_task(f: _TaskT) -> _TaskT:
     """
     setattr(f, "__iotaa_task__", True)
     return f
+
+
+def _next(g: Iterator, desc: str) -> Any:
+    """
+    Return the next value from the generator, if available. Otherwise log an error and exit.
+
+    :param desc: A description of the expected value.
+    """
+    try:
+        return next(g)
+    except StopIteration:
+        _log.error("Failed to get %s: Check yield statements.", desc)
+        sys.exit(1)
 
 
 def _parse_args(raw: list[str]) -> Namespace:
@@ -677,5 +694,5 @@ def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     """
     top = _i_am_top_task()  # Must precede delegation to other tasks!
     g = f(*args, **kwargs)
-    taskname = next(g)
+    taskname = _next(g, "task name")
     return taskname, top, g
