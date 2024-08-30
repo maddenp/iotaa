@@ -5,7 +5,6 @@ iotaa.
 from __future__ import annotations
 
 import logging
-import re
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
@@ -19,7 +18,7 @@ from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from types import SimpleNamespace as ns
-from typing import Any, Callable, Generator, Iterator, NoReturn, Optional, Union
+from typing import Any, Callable, Generator, Iterator, Optional, Union
 
 # Public return-value classes:
 
@@ -502,7 +501,7 @@ def _delegate(g: Generator, taskname: str) -> _AssetT:
     # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
 
     _log.info("%s: Checking requirements", taskname)
-    assets = _next(g, "requirements")
+    assets: _AssetT = _next(g, "requirements")
     _graph.update_from_requirements(taskname, _flatten(assets))
     return assets
 

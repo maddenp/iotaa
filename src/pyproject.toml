@@ -22,21 +22,23 @@ profile = "black"
 
 [tool.mypy]
 check_untyped_defs = true
-follow_imports = "skip"
-ignore_missing_imports = true
 pretty = true
+warn_return_any = true
 
-[tool.pylint.messages_control]
+[tool.pylint.main]
+extension-pkg-allow-list = []
+jobs = 4
+recursive = true
+
+[tool.pylint."messages control"]
 disable = [
   "consider-using-f-string",
   "disallowed-name",
-  "global-statement",
   "invalid-name",
   "too-few-public-methods",
   "too-many-arguments",
   "unnecessary-lambda-assignment",
 ]
-recursive = true
-
-[tool.pytest.ini_options]
-filterwarnings = []
+enable = [
+  "useless-suppression",
+]
