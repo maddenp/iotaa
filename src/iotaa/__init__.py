@@ -4,14 +4,16 @@ iotaa.
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import cache, wraps
+from functools import wraps
 from hashlib import md5
 from importlib import import_module
+from importlib import resources as res
 from itertools import chain
 from json import JSONDecodeError, loads
 from pathlib import Path
@@ -391,7 +393,6 @@ def external(f: Callable) -> _TaskT:
     :return: A decorated function.
     """
 
-    @cache
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -413,7 +414,6 @@ def task(f: Callable) -> _TaskT:
     :return: A decorated function.
     """
 
-    @cache
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -446,7 +446,6 @@ def tasks(f: Callable) -> _TaskT:
     :return: A decorated function.
     """
 
-    @cache
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -600,6 +599,12 @@ def _parse_args(raw: list[str]) -> Namespace:
     optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
     optional.add_argument("-t", "--tasks", action="store_true", help="show available tasks")
     optional.add_argument("-v", "--verbose", action="store_true", help="enable verbose logging")
+    optional.add_argument(
+        "--version",
+        action="version",
+        help="Show version info and exit",
+        version=f"{Path(sys.argv[0]).name} {_version()}",
+    )
     args = parser.parse_args(raw)
     if not args.function and not args.tasks:
         print("Request --tasks or specify task name")
@@ -622,7 +627,7 @@ def _reify(s: str) -> _CacheableT:
     Convert strings, when possible, to more specifically typed objects.
 
     :param s: The string to convert.
-    :return: A more Pythonic represetnation of the input string.
+    :return: A more Pythonic representation of the input string.
     """
 
     try:
@@ -695,3 +700,12 @@ def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     g = f(*args, **kwargs)
     taskname = _next(g, "task name")
     return taskname, top, g
+
+
+def _version() -> str:
+    """
+    Return version information.
+    """
+    with res.files("iotaa.resources").joinpath("info.json").open("r") as f:
+        info = json.load(f)
+        return "version %s build %s" % (info["version"], info["buildnum"])

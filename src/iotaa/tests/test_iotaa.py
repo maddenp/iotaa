@@ -17,9 +17,7 @@ from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
 
-import pytest
-from _pytest.logging import LogCaptureFixture
-from pytest import fixture, raises
+from pytest import fixture, mark, raises, skip
 
 import iotaa
 
@@ -191,7 +189,7 @@ def args(path, tasks):
     )
 
 
-def logged(msg: str, caplog: LogCaptureFixture) -> bool:
+def logged(msg, caplog):
     return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
 
@@ -207,7 +205,7 @@ def simple_assets():
 # Public API tests
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     # One without kwargs, one with:
     "asset",
     [iotaa.asset("foo", lambda: True), iotaa.asset(ref="foo", ready=lambda: True)],
@@ -217,7 +215,7 @@ def test_Asset(asset):
     assert asset.ready()
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     # One without kwargs, one with:
     "result",
     [iotaa.Result("foo", True), iotaa.Result(output="foo", success=True)],
@@ -233,7 +231,7 @@ def test_asset_kwargs():
     assert a.ready()
 
 
-@pytest.mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
+@mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
 def test_dryrun(args, expected):
     with patch.object(iotaa, "_state", iotaa._State()):
         assert not iotaa._state.dry_run
@@ -252,7 +250,7 @@ def test_graph():
     assert iotaa.graph().startswith("digraph")
 
 
-@pytest.mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
+@mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
 def test_logcfg(vals):
     verbose, level = vals
     with patch.object(iotaa.logging, "basicConfig") as basicConfig:
@@ -349,7 +347,7 @@ def test_run_failure(caplog):
 
 def test_run_success(caplog, tmp_path):
     if sys.platform.startswith("win"):
-        pytest.skip("unsupported platform")
+        skip("unsupported platform")
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     cmd = "echo hello $FOO"
     assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log=True)
@@ -383,7 +381,7 @@ def test_tasknames(task_class):
 # Decorator tests
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "docstring,task",
     [("EXTERNAL!", "external_foo_scalar"), ("TASK!", "task_bar_scalar"), ("TASKS!", "tasks_baz")],
 )
@@ -408,7 +406,7 @@ def test_external_ready(external_foo_scalar, tmp_path):
     assert asset.ready()
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "task,val",
     [
         ("task_bar_dict", lambda x: x["path"]),
@@ -427,7 +425,7 @@ def test_task_not_ready(caplog, request, task, tmp_path, val):
     assert logged(f"task bar {f_bar}: Requirement(s) not ready", caplog)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "task,val",
     [
         ("task_bar_dict", lambda x: x["path"]),
@@ -608,7 +606,7 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
-@pytest.mark.parametrize("val", [True, False])
+@mark.parametrize("val", [True, False])
 def test__i_am_top_task(val):
     with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
         _state.initialized = not val
@@ -631,9 +629,9 @@ def test__next(caplog):
     assert logged("Failed to get foo: Check yield statements.", caplog)
 
 
-@pytest.mark.parametrize("graph", [None, "-g", "--graph"])
-@pytest.mark.parametrize("tasks", [None, "-t", "--tasks"])
-@pytest.mark.parametrize("verbose", [None, "-v", "--verbose"])
+@mark.parametrize("graph", [None, "-g", "--graph"])
+@mark.parametrize("tasks", [None, "-t", "--tasks"])
+@mark.parametrize("verbose", [None, "-v", "--verbose"])
 def test__parse_args(graph, tasks, verbose):
     raw = ["a_module", "a_function", "arg1", "arg2"]
     if graph:
@@ -657,7 +655,7 @@ def test__parse_args_missing_task_no():
     assert e.value.code == 1
 
 
-@pytest.mark.parametrize("switch", ["-t", "--tasks"])
+@mark.parametrize("switch", ["-t", "--tasks"])
 def test__parse_args_missing_task_ok(switch):
     args = iotaa._parse_args(raw=["a_module", switch])
     assert args.module == "a_module"
@@ -685,7 +683,7 @@ def test__reify():
     assert hash(o) == hash((("a", 1), ("b", 2)))
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "vals",
     [
         (True, False, True, "Initial state: Ready"),
@@ -712,7 +710,7 @@ def test__show_tasks(capsys, task_class):
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
 
 
-@pytest.mark.parametrize("assets", simple_assets())
+@mark.parametrize("assets", simple_assets())
 def test__task_final(assets):
     for a in iotaa._flatten(assets):
         assert getattr(a, "taskname", None) is None
@@ -787,7 +785,7 @@ def test__Graph_reset():
         assert not _graph.tasks
 
 
-@pytest.mark.parametrize("assets", simple_assets())
+@mark.parametrize("assets", simple_assets())
 def test__Graph_update_from_requirements(assets, empty_graph):
     taskname_req = "req"
     taskname_this = "task"
@@ -806,7 +804,7 @@ def test__Graph_update_from_requirements(assets, empty_graph):
         assert iotaa._graph.edges == edges
 
 
-@pytest.mark.parametrize("assets", simple_assets())
+@mark.parametrize("assets", simple_assets())
 def test__Graph_update_from_task(assets, empty_graph):
     taskname = "task"
     with patch.object(iotaa, "_graph", empty_graph):
