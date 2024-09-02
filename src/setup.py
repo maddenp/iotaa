@@ -26,6 +26,7 @@ setup(
     ],
     description="A simple workflow engine",
     entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
+    include_package_data=True,
     long_description=" ".join(
         [
             "A simple workflow engine with semantics inspired by Luigi and",

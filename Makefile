@@ -42,5 +42,5 @@ typecheck:
 unittest:
 	recipe/run_test.sh unittest
 
-$(METAJSON): $(RECIPEFILES)
+$(METAJSON): $(RECIPEFILES) src/iotaa/resources/info.json
 	condev-meta

@@ -3,11 +3,9 @@
 cli() {
   msg Testing CLI program
   (
-    set -eu
-    clis=( iotaa )
-    for x in ${clis[*]}; do
-      which $x
-    done
+    set -eux
+    iotaa --help
+    iotaa --version
   )
   msg OK
 }
