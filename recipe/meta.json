@@ -12,7 +12,8 @@
       "pip",
       "pylint",
       "pytest",
-      "python"
+      "python",
+      "setuptools"
     ],
     "run": []
   },

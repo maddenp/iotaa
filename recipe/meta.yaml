@@ -14,6 +14,7 @@ requirements:
     - pip
   host:
     - python
+    - setuptools
 test:
   requires:
     - black
