@@ -10,6 +10,7 @@ from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import wraps
+from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
 from importlib import resources as res
@@ -170,6 +171,7 @@ class _State:
     """
     def __init__(self) -> None:
         self.dry_run = False
+        self.graph: TopologicalSorter = TopologicalSorter()
         self.initialized = False
 
     def initialize(self) -> None:
@@ -182,6 +184,7 @@ class _State:
         """
         Reset state.
         """
+        self.graph = TopologicalSorter()
         self.initialized = False
 
 
