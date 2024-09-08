@@ -1,7 +1,6 @@
 """
 iotaa.
 """
-
 from __future__ import annotations
 
 import json
@@ -33,7 +32,6 @@ class Asset:
     :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
     :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
-
     ref: Any
     ready: Callable[..., bool]
 
@@ -46,7 +44,6 @@ class Result:
     output: Content of the combined stderr/stdout streams.
     success: Did the command exit with 0 status?
     """
-
     output: str
     success: bool
 
@@ -65,7 +62,6 @@ class _Graph:
     """
     Graphviz digraph support.
     """
-
     def __init__(self) -> None:
         self.reset()
 
@@ -152,7 +148,6 @@ class _Logger:
     """
     Support for swappable loggers.
     """
-
     def __init__(self) -> None:
         self.logger = logging.getLogger()  # default to Python root logger.
 
@@ -173,7 +168,6 @@ class _State:
     """
     Global iotaa state.
     """
-
     def __init__(self) -> None:
         self.dry_run = False
         self.initialized = False
@@ -247,7 +241,6 @@ def main() -> None:
     """
     Main CLI entry point.
     """
-
     # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
     # module-name argument represents a file, append its parent directory to sys.path and remove any
     # extension (presumably .py) so that it can be imported. If it does not represent a file, assume
@@ -280,7 +273,6 @@ def refs(assets: _AssetT) -> Any:
     :param assets: An asset, a collection of assets, or None.
     :return: Asset reference(s) in the same shape (e.g. dict, list, scalar, None) as the asets.
     """
-
     if isinstance(assets, dict):
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
@@ -371,7 +363,6 @@ def tasknames(obj: object) -> list[str]:
     :param obj: An object.
     :return: The names of iotaa tasks in the given object.
     """
-
     def f(o):
         return (
             getattr(o, "__iotaa_task__", False)
@@ -392,7 +383,6 @@ def external(f: Callable) -> _TaskT:
     :param f: The function being decorated.
     :return: A decorated function.
     """
-
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -413,7 +403,6 @@ def task(f: Callable) -> _TaskT:
     :param f: The function being decorated.
     :return: A decorated function.
     """
-
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -445,7 +434,6 @@ def tasks(f: Callable) -> _TaskT:
     :param f: The function being decorated.
     :return: A decorated function.
     """
-
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -469,12 +457,10 @@ def _cacheable(o: _JSONT) -> _CacheableT:
 
     :param o: Some value.
     """
-
     class hdict(dict):
         """
         A dict with a hash value.
         """
-
         def __hash__(self):  # type: ignore
             return hash(tuple(sorted(self.items())))
 
@@ -493,7 +479,6 @@ def _delegate(g: Generator, taskname: str) -> _AssetT:
     :param taskname: The current task's name.
     :return: The assets of the required task(s).
     """
-
     # The next value of the generator is the collection of requirements of the current task. This
     # may be a dict or list of task-function calls, a single task-function call, or None, so convert
     # it to a list for iteration. The value of each task-function call is a collection of assets,
@@ -629,7 +614,6 @@ def _reify(s: str) -> _CacheableT:
     :param s: The string to convert.
     :return: A more Pythonic representation of the input string.
     """
-
     try:
         return _cacheable(loads(s))
     except JSONDecodeError:
