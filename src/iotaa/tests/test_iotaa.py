@@ -606,13 +606,6 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
-@mark.parametrize("val", [True, False])
-def test__i_am_top_task(val):
-    with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
-        _state.initialized = not val
-        assert iotaa._i_am_top_task() == val
-
-
 def test__mark_task():
 
     def f():

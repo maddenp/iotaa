@@ -1,6 +1,7 @@
 """
 iotaa.
 """
+
 from __future__ import annotations
 
 import json
@@ -32,6 +33,7 @@ class Asset:
     :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
     :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
+
     ref: Any
     ready: Callable[..., bool]
 
@@ -44,6 +46,7 @@ class Result:
     output: Content of the combined stderr/stdout streams.
     success: Did the command exit with 0 status?
     """
+
     output: str
     success: bool
 
@@ -62,6 +65,7 @@ class _Graph:
     """
     Graphviz digraph support.
     """
+
     def __init__(self) -> None:
         self.reset()
 
@@ -148,6 +152,7 @@ class _Logger:
     """
     Support for swappable loggers.
     """
+
     def __init__(self) -> None:
         self.logger = logging.getLogger()  # default to Python root logger.
 
@@ -168,6 +173,7 @@ class _State:
     """
     Global iotaa state.
     """
+
     def __init__(self) -> None:
         self.dry_run = False
         self.initialized = False
@@ -363,6 +369,7 @@ def tasknames(obj: object) -> list[str]:
     :param obj: An object.
     :return: The names of iotaa tasks in the given object.
     """
+
     def f(o):
         return (
             getattr(o, "__iotaa_task__", False)
@@ -383,6 +390,7 @@ def external(f: Callable) -> _TaskT:
     :param f: The function being decorated.
     :return: A decorated function.
     """
+
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -403,6 +411,7 @@ def task(f: Callable) -> _TaskT:
     :param f: The function being decorated.
     :return: A decorated function.
     """
+
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -434,6 +443,7 @@ def tasks(f: Callable) -> _TaskT:
     :param f: The function being decorated.
     :return: A decorated function.
     """
+
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
         taskname, top, g = _task_initial(f, *args, **kwargs)
@@ -457,10 +467,12 @@ def _cacheable(o: _JSONT) -> _CacheableT:
 
     :param o: Some value.
     """
+
     class hdict(dict):
         """
         A dict with a hash value.
         """
+
         def __hash__(self):  # type: ignore
             return hash(tuple(sorted(self.items())))
 
@@ -529,19 +541,6 @@ def _formatter(prog: str) -> HelpFormatter:
     :return: An argparse help formatter.
     """
     return HelpFormatter(prog, max_help_position=4)
-
-
-def _i_am_top_task() -> bool:
-    """
-    Is the calling task the task-tree entry point?
-
-    :return: Is it?
-    """
-    if _state.initialized:
-        return False
-    _state.initialize()
-    _graph.reset()
-    return True
 
 
 def _mark_task(f: _TaskT) -> _TaskT:
@@ -680,7 +679,9 @@ def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     :param f: A task function (receives the provided args & kwargs).
     :return: The task's name, its "top" status, and the generator returned by the task.
     """
-    top = _i_am_top_task()  # Must precede delegation to other tasks!
+    if top := not _state.initialized:  # Must precede delegation to other tasks!
+        _state.initialize()
+        _graph.reset()
     g = f(*args, **kwargs)
     taskname = _next(g, "task name")
     return taskname, top, g
