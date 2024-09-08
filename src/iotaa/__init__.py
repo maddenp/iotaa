@@ -36,6 +36,8 @@ class Asset:
     ref: Any
     ready: Callable[..., bool]
 
+_AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+
 
 @dataclass
 class Result:
@@ -47,14 +49,6 @@ class Result:
     """
     output: str
     success: bool
-
-
-# Types:
-
-_AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
-_CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
-_JSONT = Optional[Union[bool, dict, float, int, list, str]]
-_TaskT = Callable[..., _AssetT]
 
 # Private helper classes and their instances:
 
@@ -164,6 +158,27 @@ class _Logger:
 
 _log = _Logger()
 
+class _Node:
+    """
+    PM WRITEME
+    """
+    def __init__(self, root: bool, taskname: str, assets: _AssetT, exe: Optional[Callable] = None) -> None:
+        self.root = root
+        self.taskname = taskname
+        self.assets = assets
+        self.exe = exe
+
+    def __hash__(self):
+        return hash(self.taskname)
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME
+        """
+        return _ready(self.assets)
+
+_NodeOrAssets = Union[_AssetT, _Node]
 
 class _State:
     """
@@ -189,6 +204,13 @@ class _State:
 
 
 _state = _State()
+
+
+# Types:
+
+_CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
+_JSONT = Optional[Union[bool, dict, float, int, list, str]]
+_TaskT = Callable[..., _NodeOrAssets]
 
 # Public API functions:
 
@@ -378,22 +400,6 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-class Node:
-    """
-    PM WRITEME
-    """
-    def __init__(self, taskname: str, assets: _AssetT, root: bool) -> None:
-        self.taskname = taskname
-        self.assets = assets
-        self.root = root
-
-    @property
-    def ready(self) -> bool:
-        """
-        PM WRITEME
-        """
-        return _ready(self.assets)
-
 
 def external(f: Callable) -> _TaskT:
     """
@@ -403,7 +409,7 @@ def external(f: Callable) -> _TaskT:
     :return: A decorated function.
     """
     @wraps(f)
-    def g(*args, **kwargs) -> _AssetT:
+    def g(*args, **kwargs) -> _NodeOrAssets:
         taskname, root, g = _task_initial(f, *args, **kwargs)
         assets = _next(g, "assets")
         ready = _ready(assets)
@@ -663,7 +669,7 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_final(root: bool, taskname: str, assets: _AssetT) -> _AssetT:
+def _task_final(root: bool, taskname: str, assets: _AssetT) -> _NodeOrAssets:
     """
     Final steps common to all task types.
 
@@ -672,11 +678,12 @@ def _task_final(root: bool, taskname: str, assets: _AssetT) -> _AssetT:
     :param assets: An asset, a collection of assets, or None.
     :return: The same assets that were provided as input.
     """
-    if root:
-        _state.reset()
     for a in _flatten(assets):
         setattr(a, "taskname", taskname)
-    return assets
+    if root:
+        _state.reset()
+        return assets
+    return _Node(root, taskname, assets)
 
 
 def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
