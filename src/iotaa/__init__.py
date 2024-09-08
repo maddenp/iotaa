@@ -378,6 +378,22 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
+class Node:
+    """
+    PM WRITEME
+    """
+    def __init__(self, taskname: str, assets: _AssetT, root: bool) -> None:
+        self.taskname = taskname
+        self.assets = assets
+        self.root = root
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME
+        """
+        return _ready(self.assets)
+
 
 def external(f: Callable) -> _TaskT:
     """
