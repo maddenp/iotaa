@@ -719,9 +719,9 @@ def test__task_inital():
 
     with patch.object(iotaa, "_state", iotaa._State()):
         tn = "task"
-        taskname, top, g = iotaa._task_initial(f, tn, n=88)
+        taskname, root, g = iotaa._task_initial(f, tn, n=88)
         assert taskname == tn
-        assert top is True
+        assert root is True
         assert next(g) == 88
 
 

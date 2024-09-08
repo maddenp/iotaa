@@ -393,13 +393,13 @@ def external(f: Callable) -> _TaskT:
 
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_initial(f, *args, **kwargs)
+        taskname, root, g = _task_initial(f, *args, **kwargs)
         assets = _next(g, "assets")
         ready = _ready(assets)
-        if not ready or top:
+        if not ready or root:
             _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_final(top, taskname, assets)
+        return _task_final(root, taskname, assets)
 
     return _mark_task(g)
 
@@ -414,10 +414,10 @@ def task(f: Callable) -> _TaskT:
 
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_initial(f, *args, **kwargs)
+        taskname, root, g = _task_initial(f, *args, **kwargs)
         assets = _next(g, "assets")
         ready_initial = _ready(assets)
-        if not ready_initial or top:
+        if not ready_initial or root:
             _graph.update_from_task(taskname, assets)
             _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
         if not ready_initial:
@@ -431,7 +431,7 @@ def task(f: Callable) -> _TaskT:
         ready_final = _ready(assets)
         if ready_final != ready_initial:
             _report_readiness(ready=ready_final, taskname=taskname)
-        return _task_final(top, taskname, assets)
+        return _task_final(root, taskname, assets)
 
     return _mark_task(g)
 
@@ -446,14 +446,14 @@ def tasks(f: Callable) -> _TaskT:
 
     @wraps(f)
     def g(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_initial(f, *args, **kwargs)
-        if top:
+        taskname, root, g = _task_initial(f, *args, **kwargs)
+        if root:
             _report_readiness(ready=False, taskname=taskname, initial=True)
         required_assets = _delegate(g, taskname)
         ready = _ready(required_assets)
-        if not ready or top:
+        if not ready or root:
             _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(top, taskname, required_assets)
+        return _task_final(root, taskname, required_assets)
 
     return _mark_task(g)
 
@@ -656,16 +656,16 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
+def _task_final(root: bool, taskname: str, assets: _AssetT) -> _AssetT:
     """
     Final steps common to all task types.
 
-    :param top: Is this the top task?
+    :param root: Is this the root task?
     :param taskname: The current task's name.
     :param assets: An asset, a collection of assets, or None.
     :return: The same assets that were provided as input.
     """
-    if top:
+    if root:
         _state.reset()
     for a in _flatten(assets):
         setattr(a, "taskname", taskname)
@@ -677,14 +677,14 @@ def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     Inital steps common to all task types.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The task's name, its "top" status, and the generator returned by the task.
+    :return: The task's name, its "root" status, and the generator returned by the task.
     """
-    if top := not _state.initialized:  # Must precede delegation to other tasks!
+    if root := not _state.initialized:  # Must precede delegation to other tasks!
         _state.initialize()
         _graph.reset()
     g = f(*args, **kwargs)
     taskname = _next(g, "task name")
-    return taskname, top, g
+    return taskname, root, g
 
 
 def _version() -> str:
