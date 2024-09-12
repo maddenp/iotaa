@@ -172,11 +172,12 @@ class _Node:
     """
 
     def __init__(
-        self, root: bool, taskname: str, assets: _AssetT, exe: Optional[Callable] = None
+        self, root: bool, taskname: str, assets: _AssetT, requirements: Optional[_NodeT] = None, exe: Optional[Callable] = None
     ) -> None:
         self.root = root
         self.taskname = taskname
         self.assets = assets
+        self.requirements = requirements
         self.exe = exe
 
     def __hash__(self):
@@ -189,6 +190,7 @@ class _Node:
         """
         return _ready(self.assets)
 
+_NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
 
 class _State:
     """
@@ -419,12 +421,16 @@ def external(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, g = _task_initial(f, *args, **kwargs)
-        assets = _next(g, "assets")
         # ready = _ready(assets)
         # if not ready or root:
         #     _graph.update_from_task(taskname, assets)
         #     _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_final(root, taskname, assets)
+        # return _task_final(root, taskname, assets)
+        return _Node(
+            root=root,
+            taskname=taskname,
+            assets=_next(g, "assets"),
+        )
 
     return _mark_task(inner)
 
@@ -440,7 +446,6 @@ def task(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, generator = _task_initial(f, *args, **kwargs)
-        assets = _next(generator, "assets")
         # ready_initial = _ready(assets)
         # if not ready_initial or root:
         #     _graph.update_from_task(taskname, assets)
@@ -456,13 +461,13 @@ def task(f: Callable) -> _TaskT:
         # ready_final = _ready(assets)
         # if ready_final != ready_initial:
         #     _report_readiness(ready=ready_final, taskname=taskname)
-        requirements = _next(generator, "requirements")
-        exe = lambda: 
-        node = _Node(root, taskname, assets, exe)
-        for requirement in _flatten_nodes(requirements):
-            _state.graph.add(taskname, requirement.taskname)
-        breakpoint()
-        return _task_final(root, taskname, assets)
+        return _Node(
+            root=root,
+            taskname=taskname,
+            assets=_next(generator, "assets"),
+            requirements=_next(generator, "requirements"),
+            exe=_execute(generator, taskname),
+        )
 
     return _mark_task(inner)
 
@@ -476,17 +481,22 @@ def tasks(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def g(*args, **kwargs) -> _Node:
-        taskname, root, g = _task_initial(f, *args, **kwargs)
-        if root:
-            _report_readiness(ready=False, taskname=taskname, initial=True)
-        required_assets = _delegate(g, taskname)
-        ready = _ready(required_assets)
-        if not ready or root:
-            _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(root, taskname, required_assets)
+    def inner(*args, **kwargs) -> _Node:
+        taskname, root, generator = _task_initial(f, *args, **kwargs)
+        # if root:
+        #     _report_readiness(ready=False, taskname=taskname, initial=True)
+        # required_assets = _delegate(generator, taskname)
+        # ready = _ready(required_assets)
+        # if not ready or root:
+        #     _report_readiness(ready=ready, taskname=taskname)
+        # return _task_final(root, taskname, required_assets)
+        return _Node(
+            root=root,
+            taskname=taskname,
+            requirements=_next(generator, "requirements"),
+        )
 
-    return _mark_task(g)
+    return _mark_task(inner)
 
 
 # Private helper functions:
@@ -566,7 +576,7 @@ def _flatten(assets: Union[_AssetT, dict[str, _AssetT], list[_AssetT]]) -> list[
     return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
 
 
-def _flatten_nodes(nodes: Optional[Union[_Node, dict[str, _Node], list[_Node]]]) -> list[_Node]:
+def _flatten_nodes(nodes: _NodeT) -> list[_Node]:
     if nodes is None:
         return []
     if isinstance(nodes, _Node):
