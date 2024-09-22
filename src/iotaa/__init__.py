@@ -206,21 +206,27 @@ class _Node:
                 _graph.update_from_task(self.taskname, self.assets)
                 _report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
         elif self.kind is _Kind.task:
-            if not self.ready or self.root:
+            ready_initial = self.ready
+            if not ready_initial or self.root:
                 _graph.update_from_task(self.taskname, self.assets)
-                _report_readiness(ready=self.ready, taskname=self.taskname, initial=True)
-            if not self.ready:
-                assert self.exe
-                if _ready(list(chain.from_iterable(_flatten(node.assets) for node in _flatten(self.requirements)))):
+                _report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
+            if not ready_initial:
+                # if _ready(list(chain.from_iterable(_flatten(node.assets) for node in _flatten(self.requirements)))):
+                if all(node.ready for node in _flatten(self.requirements)):
                     _log.info("%s: Requirement(s) ready", self.taskname)
+                    assert self.exe
                     self.exe()
                 else:
                     _log.info("%s: Requirement(s) not ready", self.taskname)
                     _report_readiness(ready=False, taskname=self.taskname)
-            ready_final = _ready(self.assets)
-            if ready_final != self.ready:
-                _report_readiness(ready=ready_final, taskname=self.taskname)
-
+            if self.ready != ready_initial:
+                _report_readiness(ready=self.ready, taskname=self.taskname)
+        elif self.kind is _Kind.tasks:
+            if self.root:
+                _report_readiness(ready=False, taskname=self.taskname, initial=True)
+            ready = _ready(self.assets)
+            if not ready or self.root:
+                _report_readiness(ready=ready, taskname=self.taskname)
         # return _task_final(self.root, self.taskname, self.assets)
 
     @property
@@ -630,7 +636,9 @@ def _flatten(o: Optional[Union[T, dict[str, T], list[T]]]) -> list[T]:
 
     :param o: An object, a collection of objects, or None.
     """
-    f: Callable[..., list[T]] = lambda xs: list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
+    f: Callable[..., list[T]] = lambda xs: list(
+        filter(None, chain.from_iterable(_flatten(x) for x in xs))
+    )
     if isinstance(o, dict):
         return f(list(o.values()))
     if isinstance(o, list):
