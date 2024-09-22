@@ -10,6 +10,7 @@ import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
+from enum import Enum, auto
 from functools import wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
@@ -21,7 +22,7 @@ from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from types import SimpleNamespace as ns
-from typing import Any, Callable, Generator, Iterator, Optional, Union
+from typing import Any, Callable, Generator, Iterator, Optional, TypeVar, Union
 
 # Public return-value classes:
 
@@ -166,6 +167,12 @@ class _Logger:
 _log = _Logger()
 
 
+class _Kind(Enum):
+    external = auto()
+    task = auto()
+    tasks = auto()
+
+
 class _Node:
     """
     PM WRITEME.
@@ -173,20 +180,48 @@ class _Node:
 
     def __init__(
         self,
-        root: bool,
         taskname: str,
+        kind: _Kind,
+        root: bool,
         assets: Optional[_AssetT] = None,
         requirements: Optional[_NodeT] = None,
         exe: Optional[Callable] = None,
     ) -> None:
-        self.root = root
         self.taskname = taskname
+        self.kind = kind
+        self.root = root
         self.assets = assets
         self.requirements = requirements
         self.exe = exe
 
     def __hash__(self):
         return hash(self.taskname)
+
+    def go(self) -> None:
+        """
+        PM WRITEME.
+        """
+        if self.kind is _Kind.external:
+            if not self.ready or self.root:
+                _graph.update_from_task(self.taskname, self.assets)
+                _report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
+        elif self.kind is _Kind.task:
+            if not self.ready or self.root:
+                _graph.update_from_task(self.taskname, self.assets)
+                _report_readiness(ready=self.ready, taskname=self.taskname, initial=True)
+            if not self.ready:
+                assert self.exe
+                if _ready(list(chain.from_iterable(_flatten(node.assets) for node in _flatten(self.requirements)))):
+                    _log.info("%s: Requirement(s) ready", self.taskname)
+                    self.exe()
+                else:
+                    _log.info("%s: Requirement(s) not ready", self.taskname)
+                    _report_readiness(ready=False, taskname=self.taskname)
+            ready_final = _ready(self.assets)
+            if ready_final != self.ready:
+                _report_readiness(ready=ready_final, taskname=self.taskname)
+
+        # return _task_final(self.root, self.taskname, self.assets)
 
     @property
     def ready(self) -> bool:
@@ -224,6 +259,8 @@ class _State:
 
 
 _state = _State()
+
+T = TypeVar("T")
 
 # Public API functions:
 
@@ -299,8 +336,7 @@ def main() -> None:
     if args.tasks:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
-    g = getattr(modobj, args.function)(*reified)
-    breakpoint()
+    getattr(modobj, args.function)(*reified)
     if args.graph:
         print(_graph)
 
@@ -436,8 +472,9 @@ def external(f: Callable) -> _TaskT:
         #     _report_readiness(ready=ready, taskname=taskname, is_external=True)
         # return _task_final(root, taskname, assets)
         return _Node(
-            root=root,
             taskname=taskname,
+            kind=_Kind.external,
+            root=root,
             assets=_next(g, "assets"),
         )
 
@@ -471,8 +508,9 @@ def task(f: Callable) -> _TaskT:
         # if ready_final != ready_initial:
         #     _report_readiness(ready=ready_final, taskname=taskname)
         return _Node(
-            root=root,
             taskname=taskname,
+            kind=_Kind.task,
+            root=root,
             assets=_next(generator, "assets"),
             requirements=_next(generator, "requirements"),
             exe=lambda: _execute(generator, taskname),
@@ -500,8 +538,9 @@ def tasks(f: Callable) -> _TaskT:
         #     _report_readiness(ready=ready, taskname=taskname)
         # return _task_final(root, taskname, required_assets)
         return _Node(
-            root=root,
             taskname=taskname,
+            kind=_Kind.tasks,
+            root=root,
             requirements=_next(generator, "requirements"),
         )
 
@@ -571,18 +610,34 @@ def _execute(g: Generator, taskname: str) -> None:
         pass
 
 
-def _flatten(assets: Union[_AssetT, dict[str, _AssetT], list[_AssetT]]) -> list[Asset]:
-    """
-    Return a simple list of assets formed by collapsing potentially nested collections.
+# def _flatten(assets: Union[_AssetT, dict[str, _AssetT], list[_AssetT]]) -> list[Asset]:
+#     """
+#     Return a simple list of assets formed by collapsing potentially nested collections.
+#
+#     :param assets: An asset, a collection of assets, or None.
+#     """
+#     if assets is None:
+#         return []
+#     if isinstance(assets, Asset):
+#         return [assets]
+#     xs = assets if isinstance(assets, list) else assets.values()
+#     return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
 
-    :param assets: An asset, a collection of assets, or None.
+
+def _flatten(o: Optional[Union[T, dict[str, T], list[T]]]) -> list[T]:
     """
-    if assets is None:
+    Return a simple list formed by collapsing potentially nested collections.
+
+    :param o: An object, a collection of objects, or None.
+    """
+    f: Callable[..., list[T]] = lambda xs: list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
+    if isinstance(o, dict):
+        return f(list(o.values()))
+    if isinstance(o, list):
+        return f(o)
+    if o is None:
         return []
-    if isinstance(assets, Asset):
-        return [assets]
-    xs = assets if isinstance(assets, list) else assets.values()
-    return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
+    return [o]
 
 
 def _flatten_nodes(nodes: _NodeT) -> list[_Node]:
@@ -717,22 +772,22 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_final(
-    root: bool, taskname: str, assets: _AssetT, exe: Optional[Callable] = None
-) -> _Node:
-    """
-    Final steps common to all task types.
+# def _task_final(
+#     root: bool, taskname: str, assets: _AssetT, exe: Optional[Callable] = None
+# ) -> _Node:
+#     """
+#     Final steps common to all task types.
 
-    :param root: Is this the root task?
-    :param taskname: The current task's name.
-    :param assets: An asset, a collection of assets, or None.
-    :return: The same assets that were provided as input.
-    """
-    for asset in _flatten(assets):
-        setattr(asset, "taskname", taskname)
-    if root:
-        _state.reset()
-    return _Node(root, taskname, assets, exe)
+#     :param root: Is this the root task?
+#     :param taskname: The current task's name.
+#     :param assets: An asset, a collection of assets, or None.
+#     :return: The same assets that were provided as input.
+#     """
+#     for asset in _flatten(assets):
+#         setattr(asset, "taskname", taskname)
+#     if root:
+#         _state.reset()
+#     return _Node(root, taskname, assets, exe)
 
 
 def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
