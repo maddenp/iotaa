@@ -342,10 +342,20 @@ def main() -> None:
     if args.tasks:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
-    getattr(modobj, args.function)(*reified)
+    root = getattr(modobj, args.function)(*reified)
+    g = TopologicalSorter()
+    assemble(g, root)
+    for node in g.static_order():
+        node.go()
     if args.graph:
         print(_graph)
 
+
+def assemble(g, node):
+    g.add(node)
+    for child in _flatten(node.requirements):
+        g.add(node, child)
+        assemble(g, child)
 
 def refs(node: _Node) -> Any:
     """
