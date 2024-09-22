@@ -13,16 +13,16 @@ from iotaa import asset, external, refs, task, tasks
 
 @tasks
 def a_cup_of_tea(basedir):
-    # A cup of steeped tea with sugar, and a spoon.
+    # The cup of steeped tea with sugar, and a spoon.
     yield "The perfect cup of tea"
     yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
 
 
 @task
 def spoon(basedir):
-    # A spoon to stir the tea.
+    # The spoon to stir the tea.
     path = Path(basedir) / "spoon"
-    yield "A spoon"
+    yield "The spoon"
     yield asset(path, path.exists)
     yield None
     path.parent.mkdir(parents=True)
@@ -31,9 +31,9 @@ def spoon(basedir):
 
 @task
 def cup(basedir):
-    # A cup for the tea.
+    # The cup for the tea.
     path = Path(basedir) / "cup"
-    yield "A cup"
+    yield "The cup"
     yield asset(path, path.exists)
     yield None
     path.mkdir(parents=True)
@@ -76,14 +76,14 @@ def steeping_tea(basedir):
 
 @task
 def teabag(basedir):
-    # Place tea bag in the cup. Requires box of teabags.
-    yield from ingredient(basedir, "teabag", "Teabag", box_of_teabags)
+    # Place tea bag in the cup. Requires box of tea bags.
+    yield from ingredient(basedir, "teabag", "Teabag", box_of_tea_bags)
 
 
 @external
-def box_of_teabags(basedir):
-    path = Path(basedir) / "box-of-teabags"
-    yield f"Box of teabags {path}"
+def box_of_tea_bags(basedir):
+    path = Path(basedir) / "box-of-tea-bags"
+    yield f"Box of tea bags ({path})"
     yield asset(path, path.exists)
 
 

@@ -186,36 +186,19 @@ class _Node(ABC):
         """
 
     @property
-    @abstractmethod
     def ready(self) -> bool:
         """
         PM WRITEME.
         """
+        return all(a.ready() for a in _flatten(self.assets))
 
-    def _report_readiness(
-        self,
-        ready: bool,
-        taskname: str,
-        is_external: Optional[bool] = False,
-        initial: Optional[bool] = False,
-    ) -> None:
+    def _report_readiness(self) -> None:
         """
         Log information about the readiness of an asset.
-
-        :param ready: Is the asset ready to use?
-        :param taskname: The current task's name.
-        :param is_external: Is this an @external task?
-        :param initial: Is this a initial (i.e. pre-run) readiness report?
         """
-        extmsg = " (external asset)" if is_external and not ready else ""
-        logf = _log.info if initial or ready else _log.warning
-        logf(
-            "%s: %s: %s%s",
-            taskname,
-            "State" if is_external else "Initial state" if initial else "Final state",
-            "Ready" if ready else "Not Ready",
-            extmsg,
-        )
+        extmsg = " (external asset)" if isinstance(self, _NodeExternal) and not self.ready else ""
+        logf = _log.info if self.ready else _log.warning
+        logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
 
 
 _NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
@@ -226,7 +209,7 @@ class _NodeExternal(_Node):
     PM WRITEME.
     """
 
-    def __init__(self, taskname: str, root: bool, assets: Optional[_AssetT] = None) -> None:
+    def __init__(self, taskname: str, root: bool, assets: _AssetT) -> None:
         self.taskname = taskname
         self.root = root
         self.assets = assets
@@ -236,15 +219,7 @@ class _NodeExternal(_Node):
         PM WRITEME.
         """
         if not self.ready or self.root:
-            _graph.update_from_task(self.taskname, self.assets)
-            self._report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
-
-    @property
-    def ready(self) -> bool:
-        """
-        PM WRITEME.
-        """
-        return all(a.ready() for a in _flatten(self.assets))
+            self._report_readiness()
 
 
 class _NodeTask(_Node):
@@ -253,12 +228,7 @@ class _NodeTask(_Node):
     """
 
     def __init__(
-        self,
-        taskname: str,
-        root: bool,
-        assets: Optional[_AssetT] = None,
-        requirements: Optional[_NodeT] = None,
-        exe: Optional[Callable] = None,
+        self, taskname: str, root: bool, assets: _AssetT, requirements: _NodeT, exe: Callable
     ) -> None:
         self.taskname = taskname
         self.root = root
@@ -270,27 +240,13 @@ class _NodeTask(_Node):
         """
         PM WRITEME.
         """
-        ready_initial = self.ready
-        if not ready_initial or self.root:
-            _graph.update_from_task(self.taskname, self.assets)
-            self._report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
-        if not ready_initial:
-            if all(node.ready for node in _flatten(self.requirements)):
-                _log.info("%s: Requirement(s) ready", self.taskname)
-                assert self.exe
+        msg = "%s: Requirement(s) %sready"
+        if not self.ready:
+            reqs_ready = all(node.ready for node in _flatten(self.requirements))
+            _log.info(msg, self.taskname, "" if reqs_ready else "not ")
+            if reqs_ready:
                 self.exe()
-            else:
-                _log.info("%s: Requirement(s) not ready", self.taskname)
-                self._report_readiness(ready=False, taskname=self.taskname)
-        if self.ready != ready_initial:
-            self._report_readiness(ready=self.ready, taskname=self.taskname)
-
-    @property
-    def ready(self) -> bool:
-        """
-        PM WRITEME.
-        """
-        return all(a.ready() for a in _flatten(self.assets))
+        self._report_readiness()
 
 
 class _NodeTasks(_Node):
@@ -307,10 +263,8 @@ class _NodeTasks(_Node):
         """
         PM WRITEME.
         """
-        if self.root:
-            self._report_readiness(ready=False, taskname=self.taskname, initial=True)
         if not self.ready or self.root:
-            self._report_readiness(ready=self.ready, taskname=self.taskname)
+            self._report_readiness()
 
     @property
     def ready(self) -> bool:
@@ -377,11 +331,13 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
     g: TopologicalSorter = TopologicalSorter()
+    _log.debug("Task tree")
+    _log.debug("---------")
     _assemble(g, root)
     for node in g.static_order():
         node.go()
-    if args.graph:
-        print(_graph)
+    # if args.graph:
+    #     print(_graph)
 
 
 # Public API functions:
@@ -609,15 +565,16 @@ def tasks(f: Callable) -> _TaskT:
 # Private helper functions:
 
 
-def _assemble(g, node):
+def _assemble(g, node, level=0) -> None:  # PM add types
     """
     PM WRITEME.
     """
+    _log.debug("  " * level + node.taskname)
     g.add(node)
     child: _Node
     for child in _flatten(node.requirements):
         g.add(node, child)
-        _assemble(g, child)
+        _assemble(g, child, level + 1)
 
 
 _CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]

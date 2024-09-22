@@ -565,11 +565,11 @@ The displayed image (tasks are ovals, assets (green => ready, orange => not read
 
 Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of graph images are shown:
 
-- First invocation, blocked by missing (external) box of teabags:
+- First invocation, blocked by missing (external) box of tea bags:
 
 ![teatime-dry-run-image](img/teatime-1.svg)
 
-- Second invocation, with box of teabags available:
+- Second invocation, with box of tea bags available:
 
 ![teatime-dry-run-image](img/teatime-2.svg)
 
