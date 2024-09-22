@@ -172,7 +172,12 @@ class _Node:
     """
 
     def __init__(
-        self, root: bool, taskname: str, assets: _AssetT, requirements: Optional[_NodeT] = None, exe: Optional[Callable] = None
+        self,
+        root: bool,
+        taskname: str,
+        assets: Optional[_AssetT] = None,
+        requirements: Optional[_NodeT] = None,
+        exe: Optional[Callable] = None,
     ) -> None:
         self.root = root
         self.taskname = taskname
@@ -190,7 +195,9 @@ class _Node:
         """
         return _ready(self.assets)
 
+
 _NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
+
 
 class _State:
     """
@@ -292,18 +299,20 @@ def main() -> None:
     if args.tasks:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
-    getattr(modobj, args.function)(*reified)
+    g = getattr(modobj, args.function)(*reified)
+    breakpoint()
     if args.graph:
         print(_graph)
 
 
-def refs(assets: _AssetT) -> Any:
+def refs(node: _Node) -> Any:
     """
     Extract and return asset references.
 
-    :param assets: An asset, a collection of assets, or None.
-    :return: Asset reference(s) in the same shape (e.g. dict, list, scalar, None) as the asets.
+    :param node: A node.
+    :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
+    assets = node.assets
     if isinstance(assets, dict):
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
@@ -466,7 +475,7 @@ def task(f: Callable) -> _TaskT:
             taskname=taskname,
             assets=_next(generator, "assets"),
             requirements=_next(generator, "requirements"),
-            exe=_execute(generator, taskname),
+            exe=lambda: _execute(generator, taskname),
         )
 
     return _mark_task(inner)
