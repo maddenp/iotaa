@@ -500,15 +500,15 @@ def external(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
-        taskname, root, g = _task_initial(f, *args, **kwargs)
+        taskname, root, generator = _task_info(f, *args, **kwargs)
         return _Node(
             taskname=taskname,
             kind=_Kind.external,
             root=root,
-            assets=_next(g, "assets"),
+            assets=_next(generator, "assets"),
         )
 
-    return _mark_task(inner)
+    return _mark(inner)
 
 
 def task(f: Callable) -> _TaskT:
@@ -521,7 +521,7 @@ def task(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
-        taskname, root, generator = _task_initial(f, *args, **kwargs)
+        taskname, root, generator = _task_info(f, *args, **kwargs)
         return _Node(
             taskname=taskname,
             kind=_Kind.task,
@@ -531,7 +531,7 @@ def task(f: Callable) -> _TaskT:
             exe=lambda: _execute(generator, taskname),
         )
 
-    return _mark_task(inner)
+    return _mark(inner)
 
 
 def tasks(f: Callable) -> _TaskT:
@@ -544,7 +544,7 @@ def tasks(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
-        taskname, root, generator = _task_initial(f, *args, **kwargs)
+        taskname, root, generator = _task_info(f, *args, **kwargs)
         return _Node(
             taskname=taskname,
             kind=_Kind.tasks,
@@ -552,7 +552,7 @@ def tasks(f: Callable) -> _TaskT:
             requirements=_next(generator, "requirements"),
         )
 
-    return _mark_task(inner)
+    return _mark(inner)
 
 
 # Private helper functions:
@@ -639,7 +639,7 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _mark_task(f: _TaskT) -> _TaskT:
+def _mark(f: _TaskT) -> _TaskT:
     """
     Returns a function, marked as an iotaa task.
 
@@ -720,7 +720,7 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
+def _task_info(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     """
     Inital steps common to all task types.
 

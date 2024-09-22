@@ -616,13 +616,13 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
-def test__mark_task():
+def test__mark():
 
     def f():
         pass
 
     assert not hasattr(f, "__iotaa_task__")
-    assert iotaa._mark_task(f) is f
+    assert iotaa._mark(f) is f
     assert hasattr(f, "__iotaa_task__")
 
 
@@ -729,7 +729,7 @@ def test__task_inital():
 
     with patch.object(iotaa, "_state", iotaa._State()):
         tn = "task"
-        taskname, root, g = iotaa._task_initial(f, tn, n=88)
+        taskname, root, g = iotaa._task_info(f, tn, n=88)
         assert taskname == tn
         assert root is True
         assert next(g) == 88
