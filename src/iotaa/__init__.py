@@ -341,7 +341,7 @@ def main() -> None:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
-    g = TopologicalSorter()
+    g: TopologicalSorter = TopologicalSorter()
     assemble(g, root)
     for node in g.static_order():
         node.go()
@@ -350,7 +350,11 @@ def main() -> None:
 
 
 def assemble(g, node):
+    """
+    PM WRITEME.
+    """
     g.add(node)
+    child: _Node
     for child in _flatten(node.requirements):
         g.add(node, child)
         assemble(g, child)
