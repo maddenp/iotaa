@@ -665,16 +665,16 @@ def test__parse_args_missing_task_ok(switch):
     assert args.tasks is True
 
 
-def test__ready():
-    af = iotaa.asset(ref=False, ready=lambda: False)
-    at = iotaa.asset(ref=True, ready=lambda: True)
-    assert iotaa._ready(None)
-    assert iotaa._ready([at])
-    assert iotaa._ready(at)
-    assert iotaa._ready({"ready": at})
-    assert not iotaa._ready([af])
-    assert not iotaa._ready(af)
-    assert not iotaa._ready({"not ready": af})
+# def test__ready():
+#     af = iotaa.asset(ref=False, ready=lambda: False)
+#     at = iotaa.asset(ref=True, ready=lambda: True)
+#     assert iotaa._ready(None)
+#     assert iotaa._ready([at])
+#     assert iotaa._ready(at)
+#     assert iotaa._ready({"ready": at})
+#     assert not iotaa._ready([af])
+#     assert not iotaa._ready(af)
+#     assert not iotaa._ready({"not ready": af})
 
 
 def test__reify():

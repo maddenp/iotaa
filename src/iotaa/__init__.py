@@ -223,16 +223,15 @@ class _Node:
         elif self.kind is _Kind.tasks:
             if self.root:
                 _report_readiness(ready=False, taskname=self.taskname, initial=True)
-            ready = _ready(self.assets)
-            if not ready or self.root:
-                _report_readiness(ready=ready, taskname=self.taskname)
+            if not self.ready or self.root:
+                _report_readiness(ready=self.ready, taskname=self.taskname)
 
     @property
     def ready(self) -> bool:
         """
         PM WRITEME.
         """
-        return _ready(self.assets)
+        return all(a.ready() for a in _flatten(self.assets))
 
 
 _NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
@@ -265,6 +264,42 @@ class _State:
 _state = _State()
 
 T = TypeVar("T")
+
+# Main entry-point function:
+
+
+def main() -> None:
+    """
+    Main CLI entry point.
+    """
+    # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
+    # module-name argument represents a file, append its parent directory to sys.path and remove any
+    # extension (presumably .py) so that it can be imported. If it does not represent a file, assume
+    # that it names a module that can be imported via standard means, maybe via PYTHONPATH. Trailing
+    # positional command-line arguments are then JSON-parsed to Python objects and passed to the
+    # specified function.
+
+    args = _parse_args(sys.argv[1:])
+    logcfg(verbose=args.verbose)
+    if args.dry_run:
+        dryrun()
+    modname = args.module
+    modpath = Path(modname)
+    if modpath.is_file():
+        sys.path.append(str(modpath.parent.resolve()))
+        modname = modpath.stem
+    modobj = import_module(modname)
+    if args.tasks:
+        _show_tasks(args.module, modobj)
+    reified = [_reify(arg) for arg in args.args]
+    root = getattr(modobj, args.function)(*reified)
+    g: TopologicalSorter = TopologicalSorter()
+    _assemble(g, root)
+    for node in g.static_order():
+        node.go()
+    if args.graph:
+        print(_graph)
+
 
 # Public API functions:
 
@@ -314,50 +349,6 @@ def logset(logger: logging.Logger) -> None:
     :param logger: The logger to log to.
     """
     _log.logger = logger
-
-
-def main() -> None:
-    """
-    Main CLI entry point.
-    """
-    # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
-    # module-name argument represents a file, append its parent directory to sys.path and remove any
-    # extension (presumably .py) so that it can be imported. If it does not represent a file, assume
-    # that it names a module that can be imported via standard means, maybe via PYTHONPATH. Trailing
-    # positional command-line arguments are then JSON-parsed to Python objects and passed to the
-    # specified function.
-
-    args = _parse_args(sys.argv[1:])
-    logcfg(verbose=args.verbose)
-    if args.dry_run:
-        dryrun()
-    modname = args.module
-    modpath = Path(modname)
-    if modpath.is_file():
-        sys.path.append(str(modpath.parent.resolve()))
-        modname = modpath.stem
-    modobj = import_module(modname)
-    if args.tasks:
-        _show_tasks(args.module, modobj)
-    reified = [_reify(arg) for arg in args.args]
-    root = getattr(modobj, args.function)(*reified)
-    g: TopologicalSorter = TopologicalSorter()
-    assemble(g, root)
-    for node in g.static_order():
-        node.go()
-    if args.graph:
-        print(_graph)
-
-
-def assemble(g, node):
-    """
-    PM WRITEME.
-    """
-    g.add(node)
-    child: _Node
-    for child in _flatten(node.requirements):
-        g.add(node, child)
-        assemble(g, child)
 
 
 def refs(node: _Node) -> Any:
@@ -541,6 +532,18 @@ def tasks(f: Callable) -> _TaskT:
 
 # Private helper functions:
 
+
+def _assemble(g, node):
+    """
+    PM WRITEME.
+    """
+    g.add(node)
+    child: _Node
+    for child in _flatten(node.requirements):
+        g.add(node, child)
+        _assemble(g, child)
+
+
 _CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
 
 
@@ -662,16 +665,6 @@ def _parse_args(raw: list[str]) -> Namespace:
         print("Request --tasks or specify task name")
         sys.exit(1)
     return args
-
-
-def _ready(assets: _AssetT) -> bool:
-    """
-    Readiness of the specified asset(s).
-
-    :param assets: An asset, a collection of assets, or None.
-    :return: Are all the assets ready?
-    """
-    return all(a.ready() for a in _flatten(assets))
 
 
 def _reify(s: str) -> _CacheableT:
