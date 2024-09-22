@@ -244,9 +244,12 @@ class _NodeTask(_Node):
         PM WRITEME.
         """
         if not self.ready:
-            reqs_ready = all(node.ready for node in _flatten(self.requirements))
-            if self.requirements:
-                _log.info("%s: Requirement(s) %sready", self.taskname, "" if reqs_ready else "not ")
+            reqs = self.requirements
+            reqs_ready = all(node.ready for node in _flatten(reqs))
+            if reqs:
+                msg = "%s: Requirement(s) %sready" % (self.taskname, "" if reqs_ready else "not ")
+                logf = _log.info if reqs_ready else _log.warning
+                logf(msg)
             if reqs_ready:
                 self.exe()
         self._report_readiness()
