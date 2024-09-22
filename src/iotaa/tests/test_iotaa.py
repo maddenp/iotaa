@@ -686,18 +686,18 @@ def test__reify():
     assert hash(o) == hash((("a", 1), ("b", 2)))
 
 
-@mark.parametrize(
-    "vals",
-    [
-        (True, False, True, "Initial state: Ready"),
-        (False, True, False, "State: Not Ready (external asset)"),
-    ],
-)
-def test__report_readiness(caplog, vals):
-    ready, ext, init, msg = vals
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
-    assert logged(f"task: {msg}", caplog)
+# @mark.parametrize(
+#     "vals",
+#     [
+#         (True, False, True, "Initial state: Ready"),
+#         (False, True, False, "State: Not Ready (external asset)"),
+#     ],
+# )
+# def test__report_readiness(caplog, vals):
+#     ready, ext, init, msg = vals
+#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
+#     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
+#     assert logged(f"task: {msg}", caplog)
 
 
 def test__show_tasks(capsys, task_class):

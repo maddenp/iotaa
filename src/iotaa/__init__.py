@@ -204,12 +204,12 @@ class _Node:
         if self.kind is _Kind.external:
             if not self.ready or self.root:
                 _graph.update_from_task(self.taskname, self.assets)
-                _report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
+                self._report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
         elif self.kind is _Kind.task:
             ready_initial = self.ready
             if not ready_initial or self.root:
                 _graph.update_from_task(self.taskname, self.assets)
-                _report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
+                self._report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
             if not ready_initial:
                 if all(node.ready for node in _flatten(self.requirements)):
                     _log.info("%s: Requirement(s) ready", self.taskname)
@@ -217,14 +217,14 @@ class _Node:
                     self.exe()
                 else:
                     _log.info("%s: Requirement(s) not ready", self.taskname)
-                    _report_readiness(ready=False, taskname=self.taskname)
+                    self._report_readiness(ready=False, taskname=self.taskname)
             if self.ready != ready_initial:
-                _report_readiness(ready=self.ready, taskname=self.taskname)
+                self._report_readiness(ready=self.ready, taskname=self.taskname)
         elif self.kind is _Kind.tasks:
             if self.root:
-                _report_readiness(ready=False, taskname=self.taskname, initial=True)
+                self._report_readiness(ready=False, taskname=self.taskname, initial=True)
             if not self.ready or self.root:
-                _report_readiness(ready=self.ready, taskname=self.taskname)
+                self._report_readiness(ready=self.ready, taskname=self.taskname)
 
     @property
     def ready(self) -> bool:
@@ -232,6 +232,31 @@ class _Node:
         PM WRITEME.
         """
         return all(a.ready() for a in _flatten(self.assets))
+
+    def _report_readiness(
+        self,
+        ready: bool,
+        taskname: str,
+        is_external: Optional[bool] = False,
+        initial: Optional[bool] = False,
+    ) -> None:
+        """
+        Log information about the readiness of an asset.
+
+        :param ready: Is the asset ready to use?
+        :param taskname: The current task's name.
+        :param is_external: Is this an @external task?
+        :param initial: Is this a initial (i.e. pre-run) readiness report?
+        """
+        extmsg = " (external asset)" if is_external and not ready else ""
+        logf = _log.info if initial or ready else _log.warning
+        logf(
+            "%s: %s: %s%s",
+            taskname,
+            "State" if is_external else "Initial state" if initial else "Final state",
+            "Ready" if ready else "Not Ready",
+            extmsg,
+        )
 
 
 _NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
@@ -678,28 +703,6 @@ def _reify(s: str) -> _CacheableT:
         return _cacheable(loads(s))
     except JSONDecodeError:
         return _cacheable(loads(f'"{s}"'))
-
-
-def _report_readiness(
-    ready: bool, taskname: str, is_external: Optional[bool] = False, initial: Optional[bool] = False
-) -> None:
-    """
-    Log information about the readiness of an asset.
-
-    :param ready: Is the asset ready to use?
-    :param taskname: The current task's name.
-    :param is_external: Is this an @external task?
-    :param initial: Is this a initial (i.e. pre-run) readiness report?
-    """
-    extmsg = " (external asset)" if is_external and not ready else ""
-    logf = _log.info if initial or ready else _log.warning
-    logf(
-        "%s: %s: %s%s",
-        taskname,
-        "State" if is_external else "Initial state" if initial else "Final state",
-        "Ready" if ready else "Not Ready",
-        extmsg,
-    )
 
 
 def _show_tasks(name: str, obj: ModuleType) -> None:
