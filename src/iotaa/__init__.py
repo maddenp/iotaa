@@ -172,6 +172,8 @@ class _Node(ABC):
     PM WRITEME.
     """
 
+    assets: Optional[_AssetT] = None
+    requirements: Optional[_NodeT] = None
     taskname = "abstract"
 
     def __hash__(self):
@@ -214,6 +216,9 @@ class _Node(ABC):
             "Ready" if ready else "Not Ready",
             extmsg,
         )
+
+
+_NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
 
 
 class _NodeExternal(_Node):
@@ -289,6 +294,10 @@ class _NodeTask(_Node):
 
 
 class _NodeTasks(_Node):
+    """
+    PM WRITEME.
+    """
+
     def __init__(self, taskname: str, root: bool, requirements: Optional[_NodeT] = None) -> None:
         self.taskname = taskname
         self.root = root
@@ -309,9 +318,6 @@ class _NodeTasks(_Node):
         PM WRITEME.
         """
         return all(node.ready for node in _flatten(self.requirements))
-
-
-_NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
 
 
 class _State:
@@ -435,7 +441,7 @@ def refs(node: _Node) -> Any:
     :param node: A node.
     :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
-    assets = getattr(node, "assets", None)
+    assets = node.assets
     if isinstance(assets, dict):
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
