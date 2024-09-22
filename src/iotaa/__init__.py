@@ -211,7 +211,6 @@ class _Node:
                 _graph.update_from_task(self.taskname, self.assets)
                 _report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
             if not ready_initial:
-                # if _ready(list(chain.from_iterable(_flatten(node.assets) for node in _flatten(self.requirements)))):
                 if all(node.ready for node in _flatten(self.requirements)):
                     _log.info("%s: Requirement(s) ready", self.taskname)
                     assert self.exe
@@ -227,7 +226,6 @@ class _Node:
             ready = _ready(self.assets)
             if not ready or self.root:
                 _report_readiness(ready=ready, taskname=self.taskname)
-        # return _task_final(self.root, self.taskname, self.assets)
 
     @property
     def ready(self) -> bool:
@@ -357,6 +355,7 @@ def assemble(g, node):
         g.add(node, child)
         assemble(g, child)
 
+
 def refs(node: _Node) -> Any:
     """
     Extract and return asset references.
@@ -482,11 +481,6 @@ def external(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, g = _task_initial(f, *args, **kwargs)
-        # ready = _ready(assets)
-        # if not ready or root:
-        #     _graph.update_from_task(taskname, assets)
-        #     _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        # return _task_final(root, taskname, assets)
         return _Node(
             taskname=taskname,
             kind=_Kind.external,
@@ -508,21 +502,6 @@ def task(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, generator = _task_initial(f, *args, **kwargs)
-        # ready_initial = _ready(assets)
-        # if not ready_initial or root:
-        #     _graph.update_from_task(taskname, assets)
-        #     _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
-        # if not ready_initial:
-        #     required_assets = _delegate(generator, taskname)
-        #     if _ready(required_assets):
-        #         _log.info("%s: Requirement(s) ready", taskname)
-        #         _execute(generator, taskname)
-        #     else:
-        #         _log.info("%s: Requirement(s) not ready", taskname)
-        #         _report_readiness(ready=False, taskname=taskname)
-        # ready_final = _ready(assets)
-        # if ready_final != ready_initial:
-        #     _report_readiness(ready=ready_final, taskname=taskname)
         return _Node(
             taskname=taskname,
             kind=_Kind.task,
@@ -546,13 +525,6 @@ def tasks(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, generator = _task_initial(f, *args, **kwargs)
-        # if root:
-        #     _report_readiness(ready=False, taskname=taskname, initial=True)
-        # required_assets = _delegate(generator, taskname)
-        # ready = _ready(required_assets)
-        # if not ready or root:
-        #     _report_readiness(ready=ready, taskname=taskname)
-        # return _task_final(root, taskname, required_assets)
         return _Node(
             taskname=taskname,
             kind=_Kind.tasks,
@@ -590,25 +562,6 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
     return o
 
 
-def _delegate(g: Generator, taskname: str) -> _AssetT:
-    """
-    Delegate execution to the current task's requirement(s).
-
-    :param g: The current task.
-    :param taskname: The current task's name.
-    :return: The assets of the required task(s).
-    """
-    # The next value of the generator is the collection of requirements of the current task. This
-    # may be a dict or list of task-function calls, a single task-function call, or None, so convert
-    # it to a list for iteration. The value of each task-function call is a collection of assets,
-    # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
-
-    _log.info("%s: Checking requirements", taskname)
-    assets: _AssetT = _next(g, "requirements")
-    _graph.update_from_requirements(taskname, _flatten(assets))
-    return assets
-
-
 def _execute(g: Generator, taskname: str) -> None:
     """
     Execute the post-yield body of a decorated function.
@@ -624,20 +577,6 @@ def _execute(g: Generator, taskname: str) -> None:
         next(g)
     except StopIteration:
         pass
-
-
-# def _flatten(assets: Union[_AssetT, dict[str, _AssetT], list[_AssetT]]) -> list[Asset]:
-#     """
-#     Return a simple list of assets formed by collapsing potentially nested collections.
-#
-#     :param assets: An asset, a collection of assets, or None.
-#     """
-#     if assets is None:
-#         return []
-#     if isinstance(assets, Asset):
-#         return [assets]
-#     xs = assets if isinstance(assets, list) else assets.values()
-#     return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
 
 
 def _flatten(o: Optional[Union[T, dict[str, T], list[T]]]) -> list[T]:
@@ -656,15 +595,6 @@ def _flatten(o: Optional[Union[T, dict[str, T], list[T]]]) -> list[T]:
     if o is None:
         return []
     return [o]
-
-
-def _flatten_nodes(nodes: _NodeT) -> list[_Node]:
-    if nodes is None:
-        return []
-    if isinstance(nodes, _Node):
-        return [nodes]
-    xs = nodes if isinstance(nodes, list) else nodes.values()
-    return list(filter(None, chain.from_iterable(_flatten_nodes(x) for x in xs)))
 
 
 def _formatter(prog: str) -> HelpFormatter:
@@ -788,24 +718,6 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
         if doc := getattr(obj, t).__doc__:
             print("    %s" % doc.strip().split("\n")[0])
     sys.exit(0)
-
-
-# def _task_final(
-#     root: bool, taskname: str, assets: _AssetT, exe: Optional[Callable] = None
-# ) -> _Node:
-#     """
-#     Final steps common to all task types.
-
-#     :param root: Is this the root task?
-#     :param taskname: The current task's name.
-#     :param assets: An asset, a collection of assets, or None.
-#     :return: The same assets that were provided as input.
-#     """
-#     for asset in _flatten(assets):
-#         setattr(asset, "taskname", taskname)
-#     if root:
-#         _state.reset()
-#     return _Node(root, taskname, assets, exe)
 
 
 def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
