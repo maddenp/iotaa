@@ -7,10 +7,10 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum, auto
 from functools import wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
@@ -167,71 +167,28 @@ class _Logger:
 _log = _Logger()
 
 
-class _Kind(Enum):
-    external = auto()
-    task = auto()
-    tasks = auto()
-
-
-class _Node:
+class _Node(ABC):
     """
     PM WRITEME.
     """
 
-    def __init__(
-        self,
-        taskname: str,
-        kind: _Kind,
-        root: bool,
-        assets: Optional[_AssetT] = None,
-        requirements: Optional[_NodeT] = None,
-        exe: Optional[Callable] = None,
-    ) -> None:
-        self.taskname = taskname
-        self.kind = kind
-        self.root = root
-        self.assets = assets
-        self.requirements = requirements
-        self.exe = exe
+    taskname = "abstract"
 
     def __hash__(self):
         return hash(self.taskname)
 
+    @abstractmethod
     def go(self) -> None:
         """
         PM WRITEME.
         """
-        if self.kind is _Kind.external:
-            if not self.ready or self.root:
-                _graph.update_from_task(self.taskname, self.assets)
-                self._report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
-        elif self.kind is _Kind.task:
-            ready_initial = self.ready
-            if not ready_initial or self.root:
-                _graph.update_from_task(self.taskname, self.assets)
-                self._report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
-            if not ready_initial:
-                if all(node.ready for node in _flatten(self.requirements)):
-                    _log.info("%s: Requirement(s) ready", self.taskname)
-                    assert self.exe
-                    self.exe()
-                else:
-                    _log.info("%s: Requirement(s) not ready", self.taskname)
-                    self._report_readiness(ready=False, taskname=self.taskname)
-            if self.ready != ready_initial:
-                self._report_readiness(ready=self.ready, taskname=self.taskname)
-        elif self.kind is _Kind.tasks:
-            if self.root:
-                self._report_readiness(ready=False, taskname=self.taskname, initial=True)
-            if not self.ready or self.root:
-                self._report_readiness(ready=self.ready, taskname=self.taskname)
 
     @property
+    @abstractmethod
     def ready(self) -> bool:
         """
         PM WRITEME.
         """
-        return all(a.ready() for a in _flatten(self.assets))
 
     def _report_readiness(
         self,
@@ -257,6 +214,101 @@ class _Node:
             "Ready" if ready else "Not Ready",
             extmsg,
         )
+
+
+class _NodeExternal(_Node):
+    """
+    PM WRITEME.
+    """
+
+    def __init__(self, taskname: str, root: bool, assets: Optional[_AssetT] = None) -> None:
+        self.taskname = taskname
+        self.root = root
+        self.assets = assets
+
+    def go(self) -> None:
+        """
+        PM WRITEME.
+        """
+        if not self.ready or self.root:
+            _graph.update_from_task(self.taskname, self.assets)
+            self._report_readiness(ready=self.ready, taskname=self.taskname, is_external=True)
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME.
+        """
+        return all(a.ready() for a in _flatten(self.assets))
+
+
+class _NodeTask(_Node):
+    """
+    PM WRITEME.
+    """
+
+    def __init__(
+        self,
+        taskname: str,
+        root: bool,
+        assets: Optional[_AssetT] = None,
+        requirements: Optional[_NodeT] = None,
+        exe: Optional[Callable] = None,
+    ) -> None:
+        self.taskname = taskname
+        self.root = root
+        self.assets = assets
+        self.requirements = requirements
+        self.exe = exe
+
+    def go(self) -> None:
+        """
+        PM WRITEME.
+        """
+        ready_initial = self.ready
+        if not ready_initial or self.root:
+            _graph.update_from_task(self.taskname, self.assets)
+            self._report_readiness(ready=ready_initial, taskname=self.taskname, initial=True)
+        if not ready_initial:
+            if all(node.ready for node in _flatten(self.requirements)):
+                _log.info("%s: Requirement(s) ready", self.taskname)
+                assert self.exe
+                self.exe()
+            else:
+                _log.info("%s: Requirement(s) not ready", self.taskname)
+                self._report_readiness(ready=False, taskname=self.taskname)
+        if self.ready != ready_initial:
+            self._report_readiness(ready=self.ready, taskname=self.taskname)
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME.
+        """
+        return all(a.ready() for a in _flatten(self.assets))
+
+
+class _NodeTasks(_Node):
+    def __init__(self, taskname: str, root: bool, requirements: Optional[_NodeT] = None) -> None:
+        self.taskname = taskname
+        self.root = root
+        self.requirements = requirements
+
+    def go(self) -> None:
+        """
+        PM WRITEME.
+        """
+        if self.root:
+            self._report_readiness(ready=False, taskname=self.taskname, initial=True)
+        if not self.ready or self.root:
+            self._report_readiness(ready=self.ready, taskname=self.taskname)
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME.
+        """
+        return all(node.ready for node in _flatten(self.requirements))
 
 
 _NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
@@ -383,7 +435,7 @@ def refs(node: _Node) -> Any:
     :param node: A node.
     :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
-    assets = node.assets
+    assets = getattr(node, "assets", None)
     if isinstance(assets, dict):
         return {k: v.ref for k, v in assets.items()}
     if isinstance(assets, list):
@@ -501,12 +553,7 @@ def external(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, generator = _task_info(f, *args, **kwargs)
-        return _Node(
-            taskname=taskname,
-            kind=_Kind.external,
-            root=root,
-            assets=_next(generator, "assets"),
-        )
+        return _NodeExternal(taskname=taskname, root=root, assets=_next(generator, "assets"))
 
     return _mark(inner)
 
@@ -522,9 +569,8 @@ def task(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, generator = _task_info(f, *args, **kwargs)
-        return _Node(
+        return _NodeTask(
             taskname=taskname,
-            kind=_Kind.task,
             root=root,
             assets=_next(generator, "assets"),
             requirements=_next(generator, "requirements"),
@@ -545,9 +591,8 @@ def tasks(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> _Node:
         taskname, root, generator = _task_info(f, *args, **kwargs)
-        return _Node(
+        return _NodeTasks(
             taskname=taskname,
-            kind=_Kind.tasks,
             root=root,
             requirements=_next(generator, "requirements"),
         )
