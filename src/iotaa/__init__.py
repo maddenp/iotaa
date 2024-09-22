@@ -176,6 +176,9 @@ class _Node(ABC):
     requirements: Optional[_NodeT] = None
     taskname = "abstract"
 
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
     def __hash__(self):
         return hash(self.taskname)
 
@@ -240,10 +243,10 @@ class _NodeTask(_Node):
         """
         PM WRITEME.
         """
-        msg = "%s: Requirement(s) %sready"
         if not self.ready:
             reqs_ready = all(node.ready for node in _flatten(self.requirements))
-            _log.info(msg, self.taskname, "" if reqs_ready else "not ")
+            if self.requirements:
+                _log.info("%s: Requirement(s) %sready", self.taskname, "" if reqs_ready else "not ")
             if reqs_ready:
                 self.exe()
         self._report_readiness()
@@ -330,9 +333,9 @@ def main() -> None:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
-    g: TopologicalSorter = TopologicalSorter()
     _log.debug("Task tree")
     _log.debug("---------")
+    g: TopologicalSorter = TopologicalSorter()
     _assemble(g, root)
     for node in g.static_order():
         node.go()
@@ -571,10 +574,10 @@ def _assemble(g, node, level=0) -> None:  # PM add types
     """
     _log.debug("  " * level + node.taskname)
     g.add(node)
-    child: _Node
-    for child in _flatten(node.requirements):
-        g.add(node, child)
-        _assemble(g, child, level + 1)
+    predecessor: _Node
+    for predecessor in _flatten(node.requirements):
+        g.add(node, predecessor)
+        _assemble(g, predecessor, level + 1)
 
 
 _CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
