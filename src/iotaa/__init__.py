@@ -43,6 +43,114 @@ class Asset:
 _AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 
 
+class Node(ABC):
+    """
+    PM WRITEME.
+    """
+
+    assets: Optional[_AssetT] = None
+    requirements: Optional[_NodeT] = None
+    taskname = "abstract"
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __hash__(self):
+        return hash(self.taskname)
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME.
+        """
+        return all(a.ready() for a in _flatten(self.assets))
+
+    def _report_readiness(self) -> None:
+        """
+        Log information about the readiness of an asset.
+        """
+        extmsg = " (external asset)" if isinstance(self, NodeExternal) and not self.ready else ""
+        logf = _log.info if self.ready else _log.warning
+        logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
+
+
+_NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
+
+
+class NodeExternal(Node):
+    """
+    PM WRITEME.
+    """
+
+    def __init__(self, taskname: str, root: bool, assets: _AssetT) -> None:
+        self.taskname = taskname
+        self.root = root
+        self.assets = assets
+
+    def __call__(self) -> Node:
+        """
+        PM WRITEME.
+        """
+        self._report_readiness()
+        return self
+
+
+class NodeTask(Node):
+    """
+    PM WRITEME.
+    """
+
+    def __init__(
+        self, taskname: str, root: bool, assets: _AssetT, requirements: _NodeT, exe: Callable
+    ) -> None:
+        self.taskname = taskname
+        self.root = root
+        self.assets = assets
+        self.requirements = requirements
+        self.exe = exe
+
+    def __call__(self) -> Node:
+        """
+        PM WRITEME.
+        """
+        if not self.ready:
+            reqs = self.requirements
+            reqs_ready = all(node.ready for node in _flatten(reqs))
+            if reqs:
+                msg = "%s: Requirement(s) %sready" % (self.taskname, "" if reqs_ready else "not ")
+                logf = _log.info if reqs_ready else _log.warning
+                logf(msg)
+            if reqs_ready:
+                self.exe()
+        self._report_readiness()
+        return self
+
+
+class NodeTasks(Node):
+    """
+    PM WRITEME.
+    """
+
+    def __init__(self, taskname: str, root: bool, requirements: Optional[_NodeT] = None) -> None:
+        self.taskname = taskname
+        self.root = root
+        self.requirements = requirements
+
+    def __call__(self) -> Node:
+        """
+        PM WRITEME.
+        """
+        self._report_readiness()
+        return self
+
+    @property
+    def ready(self) -> bool:
+        """
+        PM WRITEME.
+        """
+        return all(node.ready for node in _flatten(self.requirements))
+
+
 @dataclass
 class Result:
     """
@@ -165,114 +273,6 @@ class _Logger:
 
 
 _log = _Logger()
-
-
-class Node(ABC):
-    """
-    PM WRITEME.
-    """
-
-    assets: Optional[_AssetT] = None
-    requirements: Optional[_NodeT] = None
-    taskname = "abstract"
-
-    def __eq__(self, other):
-        return hash(self) == hash(other)
-
-    def __hash__(self):
-        return hash(self.taskname)
-
-    @property
-    def ready(self) -> bool:
-        """
-        PM WRITEME.
-        """
-        return all(a.ready() for a in _flatten(self.assets))
-
-    def _report_readiness(self) -> None:
-        """
-        Log information about the readiness of an asset.
-        """
-        extmsg = " (external asset)" if isinstance(self, NodeExternal) and not self.ready else ""
-        logf = _log.info if self.ready else _log.warning
-        logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
-
-
-_NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
-
-
-class NodeExternal(Node):
-    """
-    PM WRITEME.
-    """
-
-    def __init__(self, taskname: str, root: bool, assets: _AssetT) -> None:
-        self.taskname = taskname
-        self.root = root
-        self.assets = assets
-
-    def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
-        self._report_readiness()
-        return self
-
-
-class NodeTask(Node):
-    """
-    PM WRITEME.
-    """
-
-    def __init__(
-        self, taskname: str, root: bool, assets: _AssetT, requirements: _NodeT, exe: Callable
-    ) -> None:
-        self.taskname = taskname
-        self.root = root
-        self.assets = assets
-        self.requirements = requirements
-        self.exe = exe
-
-    def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
-        if not self.ready:
-            reqs = self.requirements
-            reqs_ready = all(node.ready for node in _flatten(reqs))
-            if reqs:
-                msg = "%s: Requirement(s) %sready" % (self.taskname, "" if reqs_ready else "not ")
-                logf = _log.info if reqs_ready else _log.warning
-                logf(msg)
-            if reqs_ready:
-                self.exe()
-        self._report_readiness()
-        return self
-
-
-class NodeTasks(Node):
-    """
-    PM WRITEME.
-    """
-
-    def __init__(self, taskname: str, root: bool, requirements: Optional[_NodeT] = None) -> None:
-        self.taskname = taskname
-        self.root = root
-        self.requirements = requirements
-
-    def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
-        self._report_readiness()
-        return self
-
-    @property
-    def ready(self) -> bool:
-        """
-        PM WRITEME.
-        """
-        return all(node.ready for node in _flatten(self.requirements))
 
 
 class _State:
