@@ -182,12 +182,6 @@ class _Node(ABC):
     def __hash__(self):
         return hash(self.taskname)
 
-    @abstractmethod
-    def go(self) -> None:
-        """
-        PM WRITEME.
-        """
-
     @property
     def ready(self) -> bool:
         """
@@ -217,12 +211,12 @@ class _NodeExternal(_Node):
         self.root = root
         self.assets = assets
 
-    def go(self) -> None:
+    def __call__(self) -> _Node:
         """
         PM WRITEME.
         """
-        if not self.ready or self.root:
-            self._report_readiness()
+        self._report_readiness()
+        return self
 
 
 class _NodeTask(_Node):
@@ -239,7 +233,7 @@ class _NodeTask(_Node):
         self.requirements = requirements
         self.exe = exe
 
-    def go(self) -> None:
+    def __call__(self) -> _Node:
         """
         PM WRITEME.
         """
@@ -253,6 +247,7 @@ class _NodeTask(_Node):
             if reqs_ready:
                 self.exe()
         self._report_readiness()
+        return self
 
 
 class _NodeTasks(_Node):
@@ -265,12 +260,12 @@ class _NodeTasks(_Node):
         self.root = root
         self.requirements = requirements
 
-    def go(self) -> None:
+    def __call__(self) -> _Node:
         """
         PM WRITEME.
         """
-        if not self.ready or self.root:
-            self._report_readiness()
+        self._report_readiness()
+        return self
 
     @property
     def ready(self) -> bool:
@@ -341,7 +336,7 @@ def main() -> None:
     g: TopologicalSorter = TopologicalSorter()
     _assemble(g, root)
     for node in g.static_order():
-        node.go()
+        node()
     # if args.graph:
     #     print(_graph)
 
@@ -736,12 +731,12 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
 
 def _task_info(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
     """
-    Inital steps common to all task types.
+    Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
     :return: The task's name, its "root" status, and the generator returned by the task.
     """
-    if root := not _state.initialized:  # Must precede delegation to other tasks!
+    if root := not _state.initialized:
         _state.initialize()
         _graph.reset()
     g = f(*args, **kwargs)
