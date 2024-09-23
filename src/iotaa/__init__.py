@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
@@ -23,6 +22,8 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from types import SimpleNamespace as ns
 from typing import Any, Callable, Generator, Iterator, Optional, TypeVar, Union
+
+T = TypeVar("T")
 
 # Public return-value classes:
 
@@ -43,7 +44,7 @@ class Asset:
 _AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 
 
-class Node(ABC):
+class Node:
     """
     PM WRITEME.
     """
@@ -301,8 +302,6 @@ class _State:
 
 _state = _State()
 
-T = TypeVar("T")
-
 # Main entry-point function:
 
 
@@ -337,8 +336,6 @@ def main() -> None:
     _assemble(g, root)
     for node in g.static_order():
         node()
-    # if args.graph:
-    #     print(_graph)
 
 
 # Public API functions:
