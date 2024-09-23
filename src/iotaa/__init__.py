@@ -167,7 +167,7 @@ class _Logger:
 _log = _Logger()
 
 
-class _Node(ABC):
+class Node(ABC):
     """
     PM WRITEME.
     """
@@ -193,15 +193,15 @@ class _Node(ABC):
         """
         Log information about the readiness of an asset.
         """
-        extmsg = " (external asset)" if isinstance(self, _NodeExternal) and not self.ready else ""
+        extmsg = " (external asset)" if isinstance(self, NodeExternal) and not self.ready else ""
         logf = _log.info if self.ready else _log.warning
         logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
 
 
-_NodeT = Optional[Union[_Node, dict[str, _Node], list[_Node]]]
+_NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 
-class _NodeExternal(_Node):
+class NodeExternal(Node):
     """
     PM WRITEME.
     """
@@ -211,7 +211,7 @@ class _NodeExternal(_Node):
         self.root = root
         self.assets = assets
 
-    def __call__(self) -> _Node:
+    def __call__(self) -> Node:
         """
         PM WRITEME.
         """
@@ -219,7 +219,7 @@ class _NodeExternal(_Node):
         return self
 
 
-class _NodeTask(_Node):
+class NodeTask(Node):
     """
     PM WRITEME.
     """
@@ -233,7 +233,7 @@ class _NodeTask(_Node):
         self.requirements = requirements
         self.exe = exe
 
-    def __call__(self) -> _Node:
+    def __call__(self) -> Node:
         """
         PM WRITEME.
         """
@@ -250,7 +250,7 @@ class _NodeTask(_Node):
         return self
 
 
-class _NodeTasks(_Node):
+class NodeTasks(Node):
     """
     PM WRITEME.
     """
@@ -260,7 +260,7 @@ class _NodeTasks(_Node):
         self.root = root
         self.requirements = requirements
 
-    def __call__(self) -> _Node:
+    def __call__(self) -> Node:
         """
         PM WRITEME.
         """
@@ -391,7 +391,7 @@ def logset(logger: logging.Logger) -> None:
     _log.logger = logger
 
 
-def refs(node: _Node) -> Any:
+def refs(node: Node) -> Any:
     """
     Extract and return asset references.
 
@@ -502,7 +502,7 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-_TaskT = Callable[..., _Node]
+_TaskT = Callable[..., Node]
 
 
 def external(f: Callable) -> _TaskT:
@@ -514,9 +514,9 @@ def external(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> _Node:
+    def inner(*args, **kwargs) -> Node:
         taskname, root, generator = _task_info(f, *args, **kwargs)
-        return _NodeExternal(taskname=taskname, root=root, assets=_next(generator, "assets"))
+        return NodeExternal(taskname=taskname, root=root, assets=_next(generator, "assets"))
 
     return _mark(inner)
 
@@ -530,9 +530,9 @@ def task(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> _Node:
+    def inner(*args, **kwargs) -> Node:
         taskname, root, generator = _task_info(f, *args, **kwargs)
-        return _NodeTask(
+        return NodeTask(
             taskname=taskname,
             root=root,
             assets=_next(generator, "assets"),
@@ -552,9 +552,9 @@ def tasks(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> _Node:
+    def inner(*args, **kwargs) -> Node:
         taskname, root, generator = _task_info(f, *args, **kwargs)
-        return _NodeTasks(
+        return NodeTasks(
             taskname=taskname,
             root=root,
             requirements=_next(generator, "requirements"),
@@ -572,7 +572,7 @@ def _assemble(g, node, level=0) -> None:  # PM add types
     """
     _log.debug("  " * level + node.taskname)
     g.add(node)
-    predecessor: _Node
+    predecessor: Node
     for predecessor in _flatten(node.requirements):
         g.add(node, predecessor)
         _assemble(g, predecessor, level + 1)
