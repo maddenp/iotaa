@@ -55,6 +55,7 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
+        self.root = True
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -526,11 +527,13 @@ def task(f: Callable) -> _TaskT:
     def inner(*args, **kwargs) -> Node:
         taskname, generator = _task_info(f, *args, **kwargs)
         assets = _next(generator, "assets")
-        requirements = _next(generator, "requirements")
+        reqs: _NodeT = _next(generator, "requirements")
+        for req in _flatten(reqs):
+            req.root = False
         return NodeTask(
             taskname=taskname,
             assets=assets,
-            requirements=requirements,
+            requirements=reqs,
             exe=lambda: _execute(generator, taskname),
         )
 
@@ -548,8 +551,10 @@ def tasks(f: Callable) -> _TaskT:
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
         taskname, generator = _task_info(f, *args, **kwargs)
-        requirements = _next(generator, "requirements")
-        return NodeTasks(taskname=taskname, requirements=requirements)
+        reqs: _NodeT = _next(generator, "requirements")
+        for req in _flatten(reqs):
+            cast(Node, req).root = False
+        return NodeTasks(taskname=taskname, requirements=reqs)
 
     return _mark(inner)
 
