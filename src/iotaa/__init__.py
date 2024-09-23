@@ -55,7 +55,14 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
+        self.graph: Optional[TopologicalSorter] = None
         self.root = True
+
+    def __call__(self) -> Node:
+        """
+        PM WRITEME.
+        """
+        return self._go()
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -69,6 +76,33 @@ class Node:
         PM WRITEME.
         """
         return all(a.ready() for a in _flatten(self.assets))
+
+    def _go(self) -> Node:
+        """
+        PM WRITEME.
+        """
+        if self.root and not self.graph:
+            self.graph = TopologicalSorter()
+            _log.debug("Task tree")
+            _log.debug("---------")
+            self._assemble(self)
+            for node in self.graph.static_order():
+                node()
+        else:
+            self._report_readiness()
+        return self
+
+    def _assemble(self, node, level=0) -> None:  # PM add types
+        """
+        PM WRITEME.
+        """
+        _log.debug("  " * level + node.taskname)
+        assert self.graph is not None
+        self.graph.add(node)
+        predecessor: Node
+        for predecessor in _flatten(node.requirements):
+            self.graph.add(node, predecessor)
+            self._assemble(predecessor, level + 1)
 
     def _report_readiness(self) -> None:
         """
@@ -90,13 +124,6 @@ class NodeExternal(Node):
     def __init__(self, taskname: str, assets: _AssetT) -> None:
         super().__init__(taskname)
         self.assets = assets
-
-    def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
-        self._report_readiness()
-        return self
 
 
 class NodeTask(Node):
@@ -123,8 +150,7 @@ class NodeTask(Node):
                 logf(msg)
             if reqs_ready:
                 self.exe()
-        self._report_readiness()
-        return self
+        return self._go()
 
 
 class NodeTasks(Node):
@@ -135,13 +161,6 @@ class NodeTasks(Node):
     def __init__(self, taskname: str, requirements: Optional[_NodeT] = None) -> None:
         super().__init__(taskname)
         self.requirements = requirements
-
-    def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
-        self._report_readiness()
-        return self
 
     @property
     def ready(self) -> bool:
@@ -327,12 +346,7 @@ def main() -> None:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
-    _log.debug("Task tree")
-    _log.debug("---------")
-    g: TopologicalSorter = TopologicalSorter()
-    _assemble(g, root)
-    for node in g.static_order():
-        node()
+    root()
 
 
 # Public API functions:
@@ -560,18 +574,6 @@ def tasks(f: Callable) -> _TaskT:
 
 
 # Private helper functions:
-
-
-def _assemble(g, node, level=0) -> None:  # PM add types
-    """
-    PM WRITEME.
-    """
-    _log.debug("  " * level + node.taskname)
-    g.add(node)
-    predecessor: Node
-    for predecessor in _flatten(node.requirements):
-        g.add(node, predecessor)
-        _assemble(g, predecessor, level + 1)
 
 
 _CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
