@@ -283,7 +283,6 @@ class _State:
 
     def __init__(self) -> None:
         self.dry_run = False
-        self.graph: TopologicalSorter = TopologicalSorter()
         self.initialized = False
 
     def initialize(self) -> None:
@@ -296,7 +295,6 @@ class _State:
         """
         Reset state.
         """
-        self.graph = TopologicalSorter()
         self.initialized = False
 
 
@@ -343,11 +341,10 @@ def main() -> None:
 
 def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     """
-    Factory function for Asset objects.
+    Returns an Asset object.
 
     :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
     :param ready: A function that, when called, indicates whether the asset is ready to use.
-    :return: An Asset object.
     """
     return Asset(ref, ready)
 
