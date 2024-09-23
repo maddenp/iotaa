@@ -553,7 +553,7 @@ def tasks(f: Callable) -> _TaskT:
         taskname, generator = _task_info(f, *args, **kwargs)
         reqs: _NodeT = _next(generator, "requirements")
         for req in _flatten(reqs):
-            cast(Node, req).root = False
+            req.root = False
         return NodeTasks(taskname=taskname, requirements=reqs)
 
     return _mark(inner)
