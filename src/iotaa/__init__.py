@@ -487,8 +487,8 @@ def external(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
-        taskname, generator = _task_info(f, *args, **kwargs)
-        assets = _next(generator, "assets")
+        taskname, g = _task_info(f, *args, **kwargs)
+        assets = _next(g, "assets")
         return NodeExternal(taskname=taskname, assets=assets)
 
     return _mark(inner)
@@ -504,16 +504,16 @@ def task(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
-        taskname, generator = _task_info(f, *args, **kwargs)
-        assets = _next(generator, "assets")
-        reqs: _NodeT = _next(generator, "requirements")
+        taskname, g = _task_info(f, *args, **kwargs)
+        assets = _next(g, "assets")
+        reqs: _NodeT = _next(g, "requirements")
         for req in _flatten(reqs):
             req.root = False
         return NodeTask(
             taskname=taskname,
             assets=assets,
             requirements=reqs,
-            exe=lambda: _execute(generator, taskname),
+            exe=lambda: _execute(g, taskname),
         )
 
     return _mark(inner)
@@ -529,8 +529,8 @@ def tasks(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
-        taskname, generator = _task_info(f, *args, **kwargs)
-        reqs: _NodeT = _next(generator, "requirements")
+        taskname, g = _task_info(f, *args, **kwargs)
+        reqs: _NodeT = _next(g, "requirements")
         for req in _flatten(reqs):
             req.root = False
         return NodeTasks(taskname=taskname, requirements=reqs)
