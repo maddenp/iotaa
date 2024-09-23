@@ -83,9 +83,8 @@ class NodeExternal(Node):
     PM WRITEME.
     """
 
-    def __init__(self, taskname: str, root: bool, assets: _AssetT) -> None:
+    def __init__(self, taskname: str, assets: _AssetT) -> None:
         self.taskname = taskname
-        self.root = root
         self.assets = assets
 
     def __call__(self) -> Node:
@@ -101,11 +100,8 @@ class NodeTask(Node):
     PM WRITEME.
     """
 
-    def __init__(
-        self, taskname: str, root: bool, assets: _AssetT, requirements: _NodeT, exe: Callable
-    ) -> None:
+    def __init__(self, taskname: str, assets: _AssetT, requirements: _NodeT, exe: Callable) -> None:
         self.taskname = taskname
-        self.root = root
         self.assets = assets
         self.requirements = requirements
         self.exe = exe
@@ -132,9 +128,8 @@ class NodeTasks(Node):
     PM WRITEME.
     """
 
-    def __init__(self, taskname: str, root: bool, requirements: Optional[_NodeT] = None) -> None:
+    def __init__(self, taskname: str, requirements: Optional[_NodeT] = None) -> None:
         self.taskname = taskname
-        self.root = root
         self.requirements = requirements
 
     def __call__(self) -> Node:
@@ -509,8 +504,9 @@ def external(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
-        taskname, root, generator = _task_info(f, *args, **kwargs)
-        return NodeExternal(taskname=taskname, root=root, assets=_next(generator, "assets"))
+        taskname, generator = _task_info(f, *args, **kwargs)
+        assets = _next(generator, "assets")
+        return NodeExternal(taskname=taskname, assets=assets)
 
     return _mark(inner)
 
@@ -525,12 +521,13 @@ def task(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
-        taskname, root, generator = _task_info(f, *args, **kwargs)
+        taskname, generator = _task_info(f, *args, **kwargs)
+        assets = _next(generator, "assets")
+        requirements = _next(generator, "requirements")
         return NodeTask(
             taskname=taskname,
-            root=root,
-            assets=_next(generator, "assets"),
-            requirements=_next(generator, "requirements"),
+            assets=assets,
+            requirements=requirements,
             exe=lambda: _execute(generator, taskname),
         )
 
@@ -547,12 +544,9 @@ def tasks(f: Callable) -> _TaskT:
 
     @wraps(f)
     def inner(*args, **kwargs) -> Node:
-        taskname, root, generator = _task_info(f, *args, **kwargs)
-        return NodeTasks(
-            taskname=taskname,
-            root=root,
-            requirements=_next(generator, "requirements"),
-        )
+        taskname, generator = _task_info(f, *args, **kwargs)
+        requirements = _next(generator, "requirements")
+        return NodeTasks(taskname=taskname, requirements=requirements)
 
     return _mark(inner)
 
@@ -723,19 +717,19 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_info(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
+def _task_info(f: Callable, *args, **kwargs) -> tuple[str, Generator]:
     """
     Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The task's name, its "root" status, and the generator returned by the task.
+    :return: The task's name and the generator returned by the task.
     """
-    if root := not _state.initialized:
+    if not _state.initialized:
         _state.initialize()
         _graph.reset()
     g = f(*args, **kwargs)
     taskname = _next(g, "task name")
-    return taskname, root, g
+    return taskname, g
 
 
 def _version() -> str:
