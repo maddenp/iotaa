@@ -59,9 +59,6 @@ class Node:
         self.root = True
 
     def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
         return self._go()
 
     def __eq__(self, other):
@@ -77,6 +74,18 @@ class Node:
         """
         return all(a.ready() for a in _flatten(self.assets))
 
+    def _assemble(self, node, level=0) -> None:  # PM add types
+        """
+        PM WRITEME.
+        """
+        _log.debug("  " * level + node.taskname)
+        assert self.graph is not None
+        self.graph.add(node)
+        predecessor: Node
+        for predecessor in _flatten(node.requirements):
+            self.graph.add(node, predecessor)
+            self._assemble(predecessor, level + 1)
+
     def _go(self) -> Node:
         """
         PM WRITEME.
@@ -91,18 +100,6 @@ class Node:
         else:
             self._report_readiness()
         return self
-
-    def _assemble(self, node, level=0) -> None:  # PM add types
-        """
-        PM WRITEME.
-        """
-        _log.debug("  " * level + node.taskname)
-        assert self.graph is not None
-        self.graph.add(node)
-        predecessor: Node
-        for predecessor in _flatten(node.requirements):
-            self.graph.add(node, predecessor)
-            self._assemble(predecessor, level + 1)
 
     def _report_readiness(self) -> None:
         """
@@ -138,9 +135,6 @@ class NodeTask(Node):
         self.exe = exe
 
     def __call__(self) -> Node:
-        """
-        PM WRITEME.
-        """
         if not self.ready:
             reqs = self.requirements
             reqs_ready = all(node.ready for node in _flatten(reqs))
