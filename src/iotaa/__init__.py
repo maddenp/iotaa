@@ -53,6 +53,9 @@ class Node:
     requirements: Optional[_NodeT] = None
     taskname = "abstract"
 
+    def __init__(self, taskname: str) -> None:
+        self.taskname = taskname
+
     def __eq__(self, other):
         return hash(self) == hash(other)
 
@@ -84,7 +87,7 @@ class NodeExternal(Node):
     """
 
     def __init__(self, taskname: str, assets: _AssetT) -> None:
-        self.taskname = taskname
+        super().__init__(taskname)
         self.assets = assets
 
     def __call__(self) -> Node:
@@ -101,7 +104,7 @@ class NodeTask(Node):
     """
 
     def __init__(self, taskname: str, assets: _AssetT, requirements: _NodeT, exe: Callable) -> None:
-        self.taskname = taskname
+        super().__init__(taskname)
         self.assets = assets
         self.requirements = requirements
         self.exe = exe
@@ -129,7 +132,7 @@ class NodeTasks(Node):
     """
 
     def __init__(self, taskname: str, requirements: Optional[_NodeT] = None) -> None:
-        self.taskname = taskname
+        super().__init__(taskname)
         self.requirements = requirements
 
     def __call__(self) -> Node:
