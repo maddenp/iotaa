@@ -146,7 +146,7 @@ class NodeTask(Node):
                 logf(msg)
             if reqs_ready:
                 if self.dry_run:
-                    _log.warning("%s: SKIPPING (DRY RUN)", self.taskname)
+                    _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self.exe()
         return self._go(dry_run)
