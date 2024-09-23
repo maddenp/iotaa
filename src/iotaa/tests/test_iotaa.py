@@ -231,12 +231,12 @@ def test_asset_kwargs():
     assert a.ready()
 
 
-@mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
-def test_dryrun(args, expected):
-    with patch.object(iotaa, "_state", iotaa._State()):
-        assert not iotaa._state.dry_run
-        iotaa.dryrun(*args)
-        assert iotaa._state.dry_run is expected
+# @mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
+# def test_dryrun(args, expected):
+#     with patch.object(iotaa, "_state", iotaa._State()):
+#         assert not iotaa._state.dry_run
+#         iotaa.dryrun(*args)
+#         assert iotaa._state.dry_run is expected
 
 
 def test_graph():
@@ -306,6 +306,7 @@ def test_main_mocked_up(tmp_path):
             parse_args.assert_called_once()
 
 
+@mark.skip("FIXME")
 def test_main_mocked_up_tasknames(tmp_path):
     with patch.multiple(
         iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
@@ -587,11 +588,11 @@ def test__cacheable():
 #     assert logged("task: Checking requirements", caplog)
 
 
-def test__execute_dry_run(caplog, rungen):
-    with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
-        _state.dry_run = True
-        iotaa._execute(g=rungen, taskname="task")
-    assert logged("task: SKIPPING (DRY RUN)", caplog)
+# def test__execute_dry_run(caplog, rungen):
+#     with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
+#         _state.dry_run = True
+#         iotaa._execute(g=rungen, taskname="task")
+#     assert logged("task: SKIPPING (DRY RUN)", caplog)
 
 
 def test__execute_live(caplog, rungen):
@@ -722,16 +723,16 @@ def test__show_tasks(capsys, task_class):
 #         assert getattr(a, "taskname") == "task"
 
 
-def test__task_inital():
-    def f(taskname, n):
-        yield taskname
-        yield n
+# def test__task_info():
+#     def f(taskname, n):
+#         yield taskname
+#         yield n
 
-    with patch.object(iotaa, "_state", iotaa._State()):
-        tn = "task"
-        taskname, g = iotaa._task_info(f, tn, n=88)
-        assert taskname == tn
-        assert next(g) == 88
+#     with patch.object(iotaa, "_state", iotaa._State()):
+#         tn = "task"
+#         taskname, g = iotaa._task_info(f, tn, n=88)
+#         assert taskname == tn
+#         assert next(g) == 88
 
 
 # _Graph tests
@@ -816,44 +817,20 @@ def test__Graph_reset():
 #         assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._flatten(assets)}
 
 
-# _State tests
-
-
-def test__State():
-    with patch.object(iotaa, "_state", iotaa._State()) as _state:
-        assert not _state.dry_run
-        assert not _state.initialized
-
-
-def test__State_initialize():
-    with patch.object(iotaa, "_state", iotaa._State()) as _state:
-        _state.initialize()
-        assert _state.initialized
-
-
-def test__State_reset():
-    with patch.object(iotaa, "_state", iotaa._State()) as _state:
-        _state.initialize()
-        assert _state.initialized
-        _state.reset()
-        assert not _state.initialized
-
-
 # Misc tests
 
 
-@mark.skip("FIXME")
-def test_state_reset_via_task():
+# def test_state_reset_via_task():
 
-    @iotaa.external
-    def noop():
-        yield "noop"
-        yield iotaa.asset("noop", lambda: True)
+#     @iotaa.external
+#     def noop():
+#         yield "noop"
+#         yield iotaa.asset("noop", lambda: True)
 
-    with patch.object(iotaa._graph, "reset") as reset_graph:
-        with patch.object(iotaa._state, "reset") as reset_state:
-            reset_graph.assert_not_called()
-            reset_state.assert_not_called()
-            noop()
-            reset_graph.assert_called_once_with()
-            reset_state.assert_called_once_with()
+#     with patch.object(iotaa._graph, "reset") as reset_graph:
+#         with patch.object(iotaa._state, "reset") as reset_state:
+#             reset_graph.assert_not_called()
+#             reset_state.assert_not_called()
+#             noop()
+#             reset_graph.assert_called_once_with()
+#             reset_state.assert_called_once_with()

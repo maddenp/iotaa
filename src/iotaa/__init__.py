@@ -55,11 +55,12 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
+        self.dry_run = False
         self.graph: Optional[TopologicalSorter] = None
         self.root = True
 
-    def __call__(self) -> Node:
-        return self._go()
+    def __call__(self, dry_run: bool = False) -> Node:
+        return self._go(dry_run)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -74,19 +75,20 @@ class Node:
         """
         return all(a.ready() for a in _flatten(self.assets))
 
-    def _assemble(self, node, level=0) -> None:  # PM add types
+    def _assemble(self, node: Node, dry_run: bool = False, level: int = 0) -> None:
         """
         PM WRITEME.
         """
+        node.dry_run = dry_run
         _log.debug("  " * level + node.taskname)
         assert self.graph is not None
         self.graph.add(node)
         predecessor: Node
         for predecessor in _flatten(node.requirements):
             self.graph.add(node, predecessor)
-            self._assemble(predecessor, level + 1)
+            self._assemble(predecessor, dry_run, level + 1)
 
-    def _go(self) -> Node:
+    def _go(self, dry_run: bool = False) -> Node:
         """
         PM WRITEME.
         """
@@ -94,9 +96,9 @@ class Node:
             self.graph = TopologicalSorter()
             _log.debug("Task tree")
             _log.debug("---------")
-            self._assemble(self)
+            self._assemble(self, dry_run)
             for node in self.graph.static_order():
-                node()
+                node(dry_run)
         else:
             self._report_readiness()
         return self
@@ -134,7 +136,7 @@ class NodeTask(Node):
         self.requirements = requirements
         self.exe = exe
 
-    def __call__(self) -> Node:
+    def __call__(self, dry_run: bool = False) -> Node:
         if not self.ready:
             reqs = self.requirements
             reqs_ready = all(node.ready for node in _flatten(reqs))
@@ -143,8 +145,11 @@ class NodeTask(Node):
                 logf = _log.info if reqs_ready else _log.warning
                 logf(msg)
             if reqs_ready:
-                self.exe()
-        return self._go()
+                if self.dry_run:
+                    _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
+                else:
+                    self.exe()
+        return self._go(dry_run)
 
 
 class NodeTasks(Node):
@@ -287,31 +292,6 @@ class _Logger:
 
 _log = _Logger()
 
-
-class _State:
-    """
-    Global iotaa state.
-    """
-
-    def __init__(self) -> None:
-        self.dry_run = False
-        self.initialized = False
-
-    def initialize(self) -> None:
-        """
-        Mark iotaa as initialized.
-        """
-        self.initialized = True
-
-    def reset(self) -> None:
-        """
-        Reset state.
-        """
-        self.initialized = False
-
-
-_state = _State()
-
 # Main entry-point function:
 
 
@@ -328,8 +308,6 @@ def main() -> None:
 
     args = _parse_args(sys.argv[1:])
     logcfg(verbose=args.verbose)
-    if args.dry_run:
-        dryrun()
     modname = args.module
     modpath = Path(modname)
     if modpath.is_file():
@@ -340,7 +318,7 @@ def main() -> None:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
-    root()
+    root(args.dry_run)
 
 
 # Public API functions:
@@ -354,13 +332,6 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
     return Asset(ref, ready)
-
-
-def dryrun(enable: bool = True) -> None:
-    """
-    Enable (default) or disable dry-run mode.
-    """
-    _state.dry_run = enable
 
 
 def graph() -> str:
@@ -602,9 +573,6 @@ def _execute(g: Generator, taskname: str) -> None:
     :param g: The current task.
     :param taskname: The current task's name.
     """
-    if _state.dry_run:
-        _log.info("%s: SKIPPING (DRY RUN)", taskname)
-        return
     try:
         _log.info("%s: Executing", taskname)
         next(g)
@@ -728,9 +696,6 @@ def _task_info(f: Callable, *args, **kwargs) -> tuple[str, Generator]:
     :param f: A task function (receives the provided args & kwargs).
     :return: The task's name and the generator returned by the task.
     """
-    if not _state.initialized:
-        _state.initialize()
-        _graph.reset()
     g = f(*args, **kwargs)
     taskname = _next(g, "task name")
     return taskname, g
