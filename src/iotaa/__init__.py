@@ -1,3 +1,6 @@
+# PM TODO Does .graph have to be an attribut on Node? Just create it in _go()?
+# PM TODO Can _go() be combined with __call__()?
+
 """
 iotaa.
 """
