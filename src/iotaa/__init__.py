@@ -102,16 +102,10 @@ class Node:
             for node in self.graph.static_order():
                 node(dry_run)
         else:
-            self._report_readiness()
+            extmsg = " (external asset)" if isinstance(self, NodeExternal) and not self.ready else ""
+            logf = _log.info if self.ready else _log.warning
+            logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
         return self
-
-    def _report_readiness(self) -> None:
-        """
-        Log information about the readiness of an asset.
-        """
-        extmsg = " (external asset)" if isinstance(self, NodeExternal) and not self.ready else ""
-        logf = _log.info if self.ready else _log.warning
-        logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
 
 
 _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
