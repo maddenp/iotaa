@@ -81,7 +81,7 @@ class Node:
         """
         node.dry_run = dry_run
         junction = "├─ " if level else ""
-        _log.debug("│  " * (level-1) + junction + node.taskname)
+        _log.debug("│  " * (level - 1) + junction + node.taskname)
         assert self.graph is not None
         self.graph.add(node)
         predecessor: Node
@@ -95,6 +95,7 @@ class Node:
         """
         if self.root and not self.graph:
             self.graph = TopologicalSorter()
+            _log.debug("─────────")
             _log.debug("Task tree")
             _log.debug("─────────")
             self._assemble(self, dry_run)
