@@ -93,7 +93,7 @@ class Node:
         """
         PM WRITEME.
         """
-        if self.root and not self.graph:
+        if self.root and self.graph is None:
             self.graph = TopologicalSorter()
             _log.debug("─────────")
             _log.debug("Task tree")
