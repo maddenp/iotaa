@@ -102,7 +102,7 @@ class Node:
             for node in self.graph.static_order():
                 node(dry_run)
         else:
-            extmsg = " (external asset)" if isinstance(self, NodeExternal) and not self.ready else ""
+            extmsg = " (external asset)" if isinstance(self, NodeExternal) else ""
             logf = _log.info if self.ready else _log.warning
             logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
         return self
@@ -137,7 +137,7 @@ class NodeTask(Node):
             reqs = self.requirements
             reqs_ready = all(node.ready for node in _flatten(reqs))
             if reqs:
-                msg = "%s: Requirement(s) %sready" % (self.taskname, "" if reqs_ready else "not ")
+                msg = "%s: Requirement(s)%s ready" % (self.taskname, "" if reqs_ready else " not")
                 logf = _log.info if reqs_ready else _log.warning
                 logf(msg)
             if reqs_ready:
