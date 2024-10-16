@@ -1,4 +1,3 @@
-# PM TODO Can _go() be combined with __call__()?
 """
 iotaa.
 """
