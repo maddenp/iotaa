@@ -1,4 +1,3 @@
-# PM TODO Does .graph have to be an attribut on Node? Just create it in _go()?
 # PM TODO Can _go() be combined with __call__()?
 """
 iotaa.
@@ -57,8 +56,8 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
+        self.assembled = False
         self.dry_run = False
-        self.graph: Optional[TopologicalSorter] = None
         self.root = True
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -77,31 +76,32 @@ class Node:
         """
         return all(a.ready() for a in _flatten(self.assets))
 
-    def _assemble(self, node: Node, dry_run: bool = False, level: int = 0) -> None:
+    def _assemble(self, node: Node, graph: TopologicalSorter, dry_run: bool = False, level: int = 0) -> None:
         """
         PM WRITEME.
         """
         node.dry_run = dry_run
         _log.debug("  " * level + node.taskname)
-        assert self.graph is not None
-        self.graph.add(node)
+        graph.add(node)
         predecessor: Node
         for predecessor in _flatten(node.requirements):
-            self.graph.add(node, predecessor)
-            self._assemble(predecessor, dry_run, level + 1)
+            graph.add(node, predecessor)
+            self._assemble(predecessor, graph, dry_run, level + 1)
 
     def _go(self, dry_run: bool = False) -> Node:
         """
         PM WRITEME.
         """
-        if self.root and self.graph is None:
-            self.graph = TopologicalSorter()
+        if self.root and not self.assembled:
+            graph = TopologicalSorter()
             _log.debug("─────────")
             _log.debug("Task tree")
             _log.debug("─────────")
-            self._assemble(self, dry_run)
-            for node in self.graph.static_order():
+            self._assemble(self, graph, dry_run)
+            self.assembled = True
+            for node in graph.static_order():
                 node(dry_run)
+            self.assembled = False
         else:
             is_external = isinstance(self, NodeExternal)
             extmsg = " (external asset)" if is_external and not self.ready else ""
