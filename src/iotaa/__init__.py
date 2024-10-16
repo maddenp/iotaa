@@ -75,30 +75,32 @@ class Node:
         """
         return all(a.ready() for a in _flatten(self.assets))
 
-    def _assemble(self, node: Node, graph: TopologicalSorter, dry_run: bool = False, level: int = 0) -> None:
+    def _assemble(
+        self, node: Node, g: TopologicalSorter, dry_run: bool = False, level: int = 0
+    ) -> None:
         """
         PM WRITEME.
         """
         node.dry_run = dry_run
         _log.debug("  " * level + node.taskname)
-        graph.add(node)
+        g.add(node)
         predecessor: Node
         for predecessor in _flatten(node.requirements):
-            graph.add(node, predecessor)
-            self._assemble(predecessor, graph, dry_run, level + 1)
+            g.add(node, predecessor)
+            self._assemble(predecessor, g, dry_run, level + 1)
 
     def _go(self, dry_run: bool = False) -> Node:
         """
         PM WRITEME.
         """
         if self.root and not self.assembled:
-            graph = TopologicalSorter()
+            g: TopologicalSorter = TopologicalSorter()
             _log.debug("─────────")
             _log.debug("Task tree")
             _log.debug("─────────")
-            self._assemble(self, graph, dry_run)
+            self._assemble(self, g, dry_run)
             self.assembled = True
-            for node in graph.static_order():
+            for node in g.static_order():
                 node(dry_run)
             self.assembled = False
         else:
@@ -135,16 +137,17 @@ class NodeTask(Node):
 
     def __call__(self, dry_run: bool = False) -> Node:
         if not self.ready:
-            reqs = self.requirements
-            reqs_ready = all(node.ready for node in _flatten(reqs))
+            reqs = _flatten(self.requirements)
+            reqs_ready = all(node.ready for node in reqs)
             if reqs:
-                msg = "%s: Requirement(s)%s ready" % (self.taskname, "" if reqs_ready else " not")
-                logf = _log.info if reqs_ready else _log.warning
-                logf(msg)
+                msg = "%s: Requirements%s ready" % (self.taskname, "" if reqs_ready else " not")
+                (_log.info if reqs_ready else _log.warning)(msg)
             if reqs_ready:
                 if self.dry_run:
                     _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
+                    msg = "Requirements ready" if reqs else "No requirements"
+                    _log.debug("%s: %s", self.taskname, msg)
                     self.exe()
         return self._go(dry_run)
 
