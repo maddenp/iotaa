@@ -1,6 +1,5 @@
 # PM TODO Does .graph have to be an attribut on Node? Just create it in _go()?
 # PM TODO Can _go() be combined with __call__()?
-
 """
 iotaa.
 """
@@ -83,8 +82,7 @@ class Node:
         PM WRITEME.
         """
         node.dry_run = dry_run
-        junction = "├─ " if level else ""
-        _log.debug("│  " * (level - 1) + junction + node.taskname)
+        _log.debug("  " * level + node.taskname)
         assert self.graph is not None
         self.graph.add(node)
         predecessor: Node
