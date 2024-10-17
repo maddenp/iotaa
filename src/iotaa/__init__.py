@@ -101,6 +101,9 @@ class Node:
             _log.debug("─────────")
             self._assemble(self, g, dry_run)
             self.assembled = True
+            _log.debug("─────────")
+            _log.debug("Execution")
+            _log.debug("─────────")
             for node in g.static_order():
                 node(dry_run)
             self.assembled = False
@@ -145,8 +148,8 @@ class NodeTask(Node):
                 for req in reqs:
                     status = "ready" if req.ready else "not ready"
                     _log.debug("%s:   %s [%s]", self.taskname, req.taskname, status)
-                logf = _log.debug if reqs_ready else _log.warning
-                logf("%s: Requirements%s ready" % (self.taskname, "" if reqs_ready else " not"))
+                logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
+                logf("%s: Requirements %sready", self.taskname, pre)
             else:
                 _log.debug("%s: No requirements", self.taskname)
             if reqs_ready:
