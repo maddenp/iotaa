@@ -1,3 +1,4 @@
+# PM TODO cache node.ready?
 """
 iotaa.
 """
@@ -105,9 +106,9 @@ class Node:
             self.assembled = False
         else:
             is_external = isinstance(self, NodeExternal)
-            extmsg = " (external asset)" if is_external and not self.ready else ""
+            extmsg = " [external asset]" if is_external and not self.ready else ""
             logf = _log.info if self.ready else _log.warning
-            logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not Ready", extmsg)
+            logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not ready", extmsg)
         return self
 
 
@@ -138,16 +139,25 @@ class NodeTask(Node):
     def __call__(self, dry_run: bool = False) -> Node:
         if not self.ready:
             reqs = _flatten(self.requirements)
-            reqs_ready = all(node.ready for node in reqs)
+            reqs_ready = all(req.ready for req in reqs)
             if reqs:
-                msg = "%s: Requirements%s ready" % (self.taskname, "" if reqs_ready else " not")
-                (_log.info if reqs_ready else _log.warning)(msg)
+                _log.debug("%s: Requires", self.taskname)
+                for req in reqs:
+                    _log.debug(
+                        "%s:   %s [%s]",
+                        self.taskname,
+                        req.taskname,
+                        "ready" if req.ready else "not ready",
+                    )
+                (_log.debug if reqs_ready else _log.warning)(
+                    "%s: Requirements%s ready" % (self.taskname, "" if reqs_ready else " not")
+                )
+            else:
+                _log.debug("%s: No requirements", self.taskname)
             if reqs_ready:
                 if self.dry_run:
                     _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
-                    msg = "Requirements ready" if reqs else "No requirements"
-                    _log.debug("%s: %s", self.taskname, msg)
                     self.exe()
         return self._go(dry_run)
 

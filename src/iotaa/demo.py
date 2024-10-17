@@ -48,7 +48,8 @@ def steeped_tea_with_sugar(basedir):
 @task
 def steeped_tea(basedir):
     # Give tea time to steep.
-    yield "Steeped tea"
+    taskname = "Steeped tea"
+    yield taskname
     water = refs(steeping_tea(basedir))["water"]
     steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
@@ -65,7 +66,7 @@ def steeped_tea(basedir):
         yield steep_time(False)
     yield steeping_tea(basedir)
     if not ready:
-        logging.warning("Tea needs to steep for %ss", remaining)
+        logging.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 
 
 @task
@@ -88,9 +89,10 @@ def box_of_tea_bags(basedir):
 
 
 def ingredient(basedir, fn, name, req=None):
-    yield f"{name} in cup"
+    taskname = f"{name} in cup"
+    yield taskname
     path = refs(cup(basedir)) / fn
     yield {fn: asset(path, path.exists)}
     yield [cup(basedir)] + ([req(basedir)] if req else [])
-    logging.info("Adding %s to cup", fn)
+    logging.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
