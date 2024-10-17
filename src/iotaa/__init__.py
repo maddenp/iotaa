@@ -96,14 +96,10 @@ class Node:
         """
         if self.root and not self.assembled:
             g: TopologicalSorter = TopologicalSorter()
-            _log.debug("─────────")
-            _log.debug("Task tree")
-            _log.debug("─────────")
+            self._header("Task tree")
             self._assemble(self, g, dry_run)
             self.assembled = True
-            _log.debug("─────────")
-            _log.debug("Execution")
-            _log.debug("─────────")
+            self._header("Execution")
             for node in g.static_order():
                 node(dry_run)
             self.assembled = False
@@ -114,6 +110,13 @@ class Node:
             logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not ready", extmsg)
         return self
 
+    def _header(self, msg: str) -> None:
+        """
+        PM WRITEME.
+        """
+        _log.debug("─────────")
+        _log.debug(msg)
+        _log.debug("─────────")
 
 _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
