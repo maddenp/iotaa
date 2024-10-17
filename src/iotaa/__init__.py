@@ -1,4 +1,3 @@
-# PM TODO cache node.ready?
 """
 iotaa.
 """
@@ -11,7 +10,7 @@ import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import wraps
+from functools import cached_property, wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
@@ -69,12 +68,12 @@ class Node:
     def __hash__(self):
         return hash(self.taskname)
 
-    @property
+    @cached_property
     def ready(self) -> bool:
         """
         PM WRITEME.
         """
-        return all(a.ready() for a in _flatten(self.assets))
+        return all(x.ready() for x in _flatten(self.assets))
 
     def _assemble(
         self, node: Node, g: TopologicalSorter, dry_run: bool = False, level: int = 0
@@ -104,7 +103,7 @@ class Node:
                 node(dry_run)
         else:
             is_external = isinstance(self, NodeExternal)
-            extmsg = " [external asset]" if is_external and not self.ready else ""
+            extmsg = " [external asset]" if is_external else ""
             args = (self.taskname, extmsg)
             if self.ready:
                 _log.info("%s: Ready%s", *args)
@@ -164,6 +163,7 @@ class NodeTask(Node):
                     _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self.exe()
+                    delattr(self, "ready")  # reset cached property
         return self._go(dry_run)
 
 
@@ -176,12 +176,12 @@ class NodeTasks(Node):
         super().__init__(taskname)
         self.requirements = requirements
 
-    @property
+    @cached_property
     def ready(self) -> bool:
         """
         PM WRITEME.
         """
-        return all(node.ready for node in _flatten(self.requirements))
+        return all(x.ready for x in _flatten(self.requirements))
 
 
 @dataclass
