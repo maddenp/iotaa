@@ -103,7 +103,7 @@ class Node:
                 node(dry_run)
         else:
             is_external = isinstance(self, NodeExternal)
-            extmsg = " [external asset]" if is_external else ""
+            extmsg = " [external asset]" if is_external and not self.ready else ""
             args = (self.taskname, extmsg)
             if self.ready:
                 _log.info("%s: Ready%s", *args)
@@ -152,8 +152,8 @@ class NodeTask(Node):
             if reqs:
                 _log.debug("%s: Requires", self.taskname)
                 for req in reqs:
-                    status = "ready" if req.ready else "not ready"
-                    _log.debug("%s:   %s [%s]", self.taskname, req.taskname, status)
+                    status = "✔" if req.ready else "✖"
+                    _log.debug("%s: %s %s", self.taskname, status, req.taskname)
                 logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
                 logf("%s: Requirements %sready", self.taskname, pre)
             else:
