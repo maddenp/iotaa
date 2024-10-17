@@ -143,12 +143,8 @@ class NodeTask(Node):
             if reqs:
                 _log.debug("%s: Requires", self.taskname)
                 for req in reqs:
-                    _log.debug(
-                        "%s:   %s [%s]",
-                        self.taskname,
-                        req.taskname,
-                        "ready" if req.ready else "not ready",
-                    )
+                    status = "ready" if req.ready else "not ready"
+                    _log.debug("%s:   %s [%s]", self.taskname, req.taskname, status)
                 logf = _log.debug if reqs_ready else _log.warning
                 logf("%s: Requirements%s ready" % (self.taskname, "" if reqs_ready else " not"))
             else:
