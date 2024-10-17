@@ -95,7 +95,7 @@ class Node:
         """
         if self.root and not self.assembled:
             g: TopologicalSorter = TopologicalSorter()
-            self._header("Task tree")
+            self._header("Task Graph")
             self._assemble(self, g, dry_run)
             self.assembled = True
             self._header("Execution")
@@ -105,7 +105,7 @@ class Node:
             is_external = isinstance(self, NodeExternal)
             extmsg = " [external asset]" if is_external and not self.ready else ""
             args = (self.taskname, extmsg)
-            if self.ready:
+            if self.ready: # PM and the parent is NOT ready...
                 _log.info("%s: Ready%s", *args)
             else:
                 _log.warning("%s: Not ready%s", *args)
@@ -115,7 +115,7 @@ class Node:
         """
         PM WRITEME.
         """
-        sep = "─────────"
+        sep = "─" * len(msg)
         _log.debug(sep)
         _log.debug(msg)
         _log.debug(sep)
