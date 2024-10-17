@@ -102,12 +102,14 @@ class Node:
             self._header("Execution")
             for node in g.static_order():
                 node(dry_run)
-            self.assembled = False
         else:
             is_external = isinstance(self, NodeExternal)
             extmsg = " [external asset]" if is_external and not self.ready else ""
-            logf = _log.info if self.ready else _log.warning
-            logf("%s: %s%s", self.taskname, "Ready" if self.ready else "Not ready", extmsg)
+            args = (self.taskname, extmsg)
+            if self.ready:
+                _log.info("%s: Ready%s", *args)
+            else:
+                _log.warning("%s: Not ready%s", *args)
         return self
 
     def _header(self, msg: str) -> None:
@@ -118,6 +120,7 @@ class Node:
         _log.debug(sep)
         _log.debug(msg)
         _log.debug(sep)
+
 
 _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
