@@ -114,9 +114,10 @@ class Node:
         """
         PM WRITEME.
         """
-        _log.debug("─────────")
+        sep = "─────────"
+        _log.debug(sep)
         _log.debug(msg)
-        _log.debug("─────────")
+        _log.debug(sep)
 
 _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
