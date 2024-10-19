@@ -182,10 +182,10 @@ class NodeTask(Node):
             reqs = {req: req.ready for req in _flatten(self.requirements)}
             reqs_ready = all(reqs.values())
             if reqs:
-                _log.debug("%s: Requires...", self.taskname)
+                _log.info("%s: Requires...", self.taskname)
                 for req, ready in reqs.items():
                     status = "✔" if ready else "✖"
-                    _log.debug("%s: %s %s", self.taskname, status, req.taskname)
+                    _log.info("%s: %s %s", self.taskname, status, req.taskname)
                 logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
                 logf("%s: Requirements %sready", self.taskname, pre)
             else:

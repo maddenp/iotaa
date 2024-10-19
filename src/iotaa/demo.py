@@ -22,9 +22,11 @@ def a_cup_of_tea(basedir):
 def spoon(basedir):
     # The spoon to stir the tea.
     path = Path(basedir) / "spoon"
-    yield "The spoon"
+    taskname = "The spoon"
+    yield taskname
     yield asset(path, path.exists)
     yield None
+    logging.info("%s: Getting spoon", taskname)
     path.parent.mkdir(parents=True)
     path.touch()
 
@@ -33,9 +35,11 @@ def spoon(basedir):
 def cup(basedir):
     # The cup for the tea.
     path = Path(basedir) / "cup"
-    yield "The cup"
+    taskname = "The cup"
+    yield taskname
     yield asset(path, path.exists)
     yield None
+    logging.info("%s: Getting cup", taskname)
     path.mkdir(parents=True)
 
 
