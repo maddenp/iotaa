@@ -68,6 +68,9 @@ class Node:
     def __hash__(self):
         return hash(self.taskname)
 
+    def __repr__(self):
+        return "%s <%s>" % (self.taskname, id(self))
+
     @property
     def ready(self) -> bool:
         """
