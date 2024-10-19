@@ -104,23 +104,22 @@ class Node:
 
         nodes = nodes or {self}
         existing = lambda node: list(nodes & {node})[0]
-        deduped: Union[dict[str, Node], list[Node]]
+        deduped: Optional[Union[Node, dict[str, Node], list[Node]]] = self.requirements
         if isinstance(self.requirements, dict):
             deduped = {}
             for k, node in self.requirements.items():
                 nodes = f(node, nodes)
                 deduped[k] = existing(node)
-            self.requirements = deduped
         elif isinstance(self.requirements, list):
             deduped = []
             for node in self.requirements:
                 nodes = f(node, nodes)
                 deduped.append(existing(node))
-            self.requirements = deduped
         elif isinstance(self.requirements, Node):
             node = self.requirements
             nodes = f(node, nodes)
-            self.requirements = existing(node)
+            deduped = existing(node)
+        self.requirements = deduped
         return nodes
 
     def _go(self, dry_run: bool = False) -> Node:
