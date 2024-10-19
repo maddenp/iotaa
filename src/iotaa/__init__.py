@@ -97,9 +97,11 @@ class Node:
         """
         PM WRITEME.
         """
+
         def f(node: Node, nodes: set[Node]) -> set[Node]:
             nodes.add(node)
             return node._dedupe(nodes)  # pylint: disable=protected-access
+
         nodes = nodes or {self}
         existing = lambda node: list(nodes & {node})[0]
         deduped: Union[dict[str, Node], list[Node]]
