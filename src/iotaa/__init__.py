@@ -84,10 +84,11 @@ class Node:
         node.dry_run = dry_run
         _log.debug("  " * level + node.taskname)
         g.add(node)
-        predecessor: Node
-        for predecessor in _flatten(node.requirements):
-            g.add(node, predecessor)
-            self._assemble(predecessor, g, dry_run, level + 1)
+        if not node.ready:
+            predecessor: Node
+            for predecessor in _flatten(node.requirements):
+                g.add(node, predecessor)
+                self._assemble(predecessor, g, dry_run, level + 1)
 
     def _go(self, dry_run: bool = False) -> Node:
         """
@@ -147,7 +148,7 @@ class NodeTask(Node):
             reqs = _flatten(self.requirements)
             reqs_ready = all(req.ready for req in reqs)
             if reqs:
-                _log.debug("%s: Requires", self.taskname)
+                _log.debug("%s: Requires...", self.taskname)
                 for req in reqs:
                     status = "✔" if req.ready else "✖"
                     _log.debug("%s: %s %s", self.taskname, status, req.taskname)
