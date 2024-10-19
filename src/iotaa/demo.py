@@ -91,8 +91,9 @@ def box_of_tea_bags(basedir):
 def ingredient(basedir, fn, name, req=None):
     taskname = f"{name} in cup"
     yield taskname
-    path = refs(cup(basedir)) / fn
+    the_cup = cup(basedir)
+    path = refs(the_cup) / fn
     yield {fn: asset(path, path.exists)}
-    yield [cup(basedir)] + ([req(basedir)] if req else [])
+    yield [the_cup] + ([req(basedir)] if req else [])
     logging.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
