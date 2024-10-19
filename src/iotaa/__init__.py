@@ -10,7 +10,7 @@ import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import cached_property, wraps
+from functools import wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
@@ -68,7 +68,7 @@ class Node:
     def __hash__(self):
         return hash(self.taskname)
 
-    @cached_property
+    @property
     def ready(self) -> bool:
         """
         PM WRITEME.
@@ -161,7 +161,6 @@ class NodeTask(Node):
                     _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self.exe()
-                    delattr(self, "ready")  # reset cached property
         return self._go(dry_run)
 
 
@@ -174,7 +173,7 @@ class NodeTasks(Node):
         super().__init__(taskname)
         self.requirements = requirements
 
-    @cached_property
+    @property
     def ready(self) -> bool:
         """
         PM WRITEME.
