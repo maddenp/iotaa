@@ -10,7 +10,7 @@ import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import wraps
+from functools import cached_property, wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
@@ -71,7 +71,7 @@ class Node:
     def __repr__(self):
         return "%s <%s>" % (self.taskname, id(self))
 
-    @property
+    @cached_property
     def ready(self) -> bool:
         """
         PM WRITEME.
@@ -103,7 +103,7 @@ class Node:
             return node._dedupe(nodes)  # pylint: disable=protected-access
 
         nodes = nodes or {self}
-        existing = lambda node: list(nodes & {node})[0]
+        existing = lambda node: [e for e in nodes if e == node][0]
         deduped: Optional[Union[Node, dict[str, Node], list[Node]]] = self.requirements
         if isinstance(self.requirements, dict):
             deduped = {}
@@ -195,6 +195,7 @@ class NodeTask(Node):
                     _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self.exe()
+                    delattr(self, "ready")  # clear cached ready value
         return self._go(dry_run)
 
 
@@ -207,7 +208,7 @@ class NodeTasks(Node):
         super().__init__(taskname)
         self.requirements = requirements
 
-    @property
+    @cached_property
     def ready(self) -> bool:
         """
         PM WRITEME.
