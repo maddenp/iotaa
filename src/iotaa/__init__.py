@@ -195,7 +195,7 @@ class NodeTask(Node):
                     _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self.exe()
-                    delattr(self, "ready")  # clear cached ready value
+                    delattr(self, "ready")  # clear cached value
         return self._go(dry_run)
 
 
