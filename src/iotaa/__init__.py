@@ -97,26 +97,28 @@ class Node:
         """
         PM WRITEME.
         """
+        def f(node: Node, nodes: set[Node]) -> set[Node]:
+            nodes.add(node)
+            return node._dedupe(nodes)  # pylint: disable=protected-access
         nodes = nodes or {self}
-        f = lambda node: list(nodes & {node})[0]
+        existing = lambda node: list(nodes & {node})[0]
         deduped: Union[dict[str, Node], list[Node]]
         if isinstance(self.requirements, dict):
             deduped = {}
             for k, node in self.requirements.items():
-                nodes.add(node)
-                nodes = node._dedupe(nodes)  # pylint: disable=protected-access
-                deduped[k] = f(node)
+                nodes = f(node, nodes)
+                deduped[k] = existing(node)
             self.requirements = deduped
         elif isinstance(self.requirements, list):
             deduped = []
             for node in self.requirements:
-                nodes.add(node)
-                nodes = node._dedupe(nodes)  # pylint: disable=protected-access
-                deduped.append(f(node))
+                nodes = f(node, nodes)
+                deduped.append(existing(node))
             self.requirements = deduped
         elif isinstance(self.requirements, Node):
-            nodes.add(self.requirements)
-            self.requirements = f(self.requirements)
+            node = self.requirements
+            nodes = f(node, nodes)
+            self.requirements = existing(node)
         return nodes
 
     def _go(self, dry_run: bool = False) -> Node:
