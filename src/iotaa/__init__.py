@@ -104,11 +104,8 @@ class Node:
         else:
             is_external = isinstance(self, NodeExternal)
             extmsg = " [external asset]" if is_external and not self.ready else ""
-            args = (self.taskname, extmsg)
-            if self.ready: # PM and the parent is NOT ready...
-                _log.info("%s: Ready%s", *args)
-            else:
-                _log.warning("%s: Not ready%s", *args)
+            logf, readymsg = (_log.info, "Ready") if self.ready else (_log.warning, "Not ready")
+            logf("%s: %s%s", self.taskname, readymsg, extmsg)
         return self
 
     def _header(self, msg: str) -> None:
