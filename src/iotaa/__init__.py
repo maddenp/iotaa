@@ -93,6 +93,32 @@ class Node:
                 g.add(node, predecessor)
                 self._assemble(predecessor, g, dry_run, level + 1)
 
+    def _dedupe(self, nodes: Optional[set[Node]] = None) -> set[Node]:
+        """
+        PM WRITEME.
+        """
+        nodes = nodes or {self}
+        f = lambda node: list(nodes & {node})[0]
+        deduped: Union[dict[str, Node], list[Node]]
+        if isinstance(self.requirements, dict):
+            deduped = {}
+            for k, node in self.requirements.items():
+                nodes.add(node)
+                nodes = node._dedupe(nodes)  # pylint: disable=protected-access
+                deduped[k] = f(node)
+            self.requirements = deduped
+        elif isinstance(self.requirements, list):
+            deduped = []
+            for node in self.requirements:
+                nodes.add(node)
+                nodes = node._dedupe(nodes)  # pylint: disable=protected-access
+                deduped.append(f(node))
+            self.requirements = deduped
+        elif isinstance(self.requirements, Node):
+            nodes.add(self.requirements)
+            self.requirements = f(self.requirements)
+        return nodes
+
     def _go(self, dry_run: bool = False) -> Node:
         """
         PM WRITEME.
@@ -100,6 +126,7 @@ class Node:
         if self.root and not self.assembled:
             g: TopologicalSorter = TopologicalSorter()
             self._header("Task Graph")
+            self._dedupe()
             self._assemble(self, g, dry_run)
             self.assembled = True
             self._header("Execution")
