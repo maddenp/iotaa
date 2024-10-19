@@ -104,8 +104,9 @@ class Node:
                 node(dry_run)
         else:
             is_external = isinstance(self, NodeExternal)
-            extmsg = " [external asset]" if is_external and not self.ready else ""
-            logf, readymsg = (_log.info, "Ready") if self.ready else (_log.warning, "Not ready")
+            ready = self.ready
+            extmsg = " [external asset]" if is_external and not ready else ""
+            logf, readymsg = (_log.info, "Ready") if ready else (_log.warning, "Not ready")
             logf("%s: %s%s", self.taskname, readymsg, extmsg)
         return self
 
