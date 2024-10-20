@@ -15,7 +15,19 @@ from iotaa import asset, external, refs, task, tasks
 def a_cup_of_tea(basedir):
     # The cup of steeped tea with sugar, and a spoon.
     yield "The perfect cup of tea"
-    yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
+    yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
+
+
+@task
+def cup(basedir):
+    # The cup for the tea.
+    path = Path(basedir) / "cup"
+    taskname = "The cup"
+    yield taskname
+    yield asset(path, path.exists)
+    yield None
+    logging.info("%s: Getting cup", taskname)
+    path.mkdir(parents=True)
 
 
 @task
@@ -29,18 +41,6 @@ def spoon(basedir):
     logging.info("%s: Getting spoon", taskname)
     path.parent.mkdir(parents=True)
     path.touch()
-
-
-@task
-def cup(basedir):
-    # The cup for the tea.
-    path = Path(basedir) / "cup"
-    taskname = "The cup"
-    yield taskname
-    yield asset(path, path.exists)
-    yield None
-    logging.info("%s: Getting cup", taskname)
-    path.mkdir(parents=True)
 
 
 @task
@@ -82,7 +82,7 @@ def steeping_tea(basedir):
 @task
 def tea_bag(basedir):
     # Place tea bag in the cup. Requires box of tea bags.
-    yield from ingredient(basedir, "tea bag", "Tea bag", box_of_tea_bags)
+    yield from ingredient(basedir, "tea-bag", "Tea bag", box_of_tea_bags)
 
 
 @external

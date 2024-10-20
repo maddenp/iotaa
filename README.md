@@ -153,46 +153,50 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (according to [the official recipe](https://www.google.com/search?q=masters+of+reality+t.u.s.a.+lyrics)).
 
-The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar -- and a spoon to stir in the sugar:
+The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar -- and a spoon for stirring:
 
 ``` python
 @tasks
 def a_cup_of_tea(basedir):
-    # A cup of steeped tea with sugar, and a spoon.
+    # The cup of steeped tea with sugar, and a spoon.
     yield "The perfect cup of tea"
-    yield [spoon(basedir), steeped_tea_with_sugar(basedir)]
+    yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
 ```
 
-As described above, a `@tasks` function must `yield` its name and the assets it requires: In this case, the steeped tea with sugar, and a spoon. Since this function is a `@tasks` connection, no executable statements follow the final `yield.`
+As described above, a `@tasks` function is just a collection of other tasks, and must `yield` its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` connection, no executable statements follow the final `yield.`
 
-The `spoon()` and `cup()` `@task` functions are straightforward:
-
-``` python
-@task
-def spoon(basedir):
-    # A spoon to stir the tea.
-    path = Path(basedir) / "spoon"
-    yield "A spoon"
-    yield asset(path, path.exists)
-    yield None
-    path.parent.mkdir(parents=True)
-    path.touch()
-```
+The `cup()` and `spoon()` `@task` functions are straightforward:
 
 ``` python
 @task
 def cup(basedir):
-    # A cup for the tea.
+    # The cup for the tea.
     path = Path(basedir) / "cup"
-    yield "A cup"
+    taskname = "The cup"
+    yield taskname
     yield asset(path, path.exists)
     yield None
+    logging.info("%s: Getting cup", taskname)
     path.mkdir(parents=True)
 ```
 
-They `yield` their names; the asset each is responsible for readying; and the tasks they require -- `None` in this case, since they have no requirements. Following the final `yield`, they do what is necessary to ready their assets: `spoon()` ensures that the base directory exists, then creates the `spoon` file therein; `cup()` creates the `cup` directory that will contain the tea ingredients.
+``` python
+@task
+def spoon(basedir):
+    # The spoon to stir the tea.
+    path = Path(basedir) / "spoon"
+    taskname = "The spoon"
+    yield taskname
+    yield asset(path, path.exists)
+    yield None
+    logging.info("%s: Getting spoon", taskname)
+    path.parent.mkdir(parents=True)
+    path.touch()
+```
 
-Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless an `exist_ok=True` argument is supplied), the workflow need not explicitly account for this possibility because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
+They `yield` their names, then the asset each is responsible for readying, then the tasks they require (`None` in this case, since they have no requirements). Following the final `yield`, they ready their assets: `cup()` creates the `cup` directory that will contain the tea ingredients, and `spoon()` ensures that the base directory exists, then creates the `spoon` file in it. Note that the `cup` and `spoon` assets are filesystem entries (a directory and a file, respectively) in the same parent directory, and their task functions are written so that it does not matter which task executes first and creates that parent directory.
+
+Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless the `exist_ok=True` argument is supplied), the workflow need not explicitly guard against this because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
 
 The `steeped_tea_with_sugar()` `@task` function is next:
 
@@ -200,25 +204,24 @@ The `steeped_tea_with_sugar()` `@task` function is next:
 @task
 def steeped_tea_with_sugar(basedir):
     # Add sugar to the steeped tea. Requires tea to have steeped.
-    for x in ingredient(basedir, "sugar", "Sugar", steeped_tea):
-        yield x
+    yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
 ```
 
-Two new ideas are demonstrated here.
-
-First, a task function can call arbitrary logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined thus:
+Two new ideas are demonstrated here. First, a task function can call arbitrary logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined thus:
 
 ``` python
 def ingredient(basedir, fn, name, req=None):
-    yield f"{name} in cup"
-    path = refs(cup(basedir)) / fn
+    taskname = f"{name} in cup"
+    yield taskname
+    the_cup = cup(basedir)
+    path = refs(the_cup) / fn
     yield {fn: asset(path, path.exists)}
-    yield [cup(basedir)] + ([req(basedir)] if req else [])
-    logging.info("Adding %s to cup", fn)
+    yield [the_cup] + ([req(basedir)] if req else [])
+    logging.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
 ```
 
-This helper is called by other task functions in the workflow, too. It simulates adding an ingredient (tea, water, sugar) to the tea cup, and `yield`s values that the caller can re-`yield` to `iotaa`.
+This helper is also called by other task functions in the workflow, and simulates adding an ingredient (tea, water, sugar) to the tea cup, `yield`ing values that the caller can re-`yield` to `iotaa`.
 
 Second, `steeped_tea_with_sugar()` `yield`s (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that it passes the function _name_ rather than a call (i.e. `steeped_tea` instead of `steeped_tea(basedir)`) so that it can be called at the right time by `ingredient()`.
 
@@ -228,7 +231,8 @@ Next up, the `steeped_tea()` function, which is more complex:
 @task
 def steeped_tea(basedir):
     # Give tea time to steep.
-    yield "Steeped tea"
+    taskname = "Steeped tea"
+    yield taskname
     water = refs(steeping_tea(basedir))["water"]
     steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
@@ -245,10 +249,10 @@ def steeped_tea(basedir):
         yield steep_time(False)
     yield steeping_tea(basedir)
     if not ready:
-        logging.warning("Tea needs to steep for %ss", remaining)
+        logging.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 ```
 
-Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, if handy for a demo. Try 3 minutes for black tea IRL.) The path to the `water` file is located by calling `refs()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `teabag`, `water`.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should be during some future execution of this workflow. Note that the executable code following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
+Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
 
 Note the statement
 
@@ -256,33 +260,31 @@ Note the statement
 water = refs(steeping_tea(basedir))["water"]
 ```
 
-Here, `steeped_tea()` needs to know the path to the `water` file, and obtains it by calling the `steeping_tea()` task, extracting the references to its assets with `iotaa`'s `refs()` function, and selecting the `"water"` item's reference, which is the path to the `water` file. This is a useful way to delegate ownership of knowledge about assets to those assets, but note that the function call `steeping_tea(basedir)` effectively transfers workflow control to that task. This can be seen in the execution traces shown later in this document, where the task responsible for the `water` file (as well as its requirements) are evaluated before the steep-time task.
+The path to the `water` file is located by calling `refs()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `tea-bag`, `water`.) This is a useful way to delegate ownership of knowledge about an asset to the tasks responsible for that asset.
 
-The `steeping_tea()` and `teabag()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
+The `steeping_tea()` and `tea_bag()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
 
 ``` python
 @task
 def steeping_tea(basedir):
-    # Pour boiling water over the tea. Requires teabag in cup.
-    for x in ingredient(basedir, "water", "Boiling water", teabag):
-        yield x
+    # Pour boiling water over the tea. Requires tea bag in cup.
+    yield from ingredient(basedir, "water", "Boiling water", tea_bag)
 ```
 
 ``` python
 @task
-def teabag(basedir):
-    # Place tea bag in the cup. Requires box of teabags.
-    for x in ingredient(basedir, "teabag", "Teabag", box_of_teabags):
-        yield x
+def tea_bag(basedir):
+    # Place tea bag in the cup. Requires box of tea bags.
+    yield from ingredient(basedir, "tea bag", "Tea bag", box_of_tea_bags)
 ```
 
-Finally, we have this workflow's only `@external` task, `box_of_teabags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of teabags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ that it represents. It `yield`s no task requirements, and has no executable statements to ready the asset:
+Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ it represents. It `yield`s no task requirements, and has no executable statements to ready the asset:
 
 ``` python
 @external
-def box_of_teabags(basedir):
-    path = Path(basedir) / "box-of-teabags"
-    yield f"Box of teabags {path}"
+def box_of_tea_bags(basedir):
+    path = Path(basedir) / "box-of-tea-bags"
+    yield f"Box of tea bags ({path})"
     yield asset(path, path.exists)
 ```
 
