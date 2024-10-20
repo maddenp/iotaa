@@ -313,8 +313,8 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
     root(args.dry_run)
-    print(graph(root(args.dry_run)))
-
+    if args.graph:
+        print(graph(root))
 
 # Public API functions:
 
