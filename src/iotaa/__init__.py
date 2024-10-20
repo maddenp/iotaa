@@ -1,3 +1,5 @@
+# TODO accept logger object alongside dry_run bool.
+
 """
 iotaa.
 """
@@ -291,12 +293,11 @@ def main() -> None:
     """
     Main CLI entry point.
     """
-    # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
-    # module-name argument represents a file, append its parent directory to sys.path and remove any
-    # extension (presumably .py) so that it can be imported. If it does not represent a file, assume
-    # that it names a module that can be imported via standard means, maybe via PYTHONPATH. Trailing
-    # positional command-line arguments are then JSON-parsed to Python objects and passed to the
-    # specified function.
+    # Parse the command-line arguments, set up logging, then: If the module-name argument represents
+    # a file, append its parent directory to sys.path and remove any extension (presumably .py) so
+    # that it can be imported. If it does not represent a file, assume that it names a module that
+    # can be imported via standard means, maybe via PYTHONPATH. Trailing positional command-line
+    # arguments are then JSON-parsed to Python objects and passed to the specified function.
 
     args = _parse_args(sys.argv[1:])
     logcfg(verbose=args.verbose)
