@@ -1,5 +1,4 @@
-# TODO accept logger object alongside dry_run bool.
-
+# PM accept logger object alongside dry_run bool.
 """
 iotaa.
 """
@@ -138,6 +137,7 @@ class Node:
             extmsg = " [external asset]" if is_external and not ready else ""
             logf, readymsg = (_log.info, "Ready") if ready else (_log.warning, "Not ready")
             logf("%s: %s%s", self.taskname, readymsg, extmsg)
+            self._report_readiness()
         return self
 
     def _header(self, msg: str) -> None:
@@ -156,12 +156,12 @@ class Node:
         if self.ready:
             return
         reqs = {req: req.ready for req in _flatten(self.requirements)}
-        reqs_ready = all(reqs.values())
         if reqs:
             _log.warning("%s: Requires...", self.taskname)
             for req, ready in reqs.items():
                 status = "✔" if ready else "✖"
                 _log.warning("%s: %s %s", self.taskname, status, req.taskname)
+            # reqs_ready = all(reqs.values())
             # logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
             # logf("%s: Requirements %sready", self.taskname, pre)
 
@@ -179,9 +179,7 @@ class NodeExternal(Node):
         self.assets = assets
 
     def __call__(self, dry_run: bool = False) -> Node:
-        node = self._go(dry_run)
-        self._report_readiness()
-        return node
+        return self._go(dry_run)
 
 
 class NodeTask(Node):
@@ -202,9 +200,8 @@ class NodeTask(Node):
             else:
                 self.exe()
                 delattr(self, "ready")  # clear cached value
-        node = self._go(dry_run)
-        self._report_readiness()
-        return node
+        return self._go(dry_run)
+
 
 class NodeTasks(Node):
     """
@@ -216,9 +213,7 @@ class NodeTasks(Node):
         self.requirements = requirements
 
     def __call__(self, dry_run: bool = False) -> Node:
-        node = self._go(dry_run)
-        self._report_readiness()
-        return node
+        return self._go(dry_run)
 
     @cached_property
     def ready(self) -> bool:
