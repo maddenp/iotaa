@@ -39,7 +39,7 @@ def spoon(basedir):
     yield asset(path, path.exists)
     yield None
     logging.info("%s: Getting spoon", taskname)
-    path.parent.mkdir(parents=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
 
 

@@ -190,13 +190,13 @@ def spoon(basedir):
     yield asset(path, path.exists)
     yield None
     logging.info("%s: Getting spoon", taskname)
-    path.parent.mkdir(parents=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
 ```
 
 They `yield` their names, then the asset each is responsible for readying, then the tasks they require (`None` in this case, since they have no requirements). Following the final `yield`, they ready their assets: `cup()` creates the `cup` directory that will contain the tea ingredients, and `spoon()` ensures that the base directory exists, then creates the `spoon` file in it. Note that the `cup` and `spoon` assets are filesystem entries (a directory and a file, respectively) in the same parent directory, and their task functions are written so that it does not matter which task executes first and creates that parent directory.
 
-Note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless the `exist_ok=True` argument is supplied), the workflow need not explicitly guard against this because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
+In task function `cup()`, note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless the `exist_ok=True` argument is supplied, as it is in task function `spoon()`), the workflow need not explicitly guard against this because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
 
 The `steeped_tea_with_sugar()` `@task` function is next:
 
@@ -291,37 +291,8 @@ def box_of_tea_bags(basedir):
 Let's run this workflow with the `iotaa` command-line tool, requesting that the workflow start with the `a_cup_of_tea` task:
 
 ```
-% iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-19T11:49:43] INFO    The perfect cup of tea: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    The perfect cup of tea: Checking requirements
-[2023-10-19T11:49:43] INFO    A spoon: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    A spoon: Checking requirements
-[2023-10-19T11:49:43] INFO    A spoon: Requirement(s) ready
-[2023-10-19T11:49:43] INFO    A spoon: Executing
-[2023-10-19T11:49:43] INFO    A spoon: Final state: Ready
-[2023-10-19T11:49:43] INFO    A cup: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    A cup: Checking requirements
-[2023-10-19T11:49:43] INFO    A cup: Requirement(s) ready
-[2023-10-19T11:49:43] INFO    A cup: Executing
-[2023-10-19T11:49:43] INFO    A cup: Final state: Ready
-[2023-10-19T11:49:43] INFO    Sugar in cup: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    Sugar in cup: Checking requirements
-[2023-10-19T11:49:43] INFO    Boiling water in cup: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    Boiling water in cup: Checking requirements
-[2023-10-19T11:49:43] INFO    Teabag in cup: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    Teabag in cup: Checking requirements
-[2023-10-19T11:49:43] WARNING Box of teabags teatime/box-of-teabags: State: Not Ready (external asset)
-[2023-10-19T11:49:43] INFO    Teabag in cup: Requirement(s) not ready
-[2023-10-19T11:49:43] WARNING Teabag in cup: Final state: Not Ready
-[2023-10-19T11:49:43] INFO    Boiling water in cup: Requirement(s) not ready
-[2023-10-19T11:49:43] WARNING Boiling water in cup: Final state: Not Ready
-[2023-10-19T11:49:43] INFO    Steeped tea: Initial state: Not Ready
-[2023-10-19T11:49:43] INFO    Steeped tea: Checking requirements
-[2023-10-19T11:49:43] INFO    Steeped tea: Requirement(s) not ready
-[2023-10-19T11:49:43] WARNING Steeped tea: Final state: Not Ready
-[2023-10-19T11:49:43] INFO    Sugar in cup: Requirement(s) not ready
-[2023-10-19T11:49:43] WARNING Sugar in cup: Final state: Not Ready
-[2023-10-19T11:49:43] WARNING The perfect cup of tea: Final state: Not Ready
+$ iotaa iotaa.demo a_cup_of_tea ./teatime
+PM FIXME
 ```
 
 There's lots to see during the first invocation. Most of the tasks start and end in a not-ready state. Only the `spoon()` and `cup()` tasks make progress from `Not Ready` to `Ready` states:
