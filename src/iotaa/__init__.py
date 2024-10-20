@@ -8,7 +8,6 @@ import json
 import logging
 import sys
 from argparse import ArgumentParser, HelpFormatter, Namespace
-from collections import defaultdict
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
@@ -20,7 +19,6 @@ from json import JSONDecodeError, loads
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
-from types import SimpleNamespace as ns
 from typing import Any, Callable, Generator, Iterator, Optional, TypeVar, Union
 
 T = TypeVar("T")
@@ -315,6 +313,7 @@ def main() -> None:
     root(args.dry_run)
     if args.graph:
         print(graph(root))
+
 
 # Public API functions:
 
