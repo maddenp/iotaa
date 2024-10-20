@@ -2,58 +2,60 @@
 
 **It's One Thing After Another**
 
-A simple workflow engine with semantics inspired by [Luigi](https://github.com/spotify/luigi) and tasks expressed as decorated Python functions (or methods, but "functions" will be used in this document). `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
+A simple workflow engine with semantics inspired by [Luigi](https://github.com/spotify/luigi) and tasks expressed as decorated Python functions/methods. `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
 
 ## Workflows
 
 Workflows comprise:
 
-- Assets (observable external state: typically files, but more abstract entities -- a count of lines in a file, a REST API response, a time of day -- can be modeled)
-- Requirement relationships (dependencies) between assets
-- Executable logic to ready the assets (e.g. create them)
+- Assets: observable external state -- often files, but sometimes more abstract entities, e.g. file line counts, REST API responses, times of day, etc.
+- Actions: imperative logic to create or otherwise "ready" assets
+- Requirements: dependency relationships allowing actions to ready output assets incorporating upstream assets
 
 ## Assets
 
 An asset (an instance of class `iotaa.Asset`) has two attributes:
 
 1. `ref`: A value, of any type, uniquely identifying the observable state this asset represents (e.g. a POSIX filesystem path, an S3 URI, an ISO8601 timestamp)
-2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether the asset is "ready", i.e. safe to use by a requiring task
+2. `ready`: A 0-arity (no-argument) function returning a `bool` indicating whether the asset is ready to use
 
-Assets are created by calling `iotaa.asset()`.
+Create assets by calling `iotaa.asset()`.
 
 ## Tasks
 
-Task are functions that declare, by `yield`ing values to `iotaa`, the task name and -- depending on task type -- one or both of: the task's asset(s), and any other task(s) the task requires. The task name is used to construct log messages detailing workflow progress, so descriptive names can be useful. Tasks that define and are responsible for readying their asset(s) provide, following the `yield` statements, executable logic that does whatever is needed to ready the asset(s).
+A task is a decorated Python functions that `yield`s to `iotaa` its name and, depending on its type (see below), output assets and/or required tasks. *Task names must be unique within a workflow.* Following its `yield` statements, a task that readies an asset provides imperative logic for that.
 
-`iotaa` provides three Python decorators to define tasks:
+`iotaa` provides three decorators to define tasks:
 
 ### `@task`
 
-The essential workflow function type, a `@task` function `yield`s, in order:
+The essential workflow task, a `@task` function `yield`s, in order:
 
 1. Its name
 2. An asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- the task is responsible for readying
-3. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- the task requires before it can ready its asset(s)
+3. A task-function call (e.g. `t(args)` for a task `t`) -- or a `list` or `dict` of such calls, or `None` -- required for readying its asset(s)
 
-Arbitrary Python statements may appear before and interspersed between the `yield` statements. If all assets of any required tasks are ready, the statements following the third and final `yield` will be executed, with the expectation that they will ready this task's asset(s).
+Statements following the final `yield` will be executed to ready the task's asset(s). If the task `yield`s requirements, execution proceeds only if required tasks' assets are all ready. The task may access those assets via references extracted by calling `iotaa.refs(t)` for a required task `t`.
 
 ### `@tasks`
 
-A collections of other tasks. A `@tasks` function is ready when all of its required tasks are ready and `yield`s, in order:
+A collections of other tasks. A `@tasks` task is ready when all of its required tasks are ready. It `yield`s, in order:
 
 1. Its name
 2. A task-function call (e.g. `t(args)` for task `t`) -- or a `list` or `dict` of such calls, or `None` -- that this task requires.
 
-No statements should follow the second and final `yield`, as they will never execute.
+No statements should follow the final `yield`, as they will never execute.
 
 ### `@external`
 
-An `@external` function represents zero or more required assets that cannot be readied by the workflow and `yield`s, in order:
+An `@external` task represents required assets that cannot be readied by the workflow. It `yield`s, in order:
 
 1. Its name
 2. A required asset -- or an asset `list`, or a `dict` mapping `str` keys to assets, or `None` -- that must be readied by external means not under workflow control.
 
-As with `@task` functions, arbitrary Python statements may appear before and interspersed between these `yield` statements. However, no statements should follow the second and final `yield`, as they will never execute.
+No statements should follow the final `yield`, as they will never execute.
+
+For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state.
 
 ## Use
 
