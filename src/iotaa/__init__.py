@@ -59,9 +59,6 @@ class Node:
         self.dry_run = False
         self.root = True
 
-    def __call__(self, dry_run: bool = False) -> Node:
-        return self._go(dry_run)
-
     def __eq__(self, other):
         return hash(self) == hash(other)
 
@@ -152,6 +149,22 @@ class Node:
         _log.debug(msg)
         _log.debug(sep)
 
+    def _report_readiness(self) -> None:
+        """
+        PM WRITEME.
+        """
+        if self.ready:
+            return
+        reqs = {req: req.ready for req in _flatten(self.requirements)}
+        reqs_ready = all(reqs.values())
+        if reqs:
+            _log.warning("%s: Requires...", self.taskname)
+            for req, ready in reqs.items():
+                status = "✔" if ready else "✖"
+                _log.warning("%s: %s %s", self.taskname, status, req.taskname)
+            # logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
+            # logf("%s: Requirements %sready", self.taskname, pre)
+
 
 _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
@@ -164,6 +177,11 @@ class NodeExternal(Node):
     def __init__(self, taskname: str, assets: _AssetT) -> None:
         super().__init__(taskname)
         self.assets = assets
+
+    def __call__(self, dry_run: bool = False) -> Node:
+        node = self._go(dry_run)
+        self._report_readiness()
+        return node
 
 
 class NodeTask(Node):
@@ -178,26 +196,15 @@ class NodeTask(Node):
         self.exe = exe
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if not self.ready:
-            reqs = {req: req.ready for req in _flatten(self.requirements)}
-            reqs_ready = all(reqs.values())
-            if reqs:
-                _log.info("%s: Requires...", self.taskname)
-                for req, ready in reqs.items():
-                    status = "✔" if ready else "✖"
-                    _log.info("%s: %s %s", self.taskname, status, req.taskname)
-                logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
-                logf("%s: Requirements %sready", self.taskname, pre)
+        if not self.ready and all(req.ready for req in _flatten(self.requirements)):
+            if self.dry_run:
+                _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
             else:
-                _log.debug("%s: No requirements", self.taskname)
-            if reqs_ready:
-                if self.dry_run:
-                    _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
-                else:
-                    self.exe()
-                    delattr(self, "ready")  # clear cached value
-        return self._go(dry_run)
-
+                self.exe()
+                delattr(self, "ready")  # clear cached value
+        node = self._go(dry_run)
+        self._report_readiness()
+        return node
 
 class NodeTasks(Node):
     """
@@ -207,6 +214,11 @@ class NodeTasks(Node):
     def __init__(self, taskname: str, requirements: Optional[_NodeT] = None) -> None:
         super().__init__(taskname)
         self.requirements = requirements
+
+    def __call__(self, dry_run: bool = False) -> Node:
+        node = self._go(dry_run)
+        self._report_readiness()
+        return node
 
     @cached_property
     def ready(self) -> bool:
