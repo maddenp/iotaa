@@ -51,7 +51,7 @@ class Node:
 
     assets: Optional[_AssetT] = None
     requirements: Optional[_NodeT] = None
-    taskname = "abstract"
+    # taskname = "abstract"
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
@@ -237,86 +237,33 @@ class _Graph:
     Graphviz digraph support.
     """
 
-    def __init__(self) -> None:
-        self.reset()
+    def __init__(self, root: Node) -> None:
+        """
+        :param root: The task-graph root node.
+        """
+        self._nodes: set = set()
+        self._edges: set = set()
+        self._build(root)
+
+    def _build(self, node: Node) -> None:
+        """
+        PM WRITEME.
+        """
+        self._nodes.add(node)
+        for req in _flatten(node.requirements):
+            self._edges.add((node, req))
+            self._build(req)
 
     def __repr__(self) -> str:
         """
-        Returns the task/asset graph in Graphviz dot format.
+        Returns the task graph in Graphviz DOT format.
         """
-        f = (
-            lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-            % (
-                self.name(name),
-                self.color[ready],
-                name,
-                shape,
-            )
-        )
-        edges = ["%s -> %s" % (self.name(a), self.name(b)) for a, b in self.edges]
-        nodes_a = [f(ref, self.shape.asset, ready()) for ref, ready in self.assets.items()]
-        nodes_t = [f(x, self.shape.task) for x in self.tasks]
-        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges))
-
-    @property
-    def color(self) -> dict[Any, str]:
-        """
-        Graphviz colors.
-        """
-        return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
-
-    def name(self, name: str) -> str:
-        """
-        Convert an iotaa asset/task name to a Graphviz-appropriate node name.
-
-        :param name: An iotaa asset/task name.
-        :return: A Graphviz-appropriate node name.
-        """
-        return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
-
-    @property
-    def shape(self) -> ns:
-        """
-        Graphviz shapes.
-        """
-        return ns(asset="box", task="ellipse")
-
-    def reset(self) -> None:
-        """
-        Reset graph state.
-        """
-        self.assets: dict = {}
-        self.edges: set = set()
-        self.tasks: set = set()
-
-    def update_from_requirements(self, taskname: str, alist: list[Asset]) -> None:
-        """
-        Update graph data structures with required-task info.
-
-        :param taskname: The current task's name.
-        :param alist: Flattened required-task assets.
-        """
-        asset_taskname = lambda a: getattr(a, "taskname", None)
-        self.assets.update({a.ref: a.ready for a in alist})
-        self.edges |= set((asset_taskname(a), a.ref) for a in alist)
-        self.edges |= set((taskname, asset_taskname(a)) for a in alist)
-        self.tasks |= set(asset_taskname(a) for a in alist)
-        self.tasks.add(taskname)
-
-    def update_from_task(self, taskname: str, assets: _AssetT) -> None:
-        """
-        Update graph data structures with current task info.
-
-        :param taskname: The current task's name.
-        :param assets: An asset, a collection of assets, or None.
-        """
-        alist = _flatten(assets)
-        self.assets.update({a.ref: a.ready for a in alist})
-        self.edges |= set((taskname, a.ref) for a in alist)
-        self.tasks.add(taskname)
-
-
-_graph = _Graph()
+        s = '%s [fillcolor=%s, label="%s", style=filled]'
+        name = lambda node: "_%s" % md5(str(node.taskname).encode("utf-8")).hexdigest()
+        color = lambda node: "palegreen" if node.ready else "orange"
+        nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
+        edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
+        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
 
 
 class _Logger:
@@ -366,6 +313,7 @@ def main() -> None:
     reified = [_reify(arg) for arg in args.args]
     root = getattr(modobj, args.function)(*reified)
     root(args.dry_run)
+    print(graph(root(args.dry_run)))
 
 
 # Public API functions:
@@ -381,11 +329,13 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     return Asset(ref, ready)
 
 
-def graph() -> str:
+def graph(node: Node) -> str:
     """
-    Returns the Graphivz graph of the most recent task execution tree.
+    Returns Graphivz DOT code describing the task graph rooted at the given node.
+
+    :param ndoe: The root node.
     """
-    return str(_graph)
+    return str(_Graph(root=node))
 
 
 def logcfg(verbose: bool = False) -> None:
