@@ -537,6 +537,55 @@ teatime/
 2 directories, 4 files
 ```
 
+The `-v` / `--verbose` switch can be used for additional logging. Here, for example, is the verbose log output of a fresh run:
+
+```
+$ rm -rf teatime/
+$ iotaa --verbose iotaa.demo a_cup_of_tea ./teatime
+[2024-10-22T01:03:18] DEBUG   ──────────
+[2024-10-22T01:03:18] DEBUG   Task Graph
+[2024-10-22T01:03:18] DEBUG   ──────────
+[2024-10-22T01:03:18] DEBUG   The perfect cup of tea
+[2024-10-22T01:03:18] DEBUG     Sugar in cup
+[2024-10-22T01:03:18] DEBUG       The cup
+[2024-10-22T01:03:18] DEBUG       Steeped tea
+[2024-10-22T01:03:18] DEBUG         Boiling water in cup
+[2024-10-22T01:03:18] DEBUG           The cup
+[2024-10-22T01:03:18] DEBUG           Tea bag in cup
+[2024-10-22T01:03:18] DEBUG             The cup
+[2024-10-22T01:03:18] DEBUG             Box of tea bags (teatime/box-of-tea-bags)
+[2024-10-22T01:03:18] DEBUG     The spoon
+[2024-10-22T01:03:18] DEBUG   ─────────
+[2024-10-22T01:03:18] DEBUG   Execution
+[2024-10-22T01:03:18] DEBUG   ─────────
+[2024-10-22T01:03:18] INFO    The cup: Executing
+[2024-10-22T01:03:18] INFO    The cup: Getting cup
+[2024-10-22T01:03:18] INFO    The cup: Ready
+[2024-10-22T01:03:18] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
+[2024-10-22T01:03:18] INFO    The spoon: Executing
+[2024-10-22T01:03:18] INFO    The spoon: Getting spoon
+[2024-10-22T01:03:18] INFO    The spoon: Ready
+[2024-10-22T01:03:18] WARNING Tea bag in cup: Not ready
+[2024-10-22T01:03:18] WARNING Tea bag in cup: Requires...
+[2024-10-22T01:03:18] WARNING Tea bag in cup: ✔ The cup
+[2024-10-22T01:03:18] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
+[2024-10-22T01:03:18] WARNING Boiling water in cup: Not ready
+[2024-10-22T01:03:18] WARNING Boiling water in cup: Requires...
+[2024-10-22T01:03:18] WARNING Boiling water in cup: ✔ The cup
+[2024-10-22T01:03:18] WARNING Boiling water in cup: ✖ Tea bag in cup
+[2024-10-22T01:03:18] WARNING Steeped tea: Not ready
+[2024-10-22T01:03:18] WARNING Steeped tea: Requires...
+[2024-10-22T01:03:18] WARNING Steeped tea: ✖ Boiling water in cup
+[2024-10-22T01:03:18] WARNING Sugar in cup: Not ready
+[2024-10-22T01:03:18] WARNING Sugar in cup: Requires...
+[2024-10-22T01:03:18] WARNING Sugar in cup: ✔ The cup
+[2024-10-22T01:03:18] WARNING Sugar in cup: ✖ Steeped tea
+[2024-10-22T01:03:18] WARNING The perfect cup of tea: Not ready
+[2024-10-22T01:03:18] WARNING The perfect cup of tea: Requires...
+[2024-10-22T01:03:18] WARNING The perfect cup of tea: ✖ Sugar in cup
+[2024-10-22T01:03:18] WARNING The perfect cup of tea: ✔ The spoon
+```
+
 ## Graphing
 
 The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
