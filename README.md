@@ -577,11 +577,11 @@ Orange nodes indicate tasks with not-ready assets.
 
 Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of graph images are shown:
 
-- First invocation, blocked by missing (external) box of tea bags:
+- After first invocation, with cup and spoon added but blocked by missing (external) box of tea bags:
 
 ![teatime-dry-run-image](img/teatime-1.svg)
 
-- Second invocation, with box of tea bags available:
+- After second invocation, with box of tea bags available, with hot water poured:
 
 ![teatime-dry-run-image](img/teatime-2.svg)
 

@@ -18,7 +18,7 @@
 <!-- _63d2ed416115be6cf86c48e10dacf755 -->
 <g id="node2" class="node">
 <title>_63d2ed416115be6cf86c48e10dacf755</title>
-<ellipse fill="orange" stroke="black" cx="75.45" cy="-306" rx="69.59" ry="18"/>
+<ellipse fill="palegreen" stroke="black" cx="75.45" cy="-306" rx="69.59" ry="18"/>
 <text text-anchor="middle" x="75.45" y="-302.3" font-family="Times,serif" font-size="14.00">Sugar in cup</text>
 </g>
 <!-- _d984f9c4faa6c4364241b6d25d460c04 -->
@@ -36,7 +36,7 @@
 <!-- _fc7725b504dfe81a0923659641500bf6 -->
 <g id="node4" class="node">
 <title>_fc7725b504dfe81a0923659641500bf6</title>
-<ellipse fill="orange" stroke="black" cx="141.45" cy="-234" rx="66.09" ry="18"/>
+<ellipse fill="palegreen" stroke="black" cx="141.45" cy="-234" rx="66.09" ry="18"/>
 <text text-anchor="middle" x="141.45" y="-230.3" font-family="Times,serif" font-size="14.00">Steeped tea</text>
 </g>
 <!-- _63d2ed416115be6cf86c48e10dacf755&#45;&gt;_fc7725b504dfe81a0923659641500bf6 -->
@@ -60,7 +60,7 @@
 <!-- _6ac80c9b9d540f4035cde8e540cb0369 -->
 <g id="node5" class="node">
 <title>_6ac80c9b9d540f4035cde8e540cb0369</title>
-<ellipse fill="orange" stroke="black" cx="147.45" cy="-378" rx="112.38" ry="18"/>
+<ellipse fill="palegreen" stroke="black" cx="147.45" cy="-378" rx="112.38" ry="18"/>
 <text text-anchor="middle" x="147.45" y="-374.3" font-family="Times,serif" font-size="14.00">The perfect cup of tea</text>
 </g>
 <!-- _6ac80c9b9d540f4035cde8e540cb0369&#45;&gt;_63d2ed416115be6cf86c48e10dacf755 -->
