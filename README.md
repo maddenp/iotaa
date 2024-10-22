@@ -325,7 +325,7 @@ There's lots to see during the first invocation. Most of the tasks cannot run du
 The on-disk workflow state is now:
 
 ```
-$ tree teatime
+$ tree teatime/
 teatime
 ├── cup
 └── spoon
@@ -343,7 +343,7 @@ The external asset (file) `teatime/box-of-tea-bags` cannot be created by the wor
 
 ```
 $ touch teatime/box-of-tea-bags
-$ tree teatime
+$ tree teatime/
 teatime
 ├── box-of-tea-bags
 ├── cup
@@ -383,7 +383,7 @@ $ iotaa iotaa.demo a_cup_of_tea ./teatime
 On-disk workflow state now:
 
 ```
-$ tree teatime
+$ tree teatime/
 teatime
 ├── box-of-tea-bags
 ├── cup
@@ -416,7 +416,7 @@ $ iotaa iotaa.demo a_cup_of_tea ./teatime
 Now that the tea has steeped long enough, the sugar has been added:
 
 ```
-$ tree teatime
+$ tree teatime/
 teatime
 ├── box-of-tea-bags
 ├── cup
@@ -440,41 +440,43 @@ Since `a_cup_of_tea()` is a `@tasks` _collection_, its state is contingent on th
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
 ```
-% rm -v teatime/cup/sugar
+$ rm -v teatime/cup/sugar
 removed 'teatime/cup/sugar'
-% tree teatime/
+$ tree teatime/
 teatime/
-├── box-of-teabags
+├── box-of-tea-bags
 ├── cup
-│   ├── teabag
+│   ├── tea-bag
 │   └── water
 └── spoon
+
+2 directories, 4 files
 ```
 
 Note how the workflow detects the change to the readiness of its assets and recovers:
 
 ```
-% iotaa iotaa.demo a_cup_of_tea ./teatime
-[2023-10-19T11:55:45] INFO    The perfect cup of tea: Initial state: Not Ready
-[2023-10-19T11:55:45] INFO    The perfect cup of tea: Checking requirements
-[2023-10-19T11:55:45] INFO    Sugar in cup: Initial state: Not Ready
-[2023-10-19T11:55:45] INFO    Sugar in cup: Checking requirements
-[2023-10-19T11:55:45] INFO    Sugar in cup: Requirement(s) ready
-[2023-10-19T11:55:45] INFO    Sugar in cup: Executing
-[2023-10-19T11:55:45] INFO    Adding sugar to cup
-[2023-10-19T11:55:45] INFO    Sugar in cup: Final state: Ready
-[2023-10-19T11:55:45] INFO    The perfect cup of tea: Final state: Ready
+$ iotaa iotaa.demo a_cup_of_tea ./teatime
+[2024-10-22T00:37:27] INFO    The cup: Ready
+[2024-10-22T00:37:27] INFO    Steeped tea: Ready
+[2024-10-22T00:37:27] INFO    The spoon: Ready
+[2024-10-22T00:37:27] INFO    Sugar in cup: Executing
+[2024-10-22T00:37:27] INFO    Sugar in cup: Adding sugar to cup
+[2024-10-22T00:37:27] INFO    Sugar in cup: Ready
+[2024-10-22T00:37:27] INFO    The perfect cup of tea: Ready
 ```
 
 ```
-% tree teatime
-teatime
-├── box-of-teabags
+$ tree teatime/
+teatime/
+├── box-of-tea-bags
 ├── cup
 │   ├── sugar
-│   ├── teabag
+│   ├── tea-bag
 │   └── water
 └── spoon
+
+2 directories, 5 files
 ```
 
 Another useful feature is the ability to enter the workflow's task graph at an arbitrary point to obtain only a subset of the assets. For example, if we'd like a cup of tea _without_ sugar, we can start with the `steeped_tea` task rather than the higher-level `a_cup_of_tea` task.
@@ -482,58 +484,57 @@ Another useful feature is the ability to enter the workflow's task graph at an a
 First, let's empty the cup:
 
 ```
-% rm -v teatime/cup/*
+$ rm -v teatime/cup/*
 removed 'teatime/cup/sugar'
-removed 'teatime/cup/teabag'
+removed 'teatime/cup/tea-bag'
 removed 'teatime/cup/water'
-% tree teatime/
+(DEV-iotaa) ~/git/iotaa $ tree teatime/
 teatime/
-├── box-of-teabags
+├── box-of-tea-bags
 ├── cup
 └── spoon
+
+2 directories, 2 files
 ```
 
 Now request tea without sugar:
 
 ```
-% iotaa iotaa.demo steeped_tea ./teatime
-% iotaa iotaa.demo steeped_tea ./teatime
-[2023-10-19T11:57:31] INFO    Boiling water in cup: Initial state: Not Ready
-[2023-10-19T11:57:31] INFO    Boiling water in cup: Checking requirements
-[2023-10-19T11:57:31] INFO    Teabag in cup: Initial state: Not Ready
-[2023-10-19T11:57:31] INFO    Teabag in cup: Checking requirements
-[2023-10-19T11:57:31] INFO    Teabag in cup: Requirement(s) ready
-[2023-10-19T11:57:31] INFO    Teabag in cup: Executing
-[2023-10-19T11:57:31] INFO    Adding teabag to cup
-[2023-10-19T11:57:31] INFO    Teabag in cup: Final state: Ready
-[2023-10-19T11:57:31] INFO    Boiling water in cup: Requirement(s) ready
-[2023-10-19T11:57:31] INFO    Boiling water in cup: Executing
-[2023-10-19T11:57:31] INFO    Adding water to cup
-[2023-10-19T11:57:31] INFO    Boiling water in cup: Final state: Ready
-[2023-10-19T11:57:31] INFO    Steeped tea: Initial state: Not Ready
-[2023-10-19T11:57:31] INFO    Steeped tea: Checking requirements
-[2023-10-19T11:57:31] INFO    Steeped tea: Requirement(s) ready
-[2023-10-19T11:57:31] INFO    Steeped tea: Executing
-[2023-10-19T11:57:31] WARNING Tea needs to steep for 9s
+$ iotaa iotaa.demo steeped_tea ./teatime
+[2024-10-22T00:39:50] INFO    The cup: Ready
+[2024-10-22T00:39:50] INFO    Box of tea bags (teatime/box-of-tea-bags): Ready
+[2024-10-22T00:39:50] INFO    Tea bag in cup: Executing
+[2024-10-22T00:39:50] INFO    Tea bag in cup: Adding tea-bag to cup
+[2024-10-22T00:39:50] INFO    Tea bag in cup: Ready
+[2024-10-22T00:39:50] INFO    Boiling water in cup: Executing
+[2024-10-22T00:39:50] INFO    Boiling water in cup: Adding water to cup
+[2024-10-22T00:39:50] INFO    Boiling water in cup: Ready
+[2024-10-22T00:39:50] INFO    Steeped tea: Executing
+[2024-10-22T00:39:50] WARNING Steeped tea: Tea needs to steep for 10s
+[2024-10-22T00:39:50] WARNING Steeped tea: Not ready
+[2024-10-22T00:39:50] WARNING Steeped tea: Requires...
+[2024-10-22T00:39:50] WARNING Steeped tea: ✔ Boiling water in cup
 ```
 
 After waiting for the tea to steep:
 
 ```
-% iotaa iotaa.demo steeped_tea ./teatime
-2023-10-19T11:57:57] INFO    Steeped tea: Initial state: Ready
+$ iotaa iotaa.demo steeped_tea ./teatime
+[2024-10-22T00:40:17] INFO    Steeped tea: Ready
 ```
 
 On-disk state:
 
 ```
-% tree teatime/
+$ tree teatime/
 teatime/
-├── box-of-teabags
+├── box-of-tea-bags
 ├── cup
-│   ├── teabag
-│   └── water
+│   ├── tea-bag
+│   └── water
 └── spoon
+
+2 directories, 4 files
 ```
 
 ## Graphing
