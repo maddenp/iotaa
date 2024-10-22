@@ -542,15 +542,38 @@ teatime/
 The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
 
 ```
-% iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T svg)
-[2023-10-19T12:13:47] INFO    The perfect cup of tea: Initial state: Not Ready
-...
-[2023-10-19T12:13:47] WARNING The perfect cup of tea: Final state: Not Ready
+$ iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T svg)
+[2024-10-22T00:41:53] INFO    The cup: SKIPPING (DRY RUN)
+[2024-10-22T00:41:53] WARNING The cup: Not ready
+[2024-10-22T00:41:53] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
+[2024-10-22T00:41:53] INFO    The spoon: SKIPPING (DRY RUN)
+[2024-10-22T00:41:53] WARNING The spoon: Not ready
+[2024-10-22T00:41:53] WARNING Tea bag in cup: Not ready
+[2024-10-22T00:41:53] WARNING Tea bag in cup: Requires...
+[2024-10-22T00:41:53] WARNING Tea bag in cup: ✖ The cup
+[2024-10-22T00:41:53] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
+[2024-10-22T00:41:53] WARNING Boiling water in cup: Not ready
+[2024-10-22T00:41:53] WARNING Boiling water in cup: Requires...
+[2024-10-22T00:41:53] WARNING Boiling water in cup: ✖ The cup
+[2024-10-22T00:41:53] WARNING Boiling water in cup: ✖ Tea bag in cup
+[2024-10-22T00:41:53] WARNING Steeped tea: Not ready
+[2024-10-22T00:41:53] WARNING Steeped tea: Requires...
+[2024-10-22T00:41:53] WARNING Steeped tea: ✖ Boiling water in cup
+[2024-10-22T00:41:53] WARNING Sugar in cup: Not ready
+[2024-10-22T00:41:53] WARNING Sugar in cup: Requires...
+[2024-10-22T00:41:53] WARNING Sugar in cup: ✖ The cup
+[2024-10-22T00:41:53] WARNING Sugar in cup: ✖ Steeped tea
+[2024-10-22T00:41:53] WARNING The perfect cup of tea: Not ready
+[2024-10-22T00:41:53] WARNING The perfect cup of tea: Requires...
+[2024-10-22T00:41:53] WARNING The perfect cup of tea: ✖ Sugar in cup
+[2024-10-22T00:41:53] WARNING The perfect cup of tea: ✖ The spoon
 ```
 
-The displayed image (tasks are ovals, assets (green => ready, orange => not ready) are rectangles):
+The displayed image:
 
 ![teatime-dry-run-image](img/teatime-0.svg)
+
+Orange nodes indicate tasks with not-ready assets.
 
 Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of graph images are shown:
 
@@ -562,14 +585,6 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 ![teatime-dry-run-image](img/teatime-2.svg)
 
-- Third invocation, waiting for tea to steep:
+- Third invocation, after tea has steeped and sugar has been added, showing final workflow state:
 
 ![teatime-dry-run-image](img/teatime-3.svg)
-
-- Fourth invocation, with sugar added to steeped tea:
-
-![teatime-dry-run-image](img/teatime-4.svg)
-
-- Fifth invocation, showing final workflow sate:
-
-![teatime-dry-run-image](img/teatime-5.svg)
