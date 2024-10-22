@@ -50,7 +50,6 @@ class Node:
 
     assets: Optional[_AssetT] = None
     requirements: Optional[_NodeT] = None
-    # taskname = "abstract"
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
@@ -215,7 +214,7 @@ class NodeTasks(Node):
     def __call__(self, dry_run: bool = False) -> Node:
         return self._go(dry_run)
 
-    @cached_property
+    @property
     def ready(self) -> bool:
         """
         PM WRITEME.
