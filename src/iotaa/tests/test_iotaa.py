@@ -7,6 +7,7 @@ Tests for module iotaa.
 # pylint: disable=redefined-outer-name
 # pylint: disable=use-implicit-booleaness-not-comparison
 
+import logging
 import re
 import sys
 from abc import abstractmethod
@@ -364,7 +365,12 @@ def test_runconda():
     with patch.object(iotaa, "run") as run:
         iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
         run.assert_called_once_with(
-            taskname=taskname, cmd=fullcmd, cwd=None, env=None, log_output=False
+            taskname=taskname,
+            cmd=fullcmd,
+            cwd=None,
+            env=None,
+            log_output=False,
+            log=logging.getLogger(),
         )
 
 
@@ -617,10 +623,10 @@ def test__mark():
     assert hasattr(f, "__iotaa_task__")
 
 
-def test__next(caplog):
-    with raises(SystemExit):
+def test__next():
+    with raises(iotaa.IotaaError) as e:
         iotaa._next(iter([]), "foo")
-    assert logged("Failed to get foo: Check yield statements.", caplog)
+    assert str(e.value) == "Failed to get foo: Check yield statements."
 
 
 @mark.parametrize("graph", [None, "-g", "--graph"])

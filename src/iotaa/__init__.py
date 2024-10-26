@@ -45,7 +45,7 @@ _AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 
 class Node:
     """
-    PM WRITEME.
+    The base class for task-graph nodes.
     """
 
     assets: Optional[_AssetT] = None
@@ -53,8 +53,8 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
-        self.assembled = False  # PM private?
-        self.root = True  # PM private?
+        self.root = True
+        self._assembled = False
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -119,12 +119,12 @@ class Node:
         """
         PM WRITEME.
         """
-        if self.root and not self.assembled:
+        if self.root and not self._assembled:
             g: TopologicalSorter = TopologicalSorter()
             self._header("Task Graph", log)
             self._dedupe()
             self._assemble(self, g, dry_run, log)
-            self.assembled = True
+            self._assembled = True
             self._header("Execution", log)
             for node in g.static_order():
                 node(dry_run)
