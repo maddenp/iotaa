@@ -68,7 +68,7 @@ class Node:
     @cached_property
     def ready(self) -> bool:
         """
-        PM WRITEME.
+        Are the assets represented by this task-graph node ready?
         """
         return all(x.ready() for x in _flatten(self.assets))
 
@@ -76,7 +76,13 @@ class Node:
         self, node: Node, g: TopologicalSorter, dry_run: bool, log: Logger, level: int = 0
     ) -> None:
         """
-        PM WRITEME.
+        Assemble the task graph based on this node and its children.
+
+        :param node: The current task-graph node.
+        :param g: The task graph.
+        :param dry_run: Avoid executing state-affecting code?
+        :param log: The logger to use.
+        :param level: The distance from the task-graph root node.
         """
         log.debug("  " * level + node.taskname)
         g.add(node)
@@ -88,7 +94,14 @@ class Node:
 
     def _dedupe(self, nodes: Optional[set[Node]] = None) -> set[Node]:
         """
-        PM WRITEME.
+        Unify equivalent task-graph nodes.
+
+        Decorated task functions/methods may create Node objects semantically equivalent to those
+        created by others. Walk the task graph, deduplicating such nodes. Nodes are equivalent if
+        their tasknames match.
+
+        :param nodes: The set of known nodes.
+        :return: The (possibly updated) set of known nodes.
         """
 
         def f(node: Node, nodes: set[Node]) -> set[Node]:
@@ -117,7 +130,11 @@ class Node:
 
     def _go(self, dry_run: bool, log: Logger) -> Node:
         """
-        PM WRITEME.
+        Assemble and then execute the task graph.
+
+        :param dry_run: Avoid executing state-affecting code?
+        :param log: The logger to use.
+        :return: The root node of the current (sub)graph.
         """
         if self.root and not self._assembled:
             g: TopologicalSorter = TopologicalSorter()
@@ -139,7 +156,10 @@ class Node:
 
     def _header(self, msg: str, log: Logger) -> None:
         """
-        PM WRITEME.
+        Log a header message.
+
+        :param msg: The message to log.
+        :param log: The logger to log to.
         """
         sep = "─" * len(msg)
         log.debug(sep)
@@ -148,7 +168,9 @@ class Node:
 
     def _report_readiness(self, log: Logger) -> None:
         """
-        PM WRITEME.
+        Log information about [un]ready requirements of this task-graph node.
+
+        :param log: The logger to log to.
         """
         if self.ready:
             return
@@ -165,7 +187,7 @@ _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 class NodeExternal(Node):
     """
-    PM WRITEME.
+    A node encapsulating an @external-decorated function/method.
     """
 
     def __init__(self, taskname: str, assets: _AssetT) -> None:
@@ -178,7 +200,7 @@ class NodeExternal(Node):
 
 class NodeTask(Node):
     """
-    PM WRITEME.
+    A node encapsulating a @task-decorated function/method.
     """
 
     def __init__(
@@ -201,7 +223,7 @@ class NodeTask(Node):
 
 class NodeTasks(Node):
     """
-    PM WRITEME.
+    A node encapsulating a @tasks-decorated function/method.
     """
 
     def __init__(self, taskname: str, requirements: Optional[_NodeT] = None) -> None:
@@ -214,7 +236,7 @@ class NodeTasks(Node):
     @property
     def ready(self) -> bool:
         """
-        PM WRITEME.
+        Are the tasks represented by this task-graph node ready?
         """
         return all(x.ready for x in _flatten(self.requirements))
 
@@ -256,7 +278,9 @@ class _Graph:
 
     def _build(self, node: Node) -> None:
         """
-        PM WRITEME.
+        Recursively add task nodes with edges to nodes they require.
+
+        :param node: The root node of the current subgraph.
         """
         self._nodes.add(node)
         for req in _flatten(node.requirements):
