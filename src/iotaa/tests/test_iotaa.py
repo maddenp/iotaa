@@ -7,7 +7,6 @@ Tests for module iotaa.
 # pylint: disable=redefined-outer-name
 # pylint: disable=use-implicit-booleaness-not-comparison
 
-import logging
 import re
 import sys
 from abc import abstractmethod
@@ -257,16 +256,6 @@ def test_logcfg(vals):
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_logset():
-    with patch.object(iotaa, "_log", iotaa._Logger()):
-        # Initially, logging uses the Python root logger:
-        assert iotaa._log.logger == logging.getLogger()
-        # But the logger can be swapped to use a logger of choice:
-        test_logger = logging.getLogger("test-logger")
-        iotaa.logset(test_logger)
-        assert iotaa._log.logger == test_logger
-
-
 @mark.skip("FIXME")
 def test_main_live_abspath(capsys, module_for_main):
     with patch.object(iotaa.sys, "argv", new=["prog", str(module_for_main), "hi", "world"]):
@@ -353,7 +342,7 @@ def test_run_success(caplog, tmp_path):
         skip("unsupported platform")
     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     cmd = "echo hello $FOO"
-    assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log=True)
+    assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log_output=True)
     assert logged("task: Running: %s" % cmd, caplog)
     assert logged("task:   in %s" % tmp_path, caplog)
     assert logged("task:   with environment variables:", caplog)
@@ -374,7 +363,9 @@ def test_runconda():
     )
     with patch.object(iotaa, "run") as run:
         iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
-        run.assert_called_once_with(taskname=taskname, cmd=fullcmd, cwd=None, env=None, log=False)
+        run.assert_called_once_with(
+            taskname=taskname, cmd=fullcmd, cwd=None, env=None, log_output=False
+        )
 
 
 def test_tasknames(task_class):

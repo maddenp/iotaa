@@ -1,4 +1,3 @@
-# PM accept logger object alongside dry_run bool.
 """
 iotaa.
 """
@@ -17,6 +16,7 @@ from importlib import import_module
 from importlib import resources as res
 from itertools import chain
 from json import JSONDecodeError, loads
+from logging import Logger, getLogger
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
@@ -53,9 +53,8 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
-        self.assembled = False
-        self.dry_run = False
-        self.root = True
+        self.assembled = False  # PM private?
+        self.root = True  # PM private?
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -74,19 +73,18 @@ class Node:
         return all(x.ready() for x in _flatten(self.assets))
 
     def _assemble(
-        self, node: Node, g: TopologicalSorter, dry_run: bool = False, level: int = 0
+        self, node: Node, g: TopologicalSorter, dry_run: bool, log: Logger, level: int = 0
     ) -> None:
         """
         PM WRITEME.
         """
-        node.dry_run = dry_run
-        _log.debug("  " * level + node.taskname)
+        log.debug("  " * level + node.taskname)
         g.add(node)
         if not node.ready:
             predecessor: Node
             for predecessor in _flatten(node.requirements):
                 g.add(node, predecessor)
-                self._assemble(predecessor, g, dry_run, level + 1)
+                self._assemble(predecessor, g, dry_run, log, level + 1)
 
     def _dedupe(self, nodes: Optional[set[Node]] = None) -> set[Node]:
         """
@@ -117,38 +115,38 @@ class Node:
         self.requirements = deduped
         return nodes
 
-    def _go(self, dry_run: bool = False) -> Node:
+    def _go(self, dry_run: bool, log: Logger) -> Node:
         """
         PM WRITEME.
         """
         if self.root and not self.assembled:
             g: TopologicalSorter = TopologicalSorter()
-            self._header("Task Graph")
+            self._header("Task Graph", log)
             self._dedupe()
-            self._assemble(self, g, dry_run)
+            self._assemble(self, g, dry_run, log)
             self.assembled = True
-            self._header("Execution")
+            self._header("Execution", log)
             for node in g.static_order():
                 node(dry_run)
         else:
             is_external = isinstance(self, NodeExternal)
             ready = self.ready
             extmsg = " [external asset]" if is_external and not ready else ""
-            logf, readymsg = (_log.info, "Ready") if ready else (_log.warning, "Not ready")
+            logf, readymsg = (log.info, "Ready") if ready else (log.warning, "Not ready")
             logf("%s: %s%s", self.taskname, readymsg, extmsg)
-            self._report_readiness()
+            self._report_readiness(log)
         return self
 
-    def _header(self, msg: str) -> None:
+    def _header(self, msg: str, log: Logger) -> None:
         """
         PM WRITEME.
         """
         sep = "─" * len(msg)
-        _log.debug(sep)
-        _log.debug(msg)
-        _log.debug(sep)
+        log.debug(sep)
+        log.debug(msg)
+        log.debug(sep)
 
-    def _report_readiness(self) -> None:
+    def _report_readiness(self, log: Logger) -> None:
         """
         PM WRITEME.
         """
@@ -156,13 +154,10 @@ class Node:
             return
         reqs = {req: req.ready for req in _flatten(self.requirements)}
         if reqs:
-            _log.warning("%s: Requires...", self.taskname)
+            log.warning("%s: Requires...", self.taskname)
             for req, ready in reqs.items():
                 status = "✔" if ready else "✖"
-                _log.warning("%s: %s %s", self.taskname, status, req.taskname)
-            # reqs_ready = all(reqs.values())
-            # logf, pre = (_log.debug, "") if reqs_ready else (_log.warning, "not ")
-            # logf("%s: Requirements %sready", self.taskname, pre)
+                log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
 
 _NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
@@ -177,8 +172,8 @@ class NodeExternal(Node):
         super().__init__(taskname)
         self.assets = assets
 
-    def __call__(self, dry_run: bool = False) -> Node:
-        return self._go(dry_run)
+    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
+        return self._go(dry_run, log)
 
 
 class NodeTask(Node):
@@ -186,20 +181,22 @@ class NodeTask(Node):
     PM WRITEME.
     """
 
-    def __init__(self, taskname: str, assets: _AssetT, requirements: _NodeT, exe: Callable) -> None:
+    def __init__(
+        self, taskname: str, assets: _AssetT, requirements: _NodeT, execute: Callable
+    ) -> None:
         super().__init__(taskname)
         self.assets = assets
         self.requirements = requirements
-        self.exe = exe
+        self.execute = execute
 
-    def __call__(self, dry_run: bool = False) -> Node:
+    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
         if not self.ready and all(req.ready for req in _flatten(self.requirements)):
-            if self.dry_run:
-                _log.info("%s: SKIPPING (DRY RUN)", self.taskname)
+            if dry_run:
+                log.info("%s: SKIPPING (DRY RUN)", self.taskname)
             else:
-                self.exe()
+                self.execute(log)
                 delattr(self, "ready")  # clear cached value
-        return self._go(dry_run)
+        return self._go(dry_run, log)
 
 
 class NodeTasks(Node):
@@ -211,8 +208,8 @@ class NodeTasks(Node):
         super().__init__(taskname)
         self.requirements = requirements
 
-    def __call__(self, dry_run: bool = False) -> Node:
-        return self._go(dry_run)
+    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
+        return self._go(dry_run, log)
 
     @property
     def ready(self) -> bool:
@@ -233,6 +230,12 @@ class Result:
 
     output: str
     success: bool
+
+
+class IotaaError(Exception):
+    """
+    A custom exception type for iotaa-specific errors.
+    """
 
 
 # Private helper classes and their instances:
@@ -272,26 +275,6 @@ class _Graph:
         return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
 
 
-class _Logger:
-    """
-    Support for swappable loggers.
-    """
-
-    def __init__(self) -> None:
-        self.logger = logging.getLogger()  # default to Python root logger.
-
-    def __getattr__(self, attr: str) -> Any:
-        """
-        Delegate attribute access to the currently-used logger.
-
-        :param attr: The attribute to access.
-        :returns: The requested attribute.
-        """
-        return getattr(self.logger, attr)
-
-
-_log = _Logger()
-
 # Main entry-point function:
 
 
@@ -316,8 +299,12 @@ def main() -> None:
     if args.tasks:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
-    root = getattr(modobj, args.function)(*reified)
-    root(args.dry_run)
+    try:
+        root = getattr(modobj, args.function)(*reified)
+    except IotaaError as e:
+        logging.error(str(e))
+        sys.exit(1)
+    root(dry_run=args.dry_run)
     if args.graph:
         print(graph(root))
 
@@ -357,15 +344,6 @@ def logcfg(verbose: bool = False) -> None:
     )
 
 
-def logset(logger: logging.Logger) -> None:
-    """
-    Log hereafter via the given logger.
-
-    :param logger: The logger to log to.
-    """
-    _log.logger = logger
-
-
 def refs(node: Node) -> Any:
     """
     Extract and return asset references.
@@ -388,7 +366,8 @@ def run(
     cmd: str,
     cwd: Optional[Union[Path, str]] = None,
     env: Optional[dict[str, str]] = None,
-    log: Optional[bool] = False,
+    log: Logger = getLogger(),
+    log_output: bool = False,
 ) -> Result:
     """
     Run a command in a subshell.
@@ -397,29 +376,30 @@ def run(
     :param cmd: The command to run.
     :param cwd: Change to this directory before running cmd.
     :param env: Environment variables to set before running cmd.
-    :param log: Log output from successful cmd? (Error output is always logged.)
+    :param log: Log to this custom logger.
+    :param log_output: Log output from successful cmd? (Error output is always logged.)
     :return: The stderr, stdout and success info.
     """
     indent = "  "
-    _log.info("%s: Running: %s", taskname, cmd)
+    log.info("%s: Running: %s", taskname, cmd)
     if cwd:
-        _log.info("%s: %sin %s", taskname, indent, cwd)
+        log.info("%s: %sin %s", taskname, indent, cwd)
     if env:
-        _log.info("%s: %swith environment variables:", taskname, indent)
+        log.info("%s: %swith environment variables:", taskname, indent)
         for key, val in env.items():
-            _log.info("%s: %s%s=%s", taskname, indent * 2, key, val)
+            log.info("%s: %s%s=%s", taskname, indent * 2, key, val)
     try:
         output = check_output(
             cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
         )
-        logfunc = _log.info
+        logfunc = log.info
         success = True
     except CalledProcessError as e:
         output = e.output
-        _log.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
-        logfunc = _log.error
+        log.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
+        logfunc = log.error
         success = False
-    if output and (log or not success):
+    if output and (log_output or not success):
         logfunc("%s: %sOutput:", taskname, indent)
         for line in output.split("\n"):
             logfunc("%s: %s%s", taskname, indent * 2, line)
@@ -433,7 +413,8 @@ def runconda(
     cmd: str,
     cwd: Optional[Union[Path, str]] = None,
     env: Optional[dict[str, str]] = None,
-    log: Optional[bool] = False,
+    log: Logger = getLogger(),
+    log_output: bool = False,
 ) -> Result:
     """
     Run a command in the specified conda environment.
@@ -444,7 +425,8 @@ def runconda(
     :param cmd: The command to run.
     :param cwd: Change to this directory before running cmd.
     :param env: Environment variables to set before running cmd.
-    :param log: Log output from successful cmd? (Error output is always logged.)
+    :param log: Log to this custom logger.
+    :param log_output: Log output from successful cmd? (Error output is always logged.)
     :return: The stderr, stdout and success info.
     """
     cmd = " && ".join(
@@ -454,7 +436,7 @@ def runconda(
             cmd,
         ]
     )
-    return run(taskname=taskname, cmd=cmd, cwd=cwd, env=env, log=log)
+    return run(taskname=taskname, cmd=cmd, cwd=cwd, env=env, log=log, log_output=log_output)
 
 
 def tasknames(obj: object) -> list[str]:
@@ -516,7 +498,7 @@ def task(f: Callable) -> _TaskT:
             taskname=taskname,
             assets=assets,
             requirements=reqs,
-            exe=lambda: _execute(g, taskname),
+            execute=lambda log: _execute(g, taskname, log),
         )
 
     return _mark(inner)
@@ -569,7 +551,7 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
     return o
 
 
-def _execute(g: Generator, taskname: str) -> None:
+def _execute(g: Generator, taskname: str, log: Logger = getLogger()) -> None:
     """
     Execute the post-yield body of a decorated function.
 
@@ -577,7 +559,7 @@ def _execute(g: Generator, taskname: str) -> None:
     :param taskname: The current task's name.
     """
     try:
-        _log.info("%s: Executing", taskname)
+        log.info("%s: Executing", taskname)
         next(g)
     except StopIteration:
         pass
@@ -629,9 +611,8 @@ def _next(g: Iterator, desc: str) -> Any:
     """
     try:
         return next(g)
-    except StopIteration:
-        _log.error("Failed to get %s: Check yield statements.", desc)
-        sys.exit(1)
+    except StopIteration as e:
+        raise IotaaError(f"Failed to get {desc}: Check yield statements.") from e
 
 
 def _parse_args(raw: list[str]) -> Namespace:
