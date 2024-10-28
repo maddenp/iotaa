@@ -18,7 +18,6 @@ from itertools import chain
 from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
-from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
 from typing import Any, Callable, Generator, Iterator, Optional, TypeVar, Union
 
