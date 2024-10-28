@@ -214,16 +214,6 @@ def test_Asset(asset):
     assert asset.ready()
 
 
-@mark.parametrize(
-    # One without kwargs, one with:
-    "result",
-    [iotaa.Result("foo", True), iotaa.Result(output="foo", success=True)],
-)
-def test_Result(result):
-    assert result.output == "foo"
-    assert result.success
-
-
 def test_asset_kwargs():
     a = iotaa.asset(ref="foo", ready=lambda: True)
     assert a.ref == "foo"

@@ -240,19 +240,6 @@ class NodeTasks(Node):
         return all(x.ready for x in _flatten(self.requirements))
 
 
-@dataclass
-class Result:
-    """
-    The result of running an external command.
-
-    output: Content of the combined stderr/stdout streams.
-    success: Did the command exit with 0 status?
-    """
-
-    output: str
-    success: bool
-
-
 class IotaaError(Exception):
     """
     A custom exception type for iotaa-specific errors.
