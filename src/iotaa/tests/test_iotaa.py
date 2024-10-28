@@ -7,9 +7,7 @@ Tests for module iotaa.
 # pylint: disable=redefined-outer-name
 # pylint: disable=use-implicit-booleaness-not-comparison
 
-import logging
 import re
-import sys
 from abc import abstractmethod
 
 # from hashlib import md5
@@ -18,7 +16,7 @@ from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
 
-from pytest import fixture, mark, raises, skip
+from pytest import fixture, mark, raises
 
 import iotaa
 
@@ -324,54 +322,6 @@ def test_main_mocked_up_tasknames(tmp_path):
 #     assert iotaa.refs(assets=[asset])[0] == expected
 #     assert iotaa.refs(assets=asset) == expected
 #     assert iotaa.refs(assets=None) is None
-
-
-def test_run_failure(caplog):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    cmd = "expr 1 / 0"
-    result = iotaa.run(taskname="task", cmd=cmd)
-    assert "division by zero" in result.output
-    assert result.success is False
-    assert logged("task: Running: %s" % cmd, caplog)
-    assert logged("task:   Failed with status: 2", caplog)
-    assert logged("task:   Output:", caplog)
-    assert logged("task:     expr: division by zero", caplog)
-
-
-def test_run_success(caplog, tmp_path):
-    if sys.platform.startswith("win"):
-        skip("unsupported platform")
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    cmd = "echo hello $FOO"
-    assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log_output=True)
-    assert logged("task: Running: %s" % cmd, caplog)
-    assert logged("task:   in %s" % tmp_path, caplog)
-    assert logged("task:   with environment variables:", caplog)
-    assert logged("task:     FOO=bar", caplog)
-    assert logged("task:   Output:", caplog)
-    assert logged("task:     hello bar", caplog)
-
-
-def test_runconda():
-    conda_path = "/path/to_conda"
-    conda_env = "env-name"
-    taskname = "task"
-    cmd = "foo"
-    fullcmd = 'eval "$(%s/bin/conda shell.bash hook)" && conda activate %s && %s' % (
-        conda_path,
-        conda_env,
-        cmd,
-    )
-    with patch.object(iotaa, "run") as run:
-        iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
-        run.assert_called_once_with(
-            taskname=taskname,
-            cmd=fullcmd,
-            cwd=None,
-            env=None,
-            log_output=False,
-            log=logging.getLogger(),
-        )
 
 
 def test_tasknames(task_class):

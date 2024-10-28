@@ -135,8 +135,6 @@ A number of public helper functions are available in the `iotaa` module:
 | `logcfg()`    | Configures Python's root logger to support `logging.info()` et al. calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically. |
 | `logset()`    | Accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it. |
 | `refs()`      | Given the value returned by a task-function call, returns `ref` values of the assets in the same shape (e.g. `dict`, `list`) as returned by the task. |
-| `run()`       | Runs a command in a subshell. |
-| `runconda()`  | Runs a command in a subshell with a named conda environment activated. |
 | `tasknames()` | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
 
 ## Development
