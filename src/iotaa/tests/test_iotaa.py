@@ -50,13 +50,18 @@ def external_foo_scalar():
 @fixture
 def module_for_main(tmp_path):
     func = """
-def hi(x):
-    print(f"hello {x}!")
-""".strip()
-    m = tmp_path / "a.py"
-    with open(m, "w", encoding="utf-8") as f:
-        print(func, file=f)
-    return m
+    from iotaa import asset, task
+    @task
+    def hi(x):
+        yield("test")
+        yield asset(None, lambda: False)
+        yield None
+        print(f"hello {x}!")
+    """
+    module = tmp_path / "a.py"
+    with open(module, "w", encoding="utf-8") as f:
+        print(dedent(func).strip(), file=f)
+    return module
 
 
 @fixture
@@ -214,29 +219,6 @@ def test_Asset(asset):
     assert asset.ready()
 
 
-def test_asset_kwargs():
-    a = iotaa.asset(ref="foo", ready=lambda: True)
-    assert a.ref == "foo"
-    assert a.ready()
-
-
-# @mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
-# def test_dryrun(args, expected):
-#     with patch.object(iotaa, "_state", iotaa._State()):
-#         assert not iotaa._state.dry_run
-#         iotaa.dryrun(*args)
-#         assert iotaa._state.dry_run is expected
-
-
-# def test_graph():
-#     @iotaa.external
-#     def noop():
-#         yield "noop"
-#         yield iotaa.asset("noop", lambda: True)
-#     noop()
-#     assert iotaa.graph().startswith("digraph")
-
-
 @mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
 def test_logcfg(vals):
     verbose, level = vals
@@ -245,14 +227,12 @@ def test_logcfg(vals):
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-@mark.skip("FIXME")
 def test_main_live_abspath(capsys, module_for_main):
     with patch.object(iotaa.sys, "argv", new=["prog", str(module_for_main), "hi", "world"]):
         iotaa.main()
     assert "hello world!" in capsys.readouterr().out
 
 
-@mark.skip("FIXME")
 def test_main_live_syspath(capsys, module_for_main):
     m = str(module_for_main.name).replace(".py", "")  # i.e. not a path to an actual file
     with patch.object(iotaa.sys, "argv", new=["prog", m, "hi", "world"]):
