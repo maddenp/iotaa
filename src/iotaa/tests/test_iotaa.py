@@ -243,7 +243,7 @@ def test_main_live_syspath(capsys, module_for_main):
     assert "hello world!" in capsys.readouterr().out
 
 
-def test_main_mocked_up(tmp_path):
+def test_main_mocked_up(capsys, tmp_path):
     with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
         with patch.object(iotaa, "graph", return_value="DOT code") as graph:
             mocks["_parse_args"].return_value = args(path=tmp_path, tasks=False)
@@ -253,8 +253,9 @@ def test_main_mocked_up(tmp_path):
                 getattr_.assert_called_once_with(mocks["import_module"](), "a_function")
                 getattr_().assert_called_once_with("foo", 88, 3.14, True)
             graph.assert_called_once()
-            mocks["logcfg"].assert_called_once_with(verbose=True)
+            assert capsys.readouterr().out.strip() == "DOT code"
             mocks["_parse_args"].assert_called_once()
+            mocks["logcfg"].assert_called_once_with(verbose=True)
 
 
 def test_main_mocked_up_tasknames(tmp_path):
@@ -264,7 +265,7 @@ def test_main_mocked_up_tasknames(tmp_path):
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 with raises(SystemExit) as e:
                     iotaa.main()
-                assert e.value.code == 0
+                    assert e.value.code == 0
                 mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_not_called()
                 getattr_().assert_not_called()
