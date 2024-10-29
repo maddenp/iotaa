@@ -274,13 +274,17 @@ def test_main_mocked_up_tasknames(tmp_path):
             graph.assert_not_called()
 
 
-# def test_refs():
-#     expected = "bar"
-#     asset = iotaa.asset(ref="bar", ready=lambda: True)
-#     assert iotaa.refs(assets={"foo": asset})["foo"] == expected
-#     assert iotaa.refs(assets=[asset])[0] == expected
-#     assert iotaa.refs(assets=asset) == expected
-#     assert iotaa.refs(assets=None) is None
+def test_refs():
+    expected = "bar"
+    asset = iotaa.asset(ref="bar", ready=lambda: True)
+    node = iotaa.NodeExternal(taskname="test", assets=None)
+    assert iotaa.refs(node=node) is None
+    node.assets = {"foo": asset}
+    assert iotaa.refs(node=node)["foo"] == expected
+    node.assets = [asset]
+    assert iotaa.refs(node=node)[0] == expected
+    node.assets = asset
+    assert iotaa.refs(node=node) == expected
 
 
 def test_tasknames(task_class):
