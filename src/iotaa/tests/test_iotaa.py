@@ -243,46 +243,34 @@ def test_main_live_syspath(capsys, module_for_main):
     assert "hello world!" in capsys.readouterr().out
 
 
-@mark.skip("FIXME")
 def test_main_mocked_up(tmp_path):
-    with patch.multiple(
-        iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
-    ) as mocks:
-        with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
-            parse_args = mocks["_parse_args"]
-            parse_args.return_value = args(path=tmp_path, tasks=False)
+    with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
+        with patch.object(iotaa, "graph", return_value="DOT code") as graph:
+            mocks["_parse_args"].return_value = args(path=tmp_path, tasks=False)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 iotaa.main()
-                import_module = mocks["import_module"]
-                import_module.assert_called_once_with("a")
-                getattr_.assert_called_once_with(import_module(), "a_function")
+                mocks["import_module"].assert_called_once_with("a")
+                getattr_.assert_called_once_with(mocks["import_module"](), "a_function")
                 getattr_().assert_called_once_with("foo", 88, 3.14, True)
-            mocks["dryrun"].assert_called_once_with()
+            graph.assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
-            __repr__.assert_called_once()
-            parse_args.assert_called_once()
+            mocks["_parse_args"].assert_called_once()
 
 
-@mark.skip("FIXME")
 def test_main_mocked_up_tasknames(tmp_path):
-    with patch.multiple(
-        iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
-    ) as mocks:
-        with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
-            parse_args = mocks["_parse_args"]
-            parse_args.return_value = args(path=tmp_path, tasks=True)
+    with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
+        with patch.object(iotaa, "graph", return_value="DOT code") as graph:
+            mocks["_parse_args"].return_value = args(path=tmp_path, tasks=True)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 with raises(SystemExit) as e:
                     iotaa.main()
                 assert e.value.code == 0
-                import_module = mocks["import_module"]
-                import_module.assert_called_once_with("a")
+                mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_not_called()
                 getattr_().assert_not_called()
-            mocks["dryrun"].assert_called_once_with()
+            graph.assert_not_called()
             mocks["logcfg"].assert_called_once_with(verbose=True)
-            __repr__.assert_not_called()
-            parse_args.assert_called_once()
+            mocks["_parse_args"].assert_called_once()
 
 
 # def test_refs():
