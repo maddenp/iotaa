@@ -7,6 +7,7 @@ Tests for module iotaa.
 # pylint: disable=redefined-outer-name
 # pylint: disable=use-implicit-booleaness-not-comparison
 
+import logging
 import re
 from abc import abstractmethod
 
@@ -45,6 +46,17 @@ def external_foo_scalar():
         yield iotaa.asset(f, f.is_file)
 
     return foo
+
+
+@fixture
+def logger():
+    logger = logging.getLogger("iotaa-test")
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    return logger
 
 
 @fixture
@@ -302,26 +314,25 @@ def test_docstrings(docstring, request, task):
     assert request.getfixturevalue(task).__doc__.strip() == docstring
 
 
-@mark.skip("FIXME")
 def test_external_not_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = external_foo_scalar(tmp_path)
-    assert iotaa.refs(assets) == f
-    assert not assets.ready()
+    node = external_foo_scalar(tmp_path)
+    node()
+    assert iotaa.refs(node) == f
+    assert not node.assets.ready()
 
 
-@mark.skip("FIXME")
 def test_external_ready(external_foo_scalar, tmp_path):
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    asset = external_foo_scalar(tmp_path)
-    assert iotaa.refs(asset) == f
-    assert asset.ready()
+    node = external_foo_scalar(tmp_path)
+    node()
+    assert iotaa.refs(node) == f
+    assert node.assets.ready()
 
 
-@mark.skip("FIXME")
 @mark.parametrize(
     "task,val",
     [
@@ -330,15 +341,16 @@ def test_external_ready(external_foo_scalar, tmp_path):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_not_ready(caplog, request, task, tmp_path, val):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
+def test_task_not_ready(caplog, logger, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = request.getfixturevalue(task)(tmp_path)
-    assert val(iotaa.refs(assets)) == f_bar
-    assert not val(assets).ready()
+    node = request.getfixturevalue(task)(tmp_path)
+    node(log=logger)
+    assert val(iotaa.refs(node)) == f_bar
+    assert not val(node.assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Requirement(s) not ready", caplog)
+    for line in ["Not ready", "Requires...", f"✖ external foo {f_foo}"]:
+        assert logged(f"task bar {f_bar}: {line}", caplog)
 
 
 @mark.skip("FIXME")
