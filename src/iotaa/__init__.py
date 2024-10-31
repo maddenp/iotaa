@@ -143,7 +143,7 @@ class Node:
             self._assembled = True
             self._header("Execution", log)
             for node in g.static_order():
-                node(dry_run)
+                node(dry_run, log)
         else:
             is_external = isinstance(self, NodeExternal)
             ready = self.ready
