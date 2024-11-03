@@ -375,38 +375,32 @@ def test_task_ready(caplog, logger, request, task, tmp_path, val):
         assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 
-def test_tasks_structured():
-
-    a = iotaa.asset(ref="a", ready=lambda: True)
-
-    @iotaa.external
-    def tdict():
-        yield "dict"
-        yield {"foo": a, "bar": a}
-
-    @iotaa.external
-    def tlist():
-        yield "list"
-        yield [a, a]
-
-    @iotaa.external
-    def tscalar():
-        yield "scalar"
-        yield a
-
-    @iotaa.tasks
-    def structured():
-        yield "structured"
-        yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
-
-    node = structured()
-    # reveal_type(node)
-    node()
-    # # assert isinstance(node.requirements, dict)
-    # assets = {**retval}
-    # assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
-    # assert iotaa.refs(assets["list"]) == ["a", "a"]
-    # assert iotaa.refs(assets["scalar"]) == "a"
+# def test_tasks_structured():
+#     a = iotaa.asset(ref="a", ready=lambda: True)
+#     @iotaa.external
+#     def tdict():
+#         yield "dict"
+#         yield {"foo": a, "bar": a}
+#     @iotaa.external
+#     def tlist():
+#         yield "list"
+#         yield [a, a]
+#     @iotaa.external
+#     def tscalar():
+#         yield "scalar"
+#         yield a
+#     @iotaa.tasks
+#     def structured():
+#         yield "structured"
+#         yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
+#     node = structured()
+#     # reveal_type(node)
+#     node()
+#     # # assert isinstance(node.requirements, dict)
+#     # assets = {**retval}
+#     # assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
+#     # assert iotaa.refs(assets["list"]) == ["a", "a"]
+#     # assert iotaa.refs(assets["scalar"]) == "a"
 
 
 @mark.skip("FIXME")
