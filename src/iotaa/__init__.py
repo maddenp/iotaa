@@ -391,10 +391,8 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-_TaskT = Callable[..., Node]
 
-
-def external(f: Callable) -> _TaskT:
+def external(f: Callable) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
 
@@ -403,7 +401,7 @@ def external(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> Node:
+    def inner(*args, **kwargs) -> NodeExternal:
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
         return NodeExternal(taskname=taskname, assets=assets)
@@ -411,7 +409,7 @@ def external(f: Callable) -> _TaskT:
     return _mark(inner)
 
 
-def task(f: Callable) -> _TaskT:
+def task(f: Callable) -> Callable[..., NodeTask]:
     """
     The @task decorator for assets that the workflow can produce.
 
@@ -420,7 +418,7 @@ def task(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> Node:
+    def inner(*args, **kwargs) -> NodeTask:
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
         reqs: _NodeT = _next(g, "requirements")
@@ -436,7 +434,7 @@ def task(f: Callable) -> _TaskT:
     return _mark(inner)
 
 
-def tasks(f: Callable) -> _TaskT:
+def tasks(f: Callable) -> Callable[..., NodeTasks]:
     """
     The @tasks decorator for collections of @task (or @external) function calls.
 
@@ -445,7 +443,7 @@ def tasks(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> Node:
+    def inner(*args, **kwargs) -> NodeTasks:
         taskname, g = _task_info(f, *args, **kwargs)
         reqs: _NodeT = _next(g, "requirements")
         for req in _flatten(reqs):
@@ -525,7 +523,7 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _mark(f: _TaskT) -> _TaskT:
+def _mark(f: T) -> T:
     """
     Returns a function, marked as an iotaa task.
 

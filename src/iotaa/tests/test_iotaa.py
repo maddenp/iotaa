@@ -51,9 +51,9 @@ def external_foo_scalar():
 @fixture
 def logger():
     logger = logging.getLogger("iotaa-test")
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(handler)
     return logger
@@ -349,11 +349,10 @@ def test_task_not_ready(caplog, logger, request, task, tmp_path, val):
     assert val(iotaa.refs(node)) == f_bar
     assert not val(node.assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    for line in ["Not ready", "Requires...", f"✖ external foo {f_foo}"]:
-        assert logged(f"task bar {f_bar}: {line}", caplog)
+    for msg in ["Not ready", "Requires...", f"✖ external foo {f_foo}"]:
+        assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 
-@mark.skip("FIXME")
 @mark.parametrize(
     "task,val",
     [
@@ -362,49 +361,53 @@ def test_task_not_ready(caplog, logger, request, task, tmp_path, val):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_ready(caplog, request, task, tmp_path, val):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
+def test_task_ready(caplog, logger, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = request.getfixturevalue(task)(tmp_path)
-    assert val(iotaa.refs(assets)) == f_bar
-    assert val(assets).ready()
+    node = request.getfixturevalue(task)(tmp_path)
+    node(log=logger)
+    assert val(iotaa.refs(node)) == f_bar
+    assert val(node.assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Requirement(s) ready", caplog)
+    for msg in ["Executing", "Ready"]:
+        assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 
-@mark.skip("FIXME")
-def test_tasks_structured():
-    a = iotaa.asset(ref="a", ready=lambda: True)
+# def test_tasks_structured():
 
-    @iotaa.external
-    def tdict():
-        yield "dict"
-        yield {"foo": a, "bar": a}
+#     a = iotaa.asset(ref="a", ready=lambda: True)
 
-    @iotaa.external
-    def tlist():
-        yield "list"
-        yield [a, a]
+#     @iotaa.external
+#     def tdict():
+#         yield "dict"
+#         yield {"foo": a, "bar": a}
 
-    @iotaa.external
-    def tscalar():
-        yield "scalar"
-        yield a
+#     @iotaa.external
+#     def tlist():
+#         yield "list"
+#         yield [a, a]
 
-    @iotaa.tasks
-    def structured():
-        yield "structured"
-        yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
+#     @iotaa.external
+#     def tscalar():
+#         yield "scalar"
+#         yield a
 
-    retval = structured()
-    assert isinstance(retval, dict)
-    assets = {**retval}
-    assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
-    assert iotaa.refs(assets["list"]) == ["a", "a"]
-    assert iotaa.refs(assets["scalar"]) == "a"
+#     @iotaa.tasks
+#     def structured() -> iotaa.NodeTasks:
+#         yield "structured"
+#         yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
+
+#     node = structured()
+#     reveal_type(node)
+#     node()
+#     # reveal_type(node)
+#     # assert isinstance(node.requirements, dict)
+#     # assets = {**retval}
+#     # assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
+#     # assert iotaa.refs(assets["list"]) == ["a", "a"]
+#     # assert iotaa.refs(assets["scalar"]) == "a"
 
 
 @mark.skip("FIXME")
