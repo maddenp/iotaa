@@ -127,7 +127,7 @@ class Node:
         self.requirements = deduped
         return nodes
 
-    def _go(self, dry_run: bool, log: Logger) -> Node:
+    def _assemble_and_exec(self, dry_run: bool, log: Logger) -> Node:
         """
         Assemble and then execute the task graph.
 
@@ -194,7 +194,7 @@ class NodeExternal(Node):
         self.assets = assets
 
     def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
-        return self._go(dry_run, log)
+        return self._assemble_and_exec(dry_run, log)
 
 
 class NodeTask(Node):
@@ -217,7 +217,7 @@ class NodeTask(Node):
             else:
                 self.execute(log)
                 delattr(self, "ready")  # clear cached value
-        return self._go(dry_run, log)
+        return self._assemble_and_exec(dry_run, log)
 
 
 class NodeTasks(Node):
@@ -230,7 +230,7 @@ class NodeTasks(Node):
         self.requirements = requirements
 
     def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
-        return self._go(dry_run, log)
+        return self._assemble_and_exec(dry_run, log)
 
     @property
     def ready(self) -> bool:
