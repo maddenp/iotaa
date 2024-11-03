@@ -91,6 +91,32 @@ class Node:
                 g.add(node, predecessor)
                 self._assemble(predecessor, g, dry_run, log, level + 1)
 
+    def _assemble_and_exec(self, dry_run: bool, log: Logger) -> Node:
+        """
+        Assemble and then execute the task graph.
+
+        :param dry_run: Avoid executing state-affecting code?
+        :param log: The logger to use.
+        :return: The root node of the current (sub)graph.
+        """
+        if self.root and not self._assembled:
+            g: TopologicalSorter = TopologicalSorter()
+            self._header("Task Graph", log)
+            self._dedupe()
+            self._assemble(self, g, dry_run, log)
+            self._assembled = True
+            self._header("Execution", log)
+            for node in g.static_order():
+                node(dry_run, log)
+        else:
+            is_external = isinstance(self, NodeExternal)
+            ready = self.ready
+            extmsg = " [external asset]" if is_external and not ready else ""
+            logf, readymsg = (log.info, "Ready") if ready else (log.warning, "Not ready")
+            logf("%s: %s%s", self.taskname, readymsg, extmsg)
+            self._report_readiness(log)
+        return self
+
     def _dedupe(self, nodes: Optional[set[Node]] = None) -> set[Node]:
         """
         Unify equivalent task-graph nodes.
@@ -126,32 +152,6 @@ class Node:
             deduped = existing(node)
         self.requirements = deduped
         return nodes
-
-    def _assemble_and_exec(self, dry_run: bool, log: Logger) -> Node:
-        """
-        Assemble and then execute the task graph.
-
-        :param dry_run: Avoid executing state-affecting code?
-        :param log: The logger to use.
-        :return: The root node of the current (sub)graph.
-        """
-        if self.root and not self._assembled:
-            g: TopologicalSorter = TopologicalSorter()
-            self._header("Task Graph", log)
-            self._dedupe()
-            self._assemble(self, g, dry_run, log)
-            self._assembled = True
-            self._header("Execution", log)
-            for node in g.static_order():
-                node(dry_run, log)
-        else:
-            is_external = isinstance(self, NodeExternal)
-            ready = self.ready
-            extmsg = " [external asset]" if is_external and not ready else ""
-            logf, readymsg = (log.info, "Ready") if ready else (log.warning, "Not ready")
-            logf("%s: %s%s", self.taskname, readymsg, extmsg)
-            self._report_readiness(log)
-        return self
 
     def _header(self, msg: str, log: Logger) -> None:
         """
