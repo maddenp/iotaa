@@ -436,7 +436,7 @@ def task(f: Callable) -> Callable[..., NodeTask]:
 
 def tasks(f: Callable) -> Callable[..., NodeTasks]:
     """
-    The @tasks decorator for collections of @task (or @external) function calls.
+    The @tasks decorator for collections of @task (or @external) calls.
 
     :param f: The function being decorated.
     :return: A decorated function.
