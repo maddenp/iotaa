@@ -72,14 +72,13 @@ class Node:
         return all(x.ready() for x in _flatten(self.assets))
 
     def _add_node_and_predecessors(
-        self, node: Node, g: TopologicalSorter, dry_run: bool, log: Logger, level: int = 0
+        self, node: Node, g: TopologicalSorter, log: Logger, level: int = 0
     ) -> None:
         """
         Assemble the task graph based on this node and its children.
 
         :param node: The current task-graph node.
         :param g: The task graph.
-        :param dry_run: Avoid executing state-affecting code?
         :param log: The logger to use.
         :param level: The distance from the task-graph root node.
         """
@@ -89,7 +88,7 @@ class Node:
             predecessor: Node
             for predecessor in _flatten(node.requirements):
                 g.add(node, predecessor)
-                self._add_node_and_predecessors(predecessor, g, dry_run, log, level + 1)
+                self._add_node_and_predecessors(predecessor, g, log, level + 1)
 
     def _assemble_and_exec(self, dry_run: bool, log: Logger) -> Node:
         """
@@ -103,7 +102,7 @@ class Node:
             g: TopologicalSorter = TopologicalSorter()
             self._header("Task Graph", log)
             self._dedupe()
-            self._add_node_and_predecessors(self, g, dry_run, log)
+            self._add_node_and_predecessors(self, g, log)
             self._assembled = True
             self._header("Execution", log)
             for node in g.static_order():
