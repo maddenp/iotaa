@@ -392,7 +392,7 @@ def tasknames(obj: object) -> list[str]:
 # Public task-graph decorator functions:
 
 
-def external(f: Callable) -> Callable[..., NodeExternal]:
+def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
 
@@ -409,7 +409,7 @@ def external(f: Callable) -> Callable[..., NodeExternal]:
     return _mark(inner)
 
 
-def task(f: Callable) -> Callable[..., NodeTask]:
+def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     """
     The @task decorator for assets that the workflow can produce.
 
@@ -434,7 +434,7 @@ def task(f: Callable) -> Callable[..., NodeTask]:
     return _mark(inner)
 
 
-def tasks(f: Callable) -> Callable[..., NodeTasks]:
+def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     """
     The @tasks decorator for collections of @task (or @external) calls.
 

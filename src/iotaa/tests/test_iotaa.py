@@ -402,7 +402,7 @@ def test_tasks_structured():
     node = structured()
     # reveal_type(node)
     node()
-    # assert isinstance(node.requirements, dict)
+    # # assert isinstance(node.requirements, dict)
     # assets = {**retval}
     # assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
     # assert iotaa.refs(assets["list"]) == ["a", "a"]
