@@ -4,6 +4,7 @@ iotaa.
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import sys
@@ -53,7 +54,7 @@ class Node:
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
-        self.root = True
+        self.root = sum(1 for x in inspect.stack() if x.function == "__iotaa_wrapper__") == 1
         self._assembled = False
 
     def __eq__(self, other):
@@ -310,13 +311,14 @@ def main() -> None:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     try:
-        root = getattr(modobj, args.function)(*reified)
+        getattr(modobj, args.function)(*reified)
+        # root = getattr(modobj, args.function)(*reified)
     except IotaaError as e:
         logging.error(str(e))
         sys.exit(1)
-    root(dry_run=args.dry_run)
-    if args.graph:
-        print(graph(root))
+    # root(dry_run=args.dry_run)
+    # if args.graph:
+    #     print(graph(root))
 
 
 # Public API functions:
@@ -401,12 +403,15 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> NodeExternal:
+    def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
-        return NodeExternal(taskname=taskname, assets=assets)
+        node = NodeExternal(taskname=taskname, assets=assets)
+        if node.root:
+            node()
+        return node
 
-    return _mark(inner)
+    return _mark(__iotaa_wrapper__)
 
 
 def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
@@ -418,20 +423,21 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> NodeTask:
+    def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
         reqs: _NodeT = _next(g, "requirements")
-        for req in _flatten(reqs):
-            req.root = False
-        return NodeTask(
+        node = NodeTask(
             taskname=taskname,
             assets=assets,
             requirements=reqs,
             execute=lambda log: _execute(g, taskname, log),
         )
+        if node.root:
+            node()
+        return node
 
-    return _mark(inner)
+    return _mark(__iotaa_wrapper__)
 
 
 def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
@@ -443,14 +449,15 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     """
 
     @wraps(f)
-    def inner(*args, **kwargs) -> NodeTasks:
+    def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
         taskname, g = _task_info(f, *args, **kwargs)
         reqs: _NodeT = _next(g, "requirements")
-        for req in _flatten(reqs):
-            req.root = False
-        return NodeTasks(taskname=taskname, requirements=reqs)
+        node = NodeTasks(taskname=taskname, requirements=reqs)
+        if node.root:
+            node()
+        return node
 
-    return _mark(inner)
+    return _mark(__iotaa_wrapper__)
 
 
 # Private helper functions:
