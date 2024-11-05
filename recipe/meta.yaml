@@ -22,8 +22,9 @@ test:
     - docformatter 1.7.*
     - isort 5.13.*
     - mypy 1.13.*
-    - pylint 3.13.*
+    - pylint 3.3.*
     - pytest 8.3.*
+    - python 3.9
 about:
   home: https://github.com/maddenp/iotaa
   license: APACHE
