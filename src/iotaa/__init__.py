@@ -20,10 +20,9 @@ from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Generator, Iterator, Optional, TypeVar, Union
+from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union
 
-T = TypeVar("T")
-TASK_MARKER = "__iotaa_task__"
+_TASK_MARKER = "__iotaa_task__"
 
 # Public return-value classes:
 
@@ -50,7 +49,10 @@ class Node:
     """
 
     assets: Optional[_AssetT] = None
-    requirements: Optional[_NodeT] = None
+    requirements: Optional[_ReqsT] = None
+
+    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
+        return self
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
@@ -182,9 +184,6 @@ class Node:
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
 
-_NodeT = Optional[Union[Node, dict[str, Node], list[Node]]]
-
-
 class NodeExternal(Node):
     """
     A node encapsulating an @external-decorated function/method.
@@ -204,7 +203,7 @@ class NodeTask(Node):
     """
 
     def __init__(
-        self, taskname: str, assets: _AssetT, requirements: _NodeT, execute: Callable
+        self, taskname: str, assets: _AssetT, requirements: _ReqsT, execute: Callable
     ) -> None:
         super().__init__(taskname)
         self.assets = assets
@@ -226,7 +225,7 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(self, taskname: str, requirements: Optional[_NodeT] = None) -> None:
+    def __init__(self, taskname: str, requirements: Optional[_ReqsT] = None) -> None:
         super().__init__(taskname)
         self.requirements = requirements
 
@@ -246,6 +245,13 @@ class IotaaError(Exception):
     A custom exception type for iotaa-specific errors.
     """
 
+
+# Types
+
+
+T = TypeVar("T")
+_NodeT = TypeVar("_NodeT", bound=Node)
+_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 # Private helper classes and their instances:
 
@@ -311,14 +317,12 @@ def main() -> None:
         _show_tasks(args.module, modobj)
     reified = [_reify(arg) for arg in args.args]
     try:
-        getattr(modobj, args.function)(*reified)
-        # root = getattr(modobj, args.function)(*reified)
+        root = getattr(modobj, args.function)(*reified)
     except IotaaError as e:
         logging.error(str(e))
         sys.exit(1)
-    # root(dry_run=args.dry_run)
-    # if args.graph:
-    #     print(graph(root))
+    if args.graph:
+        print(graph(root))
 
 
 # Public API functions:
@@ -383,7 +387,7 @@ def tasknames(obj: object) -> list[str]:
 
     def f(o):
         return (
-            getattr(o, TASK_MARKER, False)
+            getattr(o, _TASK_MARKER, False)
             and not hasattr(o, "__isabstractmethod__")
             and not o.__name__.startswith("_")
         )
@@ -406,10 +410,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
-        node = NodeExternal(taskname=taskname, assets=assets)
-        if node.root:
-            node()
-        return node
+        return _construct_and_call(NodeExternal, taskname=taskname, assets=assets)
 
     return _mark(__iotaa_wrapper__)
 
@@ -426,16 +427,14 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
-        reqs: _NodeT = _next(g, "requirements")
-        node = NodeTask(
+        reqs: _ReqsT = _next(g, "requirements")
+        return _construct_and_call(
+            NodeTask,
             taskname=taskname,
             assets=assets,
             requirements=reqs,
             execute=lambda log: _execute(g, taskname, log),
         )
-        if node.root:
-            node()
-        return node
 
     return _mark(__iotaa_wrapper__)
 
@@ -451,11 +450,8 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
         taskname, g = _task_info(f, *args, **kwargs)
-        reqs: _NodeT = _next(g, "requirements")
-        node = NodeTasks(taskname=taskname, requirements=reqs)
-        if node.root:
-            node()
-        return node
+        reqs: _ReqsT = _next(g, "requirements")
+        return _construct_and_call(NodeTasks, taskname=taskname, requirements=reqs)
 
     return _mark(__iotaa_wrapper__)
 
@@ -486,6 +482,19 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
     if isinstance(o, list):
         return tuple(_cacheable(v) for v in o)
     return o
+
+
+def _construct_and_call(node_class: Type[_NodeT], *args, **kwargs) -> _NodeT:
+    """
+    Construct a Node object and, if it is a root node, call it.
+
+    :param node_class: The type of Node to construct.
+    :return: A constructed Node object.
+    """
+    node = node_class(*args, **kwargs)
+    if node.root:
+        node()
+    return node
 
 
 def _execute(g: Generator, taskname: str, log: Logger = getLogger()) -> None:
@@ -536,7 +545,7 @@ def _mark(f: T) -> T:
 
     :param g: The function to mark.
     """
-    setattr(f, TASK_MARKER, True)
+    setattr(f, _TASK_MARKER, True)
     return f
 
 
@@ -626,6 +635,6 @@ def _version() -> str:
     """
     Return version information.
     """
-    with res.files("iotaa.resources").joinpath("info.json").open("r") as f:
+    with res.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
         return "version %s build %s" % (info["version"], info["buildnum"])
