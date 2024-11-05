@@ -37,6 +37,7 @@ disable = [
   "invalid-name",
   "too-few-public-methods",
   "too-many-arguments",
+  "too-many-positional-arguments",
   "unnecessary-lambda-assignment",
 ]
 enable = [
