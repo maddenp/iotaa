@@ -51,13 +51,13 @@ class Node:
     assets: Optional[_AssetT] = None
     requirements: Optional[_ReqsT] = None
 
-    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
-        return self
-
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
         self.root = sum(1 for x in inspect.stack() if x.function == "__iotaa_wrapper__") == 1
         self._assembled = False
+
+    def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
+        return self
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -193,7 +193,8 @@ class NodeExternal(Node):
         super().__init__(taskname)
         self.assets = assets
 
-    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
+    def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
+        log = log or getLogger()
         return self._assemble_and_exec(dry_run, log)
 
 
@@ -210,7 +211,8 @@ class NodeTask(Node):
         self.requirements = requirements
         self.execute = execute
 
-    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
+    def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
+        log = log or getLogger()
         if not self.ready and all(req.ready for req in _flatten(self.requirements)):
             if dry_run:
                 log.info("%s: SKIPPING (DRY RUN)", self.taskname)
@@ -229,7 +231,8 @@ class NodeTasks(Node):
         super().__init__(taskname)
         self.requirements = requirements
 
-    def __call__(self, dry_run: bool = False, log: Logger = getLogger()) -> Node:
+    def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
+        log = log or getLogger()
         return self._assemble_and_exec(dry_run, log)
 
     @property
@@ -315,9 +318,11 @@ def main() -> None:
     modobj = import_module(modname)
     if args.tasks:
         _show_tasks(args.module, modobj)
-    reified = [_reify(arg) for arg in args.args]
+    task_args = [_reify(arg) for arg in args.args]
+    task_kwargs = {"dry_run": True} if args.dry_run else {}
     try:
-        root = getattr(modobj, args.function)(*reified)
+        func = getattr(modobj, args.function)
+        root = func(*task_args, **task_kwargs)
     except IotaaError as e:
         logging.error(str(e))
         sys.exit(1)
@@ -398,6 +403,19 @@ def tasknames(obj: object) -> list[str]:
 # Public task-graph decorator functions:
 
 
+def _split_kwargs(kwargs: dict[str, Any]) -> tuple[bool, Optional[Logger], dict[str, Any]]:
+    """
+    Returns dry_run and log arguments, and remaining kwargs.
+
+    :param kwargs: Original keyword arguments.
+    """
+    return (
+        kwargs.get("dry_run", False),
+        kwargs.get("log"),
+        {k: v for k, v in kwargs.items() if k not in ["dry_run", "log"]},
+    )
+
+
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
@@ -408,9 +426,10 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
+        dry_run, log, kwargs = _split_kwargs(kwargs)
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
-        return _construct_and_call(NodeExternal, taskname=taskname, assets=assets)
+        return _construct_and_call(NodeExternal, dry_run, log, taskname=taskname, assets=assets)
 
     return _mark(__iotaa_wrapper__)
 
@@ -425,11 +444,14 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
+        dry_run, log, kwargs = _split_kwargs(kwargs)
         taskname, g = _task_info(f, *args, **kwargs)
         assets = _next(g, "assets")
         reqs: _ReqsT = _next(g, "requirements")
         return _construct_and_call(
             NodeTask,
+            dry_run,
+            log,
             taskname=taskname,
             assets=assets,
             requirements=reqs,
@@ -449,9 +471,10 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
+        dry_run, log, kwargs = _split_kwargs(kwargs)
         taskname, g = _task_info(f, *args, **kwargs)
         reqs: _ReqsT = _next(g, "requirements")
-        return _construct_and_call(NodeTasks, taskname=taskname, requirements=reqs)
+        return _construct_and_call(NodeTasks, dry_run, log, taskname=taskname, requirements=reqs)
 
     return _mark(__iotaa_wrapper__)
 
@@ -484,16 +507,20 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
     return o
 
 
-def _construct_and_call(node_class: Type[_NodeT], *args, **kwargs) -> _NodeT:
+def _construct_and_call(
+    node_class: Type[_NodeT], dry_run: bool, log: Optional[Logger], *args, **kwargs
+) -> _NodeT:
     """
     Construct a Node object and, if it is a root node, call it.
 
     :param node_class: The type of Node to construct.
+    :param dry_run: Avoid executing state-affecting code?
+    :param log: The logger to use.
     :return: A constructed Node object.
     """
     node = node_class(*args, **kwargs)
     if node.root:
-        node()
+        node(dry_run=dry_run, log=log)
     return node
 
 
