@@ -361,19 +361,17 @@ def test_task_not_ready(caplog, logger, request, task, tmp_path, val):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-# def test_task_ready(caplog, logger, request, task, tmp_path, val):
-def test_task_ready(request, task, tmp_path, val):
+def test_task_ready(caplog, logger, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = request.getfixturevalue(task)(tmp_path)
-    # node(log=logger)
+    node = request.getfixturevalue(task)(tmp_path, log=logger)
     assert val(iotaa.refs(node)) == f_bar
     assert val(node.assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
-    # for msg in ["Executing", "Ready"]:
-    #     assert logged(f"task bar {f_bar}: {msg}", caplog)
+    for msg in ["Executing", "Ready"]:
+        assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 
 # def test_tasks_structured():
