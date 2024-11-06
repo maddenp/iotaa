@@ -544,6 +544,7 @@ def _flatten(o: Optional[Union[T, dict[str, T], list]]) -> list[T]:
 
     :param o: An object, a collection of objects, or None.
     """
+    # Why can't the type of o include 'list[T]' instead of just 'list'?
     f: Callable[..., list[T]] = lambda xs: list(
         filter(None, chain.from_iterable(_flatten(x) for x in xs))
     )
