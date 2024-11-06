@@ -10,7 +10,7 @@
       "isort =5.13.*",
       "mypy =1.13.*",
       "pip",
-      "pylint",
+      "pylint =3.3.*",
       "pytest =8.3.*",
       "python",
       "python =3.9",
