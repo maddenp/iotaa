@@ -5,7 +5,6 @@ Tests for module iotaa.
 # pylint: disable=missing-function-docstring
 # pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
-# pylint: disable=use-implicit-booleaness-not-comparison
 
 import logging
 import re

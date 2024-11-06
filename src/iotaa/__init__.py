@@ -20,7 +20,7 @@ from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union, overload
 
 _TASK_MARKER = "__iotaa_task__"
 
@@ -538,16 +538,29 @@ def _execute(g: Generator, taskname: str, log: Logger = getLogger()) -> None:
         pass
 
 
-def _flatten(o: Optional[Union[T, dict[str, T], list]]) -> list[T]:
+@overload
+def _flatten(o: dict[str, T]) -> list[T]: ...
+
+
+@overload
+def _flatten(o: list[T]) -> list[T]: ...
+
+
+@overload
+def _flatten(o: None) -> list: ...
+
+
+@overload
+def _flatten(o: T) -> list[T]: ...
+
+
+def _flatten(o):
     """
     Return a simple list formed by collapsing potentially nested collections.
 
     :param o: An object, a collection of objects, or None.
     """
-    # Why can't the type of o include 'list[T]' instead of just 'list'?
-    f: Callable[[list[T]], list[T]] = lambda xs: list(
-        filter(None, chain.from_iterable(_flatten(x) for x in xs))
-    )
+    f: Callable = lambda xs: list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
     if isinstance(o, dict):
         return f(list(o.values()))
     if isinstance(o, list):
