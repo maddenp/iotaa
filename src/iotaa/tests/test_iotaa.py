@@ -405,17 +405,16 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-@mark.skip("FIXME")
-def test_tasks_not_ready(tasks_baz, tmp_path):
-    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
-    assert not any(x.is_file() for x in [f_foo, f_bar])
-    with patch.object(iotaa, "_state") as _state:
-        _state.initialized = False
-        assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets[0]) == f_foo
-    assert iotaa.refs(assets[1]["path"]) == f_bar
-    # assert not any(x.ready() for x in iotaa._flatten(assets))
-    assert not any(x.is_file() for x in [f_foo, f_bar])
+# def test_tasks_not_ready(tasks_baz, tmp_path):
+#     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+#     assert not any(x.is_file() for x in [f_foo, f_bar])
+#     node = tasks_baz(tmp_path)
+#     requirements = node.requirements
+#     breakpoint()
+#     assert iotaa.refs(requirements[0]) == f_foo
+#     assert iotaa.refs(requirements[1]["path"]) == f_bar
+#     assert not any(x.ready() for x in iotaa._flatten(requirements))
+#     assert not any(x.is_file() for x in [f_foo, f_bar])
 
 
 @mark.skip("FIXME")

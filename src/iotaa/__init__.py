@@ -48,11 +48,10 @@ class Node:
     The base class for task-graph nodes.
     """
 
-    assets: Optional[_AssetT] = None
-    requirements: Optional[_ReqsT] = None
-
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
+        self.assets: Optional[_AssetT] = None
+        self.requirements: Optional[_ReqsT] = None
         self.root = sum(1 for x in inspect.stack() if x.function == "__iotaa_wrapper__") == 1
         self._assembled = False
 
@@ -230,17 +229,13 @@ class NodeTasks(Node):
     def __init__(self, taskname: str, requirements: Optional[_ReqsT] = None) -> None:
         super().__init__(taskname)
         self.requirements = requirements
+        self.assets = list(
+            chain.from_iterable([_flatten(req.assets) for req in _flatten(self.requirements)])
+        )
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
         log = log or getLogger()
         return self._assemble_and_exec(dry_run, log)
-
-    @property
-    def ready(self) -> bool:
-        """
-        Are the tasks represented by this task-graph node ready?
-        """
-        return all(x.ready for x in _flatten(self.requirements))
 
 
 class IotaaError(Exception):
