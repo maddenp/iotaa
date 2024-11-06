@@ -263,7 +263,7 @@ def test_main_mocked_up(capsys, tmp_path):
                 iotaa.main()
                 mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_called_once_with(mocks["import_module"](), "a_function")
-                getattr_().assert_called_once_with("foo", 88, 3.14, True)
+                getattr_().assert_called_once_with("foo", 88, 3.14, True, dry_run=True)
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
             graph.assert_called_once()
