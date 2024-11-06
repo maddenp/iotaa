@@ -538,7 +538,7 @@ def _execute(g: Generator, taskname: str, log: Logger = getLogger()) -> None:
         pass
 
 
-def _flatten(o: Optional[Union[T, dict[str, T], list[T]]]) -> list[T]:
+def _flatten(o: Union[T, dict[str, T], list, None]) -> list[T]:
     """
     Return a simple list formed by collapsing potentially nested collections.
 

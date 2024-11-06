@@ -420,16 +420,18 @@ def test_tasks_not_ready(tasks_baz, tmp_path):
     assert not any(x.is_file() for x in [f_foo, f_bar])
 
 
-@mark.skip("FIXME")
 def test_tasks_ready(tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets[0]) == f_foo
-    assert iotaa.refs(assets[1]["path"]) == f_bar
-    # assert all(x.ready() for x in iotaa._flatten(assets))
+    node = tasks_baz(tmp_path)
+    requirements = cast(list[iotaa.Node], iotaa.requirements(node))
+    assert iotaa.refs(requirements[0]) == f_foo
+    assert iotaa.refs(requirements[1])["path"] == f_bar
+    assert all(
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
+    )
     assert all(x.is_file() for x in [f_foo, f_bar])
 
 
@@ -457,65 +459,6 @@ def test__cacheable():
     assert hash(b) is not None
 
 
-# def test__delegate_none(caplog):
-#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-
-#     def f():
-#         yield None
-
-#     assert not iotaa._delegate(f(), "task")
-#     assert logged("task: Checking requirements", caplog)
-
-
-# def test__delegate_scalar(caplog, delegate_assets):
-#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-#     a1, *_ = delegate_assets
-#     assets = a1
-
-#     def f():
-#         yield assets
-
-#     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-#         assert iotaa._delegate(f(), "task") == assets
-#         gufr.assert_called_once_with("task", [a1])
-#     assert logged("task: Checking requirements", caplog)
-
-
-# def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
-#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-#     a1, a2, a3, a4 = delegate_assets
-#     assets = [{"foo": a1, "bar": a2}, [a3, a4]]
-
-#     def f():
-#         yield assets
-
-#     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-#         assert iotaa._delegate(f(), "task") == assets
-#         gufr.assert_called_once_with("task", [a1, a2, a3, a4])
-#     assert logged("task: Checking requirements", caplog)
-
-
-# def test__delegate_none_and_scalar(caplog, delegate_assets):
-#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-#     a1, *_ = delegate_assets
-#     assets = [None, a1]
-
-#     def f():
-#         yield assets
-
-#     with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-#         assert iotaa._delegate(f(), "task") == assets
-#         gufr.assert_called_once_with("task", [a1])
-#     assert logged("task: Checking requirements", caplog)
-
-
-# def test__execute_dry_run(caplog, rungen):
-#     with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
-#         _state.dry_run = True
-#         iotaa._execute(g=rungen, taskname="task")
-#     assert logged("task: SKIPPING (DRY RUN)", caplog)
-
-
 def test__execute_live(caplog, rungen):
     iotaa._execute(g=rungen, taskname="task")
     assert logged("task: Executing", caplog)
@@ -527,7 +470,7 @@ def test__flatten():
     assert iotaa._flatten([]) == []
     assert iotaa._flatten({}) == []
     assert iotaa._flatten(a) == [a]
-    # assert iotaa._flatten([a, a]) == [a, a]
+    assert iotaa._flatten([a, a]) == [a, a]
     # assert iotaa._flatten({"foo": a, "bar": a}) == [a, a]
     # assert iotaa._flatten([None, a, [a, a], {"foo": a, "bar": a}]) == [a, a, a, a, a]
 
@@ -587,18 +530,6 @@ def test__parse_args_missing_task_ok(switch):
     assert args.tasks is True
 
 
-# def test__ready():
-#     af = iotaa.asset(ref=False, ready=lambda: False)
-#     at = iotaa.asset(ref=True, ready=lambda: True)
-#     assert iotaa._ready(None)
-#     assert iotaa._ready([at])
-#     assert iotaa._ready(at)
-#     assert iotaa._ready({"ready": at})
-#     assert not iotaa._ready([af])
-#     assert not iotaa._ready(af)
-#     assert not iotaa._ready({"not ready": af})
-
-
 def test__reify():
     strs = ["foo", "88", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 88, 3.14, True]
@@ -606,20 +537,6 @@ def test__reify():
     o = iotaa._reify('{"b": 2, "a": 1}')
     assert o == {"a": 1, "b": 2}
     assert hash(o) == hash((("a", 1), ("b", 2)))
-
-
-# @mark.parametrize(
-#     "vals",
-#     [
-#         (True, False, True, "Initial state: Ready"),
-#         (False, True, False, "State: Not Ready (external asset)"),
-#     ],
-# )
-# def test__report_readiness(caplog, vals):
-#     ready, ext, init, msg = vals
-#     iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-#     iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
-#     assert logged(f"task: {msg}", caplog)
 
 
 def test__show_tasks(capsys, task_class):
@@ -633,15 +550,6 @@ def test__show_tasks(capsys, task_class):
         The foo task.
     """
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
-
-
-# @mark.parametrize("assets", simple_assets())
-# def test__task_final(assets):
-#     for a in iotaa._flatten(assets):
-#         assert getattr(a, "taskname", None) is None
-#     assets = iotaa._task_final(False, "task", assets)
-#     for a in iotaa._flatten(assets):
-#         assert getattr(a, "taskname") == "task"
 
 
 # def test__task_info():
