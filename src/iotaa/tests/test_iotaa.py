@@ -10,9 +10,11 @@ Tests for module iotaa.
 import logging
 import re
 from abc import abstractmethod
+from itertools import chain
 
 # from hashlib import md5
 from textwrap import dedent
+from typing import cast
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
 from unittest.mock import patch
@@ -405,16 +407,17 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-# def test_tasks_not_ready(tasks_baz, tmp_path):
-#     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
-#     assert not any(x.is_file() for x in [f_foo, f_bar])
-#     node = tasks_baz(tmp_path)
-#     requirements = node.requirements
-#     breakpoint()
-#     assert iotaa.refs(requirements[0]) == f_foo
-#     assert iotaa.refs(requirements[1]["path"]) == f_bar
-#     assert not any(x.ready() for x in iotaa._flatten(requirements))
-#     assert not any(x.is_file() for x in [f_foo, f_bar])
+def test_tasks_not_ready(tasks_baz, tmp_path):
+    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+    node = tasks_baz(tmp_path)
+    requirements = cast(list[iotaa.Node], iotaa.requirements(node))
+    assert iotaa.refs(requirements[0]) == f_foo
+    assert iotaa.refs(requirements[1])["path"] == f_bar
+    assert not any(
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
+    )
+    assert not any(x.is_file() for x in [f_foo, f_bar])
 
 
 @mark.skip("FIXME")
