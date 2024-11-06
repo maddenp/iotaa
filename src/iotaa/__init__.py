@@ -51,7 +51,7 @@ class Node:
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
         self.assets: Optional[_AssetT] = None
-        self.requirements: Optional[_ReqsT] = None
+        self.reqs: Optional[_ReqsT] = None
         self.root = sum(1 for x in inspect.stack() if x.function == "__iotaa_wrapper__") == 1
         self._assembled = False
 
@@ -89,7 +89,7 @@ class Node:
         g.add(node)
         if not node.ready:
             predecessor: Node
-            for predecessor in _flatten(node.requirements):
+            for predecessor in _flatten(node.reqs):
                 g.add(node, predecessor)
                 self._add_node_and_predecessors(predecessor, g, log, level + 1)
 
@@ -137,22 +137,22 @@ class Node:
 
         nodes = nodes or {self}
         existing = lambda node: [e for e in nodes if e == node][0]
-        deduped: Optional[Union[Node, dict[str, Node], list[Node]]] = self.requirements
-        if isinstance(self.requirements, dict):
+        deduped: Optional[Union[Node, dict[str, Node], list[Node]]] = self.reqs
+        if isinstance(self.reqs, dict):
             deduped = {}
-            for k, node in self.requirements.items():
+            for k, node in self.reqs.items():
                 nodes = f(node, nodes)
                 deduped[k] = existing(node)
-        elif isinstance(self.requirements, list):
+        elif isinstance(self.reqs, list):
             deduped = []
-            for node in self.requirements:
+            for node in self.reqs:
                 nodes = f(node, nodes)
                 deduped.append(existing(node))
-        elif isinstance(self.requirements, Node):
-            node = self.requirements
+        elif isinstance(self.reqs, Node):
+            node = self.reqs
             nodes = f(node, nodes)
             deduped = existing(node)
-        self.requirements = deduped
+        self.reqs = deduped
         return nodes
 
     def _header(self, msg: str, log: Logger) -> None:
@@ -175,7 +175,7 @@ class Node:
         """
         if self.ready:
             return
-        reqs = {req: req.ready for req in _flatten(self.requirements)}
+        reqs = {req: req.ready for req in _flatten(self.reqs)}
         if reqs:
             log.warning("%s: Requires...", self.taskname)
             for req, ready in reqs.items():
@@ -202,17 +202,15 @@ class NodeTask(Node):
     A node encapsulating a @task-decorated function/method.
     """
 
-    def __init__(
-        self, taskname: str, assets: _AssetT, requirements: _ReqsT, execute: Callable
-    ) -> None:
+    def __init__(self, taskname: str, assets: _AssetT, reqs: _ReqsT, execute: Callable) -> None:
         super().__init__(taskname)
         self.assets = assets
-        self.requirements = requirements
+        self.reqs = reqs
         self.execute = execute
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
         log = log or getLogger()
-        if not self.ready and all(req.ready for req in _flatten(self.requirements)):
+        if not self.ready and all(req.ready for req in _flatten(self.reqs)):
             if dry_run:
                 log.info("%s: SKIPPING (DRY RUN)", self.taskname)
             else:
@@ -226,11 +224,11 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(self, taskname: str, requirements: Optional[_ReqsT] = None) -> None:
+    def __init__(self, taskname: str, reqs: Optional[_ReqsT] = None) -> None:
         super().__init__(taskname)
-        self.requirements = requirements
+        self.reqs = reqs
         self.assets = list(
-            chain.from_iterable([_flatten(req.assets) for req in _flatten(self.requirements)])
+            chain.from_iterable([_flatten(req.assets) for req in _flatten(self.reqs)])
         )
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
@@ -274,7 +272,7 @@ class _Graph:
         :param node: The root node of the current subgraph.
         """
         self._nodes.add(node)
-        for req in _flatten(node.requirements):
+        for req in _flatten(node.reqs):
             self._edges.add((node, req))
             self._build(req)
 
@@ -377,11 +375,11 @@ def refs(node: Node) -> Any:
     return None
 
 
-def get_requirements(node: Node) -> _ReqsT:
+def requirements(node: Node) -> _ReqsT:
     """
     PM
     """
-    return node.requirements
+    return node.reqs
 
 
 def tasknames(obj: object) -> list[str]:
@@ -456,7 +454,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             log,
             taskname=taskname,
             assets=assets,
-            requirements=reqs,
+            reqs=reqs,
             execute=lambda log: _execute(g, taskname, log),
         )
 
@@ -476,7 +474,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
         dry_run, log, kwargs = _split_kwargs(kwargs)
         taskname, g = _task_info(f, *args, **kwargs)
         reqs: _ReqsT = _next(g, "requirements")
-        return _construct_and_call(NodeTasks, dry_run, log, taskname=taskname, requirements=reqs)
+        return _construct_and_call(NodeTasks, dry_run, log, taskname=taskname, reqs=reqs)
 
     return _mark(__iotaa_wrapper__)
 
