@@ -128,14 +128,15 @@ Use the CLI `--dry-mode` switch (or pass the `dry_run=True` argument when progra
 
 A number of public helper functions are available in the `iotaa` module:
 
-| Function      | Description |
-| ------------- | ----------- |
-| `asset()`     | Instantiates an asset to return from a task function. |
-| `graph()`     | Given the value returned by a task-function call, returns a Graphviz string representation of the task graph. |
-| `logcfg()`    | Configures Python's root logger to support `logging.info()` et al. calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically. |
-| `logset()`    | Accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it. |
-| `refs()`      | Given the value returned by a task-function call, returns `ref` values of the assets in the same shape (e.g. `dict`, `list`) as returned by the task. |
-| `tasknames()` | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
+| Function         | Description |
+| ---------------- | ----------- |
+| `asset()`        | Instantiates an asset to return from a task function. |
+| `graph()`        | Given the value returned by a task-function call, returns a Graphviz string representation of the task graph. |
+| `logcfg()`       | Configures Python's root logger to support `logging.info()` et al. calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically. |
+| `logset()`       | Accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it. |
+| `refs()`         | Given the value returned by a task-function call, returns `ref` values of the assets in the same shape (e.g. `dict`, `list`) as returned by the task. |
+| `requirements()` | Given the value returned by a task-function call, returns any other such values yielded by that value as its requirements. |
+| `tasknames()`    | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
 
 ## Development
 

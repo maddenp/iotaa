@@ -377,7 +377,9 @@ def refs(node: Node) -> Any:
 
 def requirements(node: Node) -> _ReqsT:
     """
-    PM
+    Return the node's requirements.
+
+    :param node: A node.
     """
     return node.reqs
 
