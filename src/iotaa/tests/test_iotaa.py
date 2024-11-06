@@ -551,16 +551,15 @@ def test__show_tasks(capsys, task_class):
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
 
 
-# def test__task_info():
-#     def f(taskname, n):
-#         yield taskname
-#         yield n
+def test__task_info():
+    def f(taskname, n):
+        yield taskname
+        yield n
 
-#     with patch.object(iotaa, "_state", iotaa._State()):
-#         tn = "task"
-#         taskname, g = iotaa._task_info(f, tn, n=88)
-#         assert taskname == tn
-#         assert next(g) == 88
+    tn = "task"
+    taskname, g = iotaa._task_info(f, tn, n=88)
+    assert taskname == tn
+    assert next(g) == 88
 
 
 # _Graph tests
