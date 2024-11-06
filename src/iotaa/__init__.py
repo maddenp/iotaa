@@ -377,6 +377,13 @@ def refs(node: Node) -> Any:
     return None
 
 
+def get_requirements(node: Node) -> _ReqsT:
+    """
+    PM
+    """
+    return node.requirements
+
+
 def tasknames(obj: object) -> list[str]:
     """
     The names of iotaa tasks in the given object.

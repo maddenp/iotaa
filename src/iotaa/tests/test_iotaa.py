@@ -397,8 +397,8 @@ def test_tasks_structured():
         yield "structured"
         yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
 
-    node: iotaa.NodeTasks = structured()
-    requirements = node.requirements  # pylint: disable=no-member
+    node = structured()
+    requirements = iotaa.get_requirements(node)
     assert isinstance(requirements, dict)
     assert iotaa.refs(requirements["dict"]) == {"foo": "a", "bar": "a"}
     assert iotaa.refs(requirements["list"]) == ["a", "a"]
