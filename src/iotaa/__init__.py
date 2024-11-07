@@ -8,6 +8,7 @@ import inspect
 import json
 import logging
 import sys
+from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass
 from functools import cached_property, wraps
@@ -43,7 +44,7 @@ class Asset:
 _AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 
 
-class Node:
+class Node(ABC):
     """
     The base class for task-graph nodes.
     """
@@ -55,8 +56,8 @@ class Node:
         self.root = sum(1 for x in inspect.stack() if x.function == "__iotaa_wrapper__") == 1
         self._assembled = False
 
-    def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
-        return self
+    @abstractmethod
+    def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node: ...
 
     def __eq__(self, other):
         return hash(self) == hash(other)

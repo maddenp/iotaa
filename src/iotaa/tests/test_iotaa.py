@@ -25,11 +25,6 @@ import iotaa
 
 
 @fixture
-def delegate_assets():
-    return (iotaa.asset(ref=n, ready=lambda: True) for n in range(4))
-
-
-@fixture
 def external_foo_scalar():
     @iotaa.external
     def foo(path):
@@ -579,3 +574,12 @@ def test__Graph():
         a=name("a"), b=name("b"), root=name("root")
     )
     assert str(graph).strip() == dedent(expected).strip()
+
+
+# Node tests
+
+
+def test_Node___repr__(task_bar_scalar, tmp_path):
+    node = task_bar_scalar(tmp_path)
+    restr = rf"^task bar {tmp_path}/bar <\d+>$"
+    assert re.match(restr, str(node))
