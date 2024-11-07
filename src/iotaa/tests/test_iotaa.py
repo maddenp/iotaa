@@ -9,9 +9,8 @@ Tests for module iotaa.
 import logging
 import re
 from abc import abstractmethod
+from hashlib import md5
 from itertools import chain
-
-# from hashlib import md5
 from textwrap import dedent
 from typing import cast
 from unittest.mock import ANY
@@ -28,11 +27,6 @@ import iotaa
 @fixture
 def delegate_assets():
     return (iotaa.asset(ref=n, ready=lambda: True) for n in range(4))
-
-
-# @fixture
-# def empty_graph():
-#     return iotaa._Graph()
 
 
 @fixture
@@ -565,99 +559,23 @@ def test__task_info():
 # _Graph tests
 
 
-# def test__Graph___repr__(capsys):
-#     assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar not ready
-#     edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
-#     tasks = {"qux", "baz"}
-#     with patch.object(iotaa, "_graph", iotaa._Graph()) as graph:
-#         graph.assets = assets
-#         graph.edges = edges
-#         graph.tasks = tasks
-#         print(iotaa._graph)
-#     out = capsys.readouterr().out.strip().split("\n")
-#     # How many asset nodes were graphed?
-#     assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])
-#     # How many task nodes were graphed?
-#     assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.task in x])
-#     # How many edges were graphed?
-#     assert 3 == len([x for x in out if " -> " in x])
-#     # How many assets were ready?
-#     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
-#     # How many assets were not ready?
-#     assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
-
-
-# def test__Graph_color():
-#     assert isinstance(iotaa._graph.color, dict)
-
-
-# def test__Graph_name():
-#     name = "foo"
-#     assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
-
-
-# def test__Graph_shape():
-#     assert iotaa._graph.shape.asset == "box"
-#     assert iotaa._graph.shape.task == "ellipse"
-
-
-# def test__Graph_reset():
-#     with patch.object(iotaa, "_graph", iotaa._Graph()) as _graph:
-#         _graph.assets["some"] = "asset"
-#         _graph.edges.add("some-edge")
-#         _graph.tasks.add("some-task")
-#         assert _graph.assets
-#         assert _graph.edges
-#         assert _graph.tasks
-#         _graph.reset()
-#         assert not _graph.assets
-#         assert not _graph.edges
-#         assert not _graph.tasks
-
-
-# @mark.parametrize("assets", simple_assets())
-# def test__Graph_update_from_requirements(assets, empty_graph):
-#     taskname_req = "req"
-#     taskname_this = "task"
-#     alist = iotaa._flatten(assets)
-#     edges = {
-#         0: set(),
-#         1: {(taskname_this, taskname_req), (taskname_req, "foo")},
-#         2: {(taskname_this, taskname_req), (taskname_req, "foo"), (taskname_req, "bar")},
-#     }[len(alist)]
-#     for a in alist:
-#         setattr(a, "taskname", taskname_req)
-#     with patch.object(iotaa, "_graph", empty_graph):
-#         iotaa._graph.update_from_requirements(taskname_this, alist)
-#         assert all(a() for a in iotaa._graph.assets.values())
-# assert iotaa._graph.tasks == ({taskname_req, taskname_this} if assets else {taskname_this})
-#         assert iotaa._graph.edges == edges
-
-
-# @mark.parametrize("assets", simple_assets())
-# def test__Graph_update_from_task(assets, empty_graph):
-#     taskname = "task"
-#     with patch.object(iotaa, "_graph", empty_graph):
-#         iotaa._graph.update_from_task(taskname, assets)
-#         assert all(a() for a in iotaa._graph.assets.values())
-#         assert iotaa._graph.tasks == {taskname}
-#         assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._flatten(assets)}
-
-
-# Misc tests
-
-
-# def test_state_reset_via_task():
-
-#     @iotaa.external
-#     def noop():
-#         yield "noop"
-#         yield iotaa.asset("noop", lambda: True)
-
-#     with patch.object(iotaa._graph, "reset") as reset_graph:
-#         with patch.object(iotaa._state, "reset") as reset_state:
-#             reset_graph.assert_not_called()
-#             reset_state.assert_not_called()
-#             noop()
-#             reset_graph.assert_called_once_with()
-#             reset_state.assert_called_once_with()
+def test__Graph():
+    a = iotaa.NodeExternal(taskname="a", assets=iotaa.asset(None, lambda: False))
+    b = iotaa.NodeExternal(taskname="b", assets=iotaa.asset(None, lambda: True))
+    root = iotaa.NodeTasks(taskname="root", reqs=[a, b])
+    name = lambda x: md5(x.encode("utf-8")).hexdigest()
+    graph = iotaa._Graph(root=root)
+    assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
+    assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
+    expected = """
+    digraph g {{
+      _{a} [fillcolor=orange, label="a", style=filled]
+      _{root} -> _{a}
+      _{root} -> _{b}
+      _{root} [fillcolor=orange, label="root", style=filled]
+      _{b} [fillcolor=palegreen, label="b", style=filled]
+    }}
+    """.format(
+        a=name("a"), b=name("b"), root=name("root")
+    )
+    assert str(graph).strip() == dedent(expected).strip()
