@@ -581,5 +581,10 @@ def test__Graph():
 
 def test_Node___repr__(task_bar_scalar, tmp_path):
     node = task_bar_scalar(tmp_path)
-    restr = rf"^task bar {tmp_path}/bar <\d+>$"
-    assert re.match(restr, str(node))
+    assert re.match(rf"^task bar {tmp_path}/bar <\d+>$", str(node))
+
+
+def test_Node___call___dry_run(caplog, logger, task_bar_scalar, tmp_path):
+    (tmp_path / "foo").touch()
+    node = task_bar_scalar(tmp_path, dry_run=True, log=logger)
+    assert logged("%s: SKIPPING (DRY RUN)" % node.taskname, caplog)
