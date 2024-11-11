@@ -195,6 +195,11 @@ def args(path, tasks):
     )
 
 
+@iotaa.external
+def badtask():
+    yield "Bad task yields no asset"
+
+
 def logged(msg, caplog):
     return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
@@ -227,6 +232,13 @@ def test_logcfg(vals):
     with patch.object(iotaa.logging, "basicConfig") as basicConfig:
         iotaa.logcfg(verbose=verbose)
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
+
+
+def test_main_error(caplog):
+    with patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]):
+        with raises(SystemExit):
+            iotaa.main()
+    assert logged("Failed to get assets: Check yield statements.", caplog)
 
 
 def test_main_live_abspath(capsys, module_for_main):
