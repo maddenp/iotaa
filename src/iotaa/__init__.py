@@ -53,7 +53,7 @@ class Node(ABC):
         self.taskname = taskname
         self.assets: Optional[_AssetT] = None
         self.reqs: Optional[_ReqsT] = None
-        self.root = sum(1 for x in inspect.stack() if x.function == "__iotaa_wrapper__") == 1
+        self.root = self._root
         self._assembled = False
 
     @abstractmethod
@@ -102,7 +102,7 @@ class Node(ABC):
         :param log: The logger to use.
         :return: The root node of the current (sub)graph.
         """
-        if self.root and not self._assembled:
+        if self._root and not self._assembled:
             g: TopologicalSorter = TopologicalSorter()
             self._header("Task Graph", log)
             self._dedupe()
@@ -182,6 +182,14 @@ class Node(ABC):
             for req, ready in reqs.items():
                 status = "✔" if ready else "✖"
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)
+
+    @property
+    def _root(self) -> bool:
+        """
+        Is this the root node (i.e. is it not a requirement of another task)?
+        """
+        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function == "__iotaa_wrapper__"
+        return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
 
 
 class NodeExternal(Node):
