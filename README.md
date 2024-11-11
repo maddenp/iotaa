@@ -108,7 +108,7 @@ optional arguments:
     Show version info and exit
 ```
 
-Specifying positional arguments `m f hello 88` calls task function `f` in module `m` with arguments `hello: str` and `88: int`. Positional arguments `args` are parsed with the `json` library into Python values. To support intra-run idempotence (i.e. multiple tasks may depend on the same task, but the latter will only be evaluated/executed once), JSON values parsed to Python `dict` objects will be converted to a hashable (and therefore cacheable) `dict` subtype, and `list` objects will be converted to `tuple`s. Both should be treated as read-only in `iotaa` application code.
+Specifying positional arguments `m f hello 88` calls task function `f` in module `m` with arguments `hello: str` and `88: int`. Positional arguments `args` are parsed with the `json` library into Python values. To support intra-run idempotency (i.e. multiple tasks may depend on the same task, but the latter will only be evaluated/executed once), JSON values parsed to Python `dict` objects will be converted to a hashable (and therefore cacheable) `dict` subtype, and `list` objects will be converted to `tuple`s. Both should be treated as read-only in `iotaa` application code.
 
 It is assumed that `m` is importable by Python by customary means. As a convenience, if `m` is a valid absolute or relative path (perhaps specified as `m.py` or `/path/to/m.py`), its parent directory is automatically added to `sys.path` so that it can be loaded.
 
@@ -133,7 +133,6 @@ A number of public helper functions are available in the `iotaa` module:
 | `asset()`        | Instantiates an asset to return from a task function. |
 | `graph()`        | Given the value returned by a task-function call, returns a Graphviz string representation of the task graph. |
 | `logcfg()`       | Configures Python's root logger to support `logging.info()` et al. calls, which `iotaa` itself makes. It is called by the `iotaa` CLI, but is available for standalone applications with simple logging needs to call programmatically. |
-| `logset()`       | Accepts a Python `Logger` object and configures `iotaa` to send all future log messages to it. |
 | `refs()`         | Given the value returned by a task-function call, returns `ref` values of the assets in the same shape (e.g. `dict`, `list`) as returned by the task. |
 | `requirements()` | Given the value returned by a task-function call, returns any other such values yielded by that value as its requirements. |
 | `tasknames()`    | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
@@ -142,10 +141,12 @@ A number of public helper functions are available in the `iotaa` module:
 
 In the base environment of a conda installation ([Miniforge](https://github.com/conda-forge/miniforge) recommended), install the [condev](https://github.com/maddenp/condev) [package](https://anaconda.org/maddenp/condev), then run `make devshell` in the root of an `iotaa` git clone. See the [condev docs](https://github.com/maddenp/condev/blob/main/README.md) for details but, in short: In the development shell created by `make devshell`, edit and test code live (either by starting a `python` REPL, or by invoking the `iotaa` CLI program), run the auto-formatter with `make format`, and run the code-quality tests with `make test`. Type `exit` to exit the development shell. (The underlying `DEV-iotaa` conda environment created by `make devshell` will persist until manually removed, so future `make devshell` invocations should be much faster than the first one, which must create the environment.)
 
-## Notes
+## Important Notes
 
-- Workflows can be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of external requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never performed twice -- unless the asset becomes not-ready via external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
-- For dry-run mode to work correctly, `iotaa` assumes that no statements that affect external state execute before the final `yield` statement in a task function's body.
+- Since tasks `yield`ing the same name are viewed as identical by `iotaa` and collapsed into a single node in the task graph, be sure that distinct tasks `yield` distinct names.
+- Workflows may be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of external requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never repeated (i.e. tasks are idempotent) -- unless the asset becomes not-ready via external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
+- For dry-run mode to work correctly, `iotaa` assumes that any statements affecting external state execute only after the final `yield` statement in a task function's body.
+- Similarly, since non-`yield` statements preceding the final `yield` statement may be executed at any time, and potentially multiple times, be sure that such statements are idempotent and do not produce side effects, unless such side effects are required.
 - Currently, `iotaa` is single-threaded, so it truly is "one thing after another". Concurrent execution of mutually independent tasks may be added in future work.
 
 ## Demo
