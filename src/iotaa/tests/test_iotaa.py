@@ -39,6 +39,29 @@ def external_foo_scalar():
 
 
 @fixture
+def graphkit():
+    a = iotaa.NodeExternal(taskname="a", assets=iotaa.asset(None, lambda: False))
+    b = iotaa.NodeExternal(taskname="b", assets=iotaa.asset(None, lambda: True))
+    root = iotaa.NodeTasks(taskname="root", reqs=[a, b])
+    name = lambda x: md5(x.encode("utf-8")).hexdigest()
+    graph = iotaa._Graph(root=root)
+    assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
+    assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
+    expected = """
+    digraph g {{
+      _{a} [fillcolor=orange, label="a", style=filled]
+      _{root} -> _{a}
+      _{root} -> _{b}
+      _{root} [fillcolor=orange, label="root", style=filled]
+      _{b} [fillcolor=palegreen, label="b", style=filled]
+    }}
+    """.format(
+        a=name("a"), b=name("b"), root=name("root")
+    )
+    return dedent(expected).strip(), graph, root
+
+
+@fixture
 def logger():
     logger = logging.getLogger("iotaa-test")
     logger.setLevel(logging.INFO)
@@ -224,6 +247,11 @@ def simple_assets():
 def test_Asset(asset):
     assert asset.ref == "foo"
     assert asset.ready()
+
+
+def test_graph(graphkit):
+    expected, _, root = graphkit
+    assert iotaa.graph(root).strip() == expected
 
 
 @mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
@@ -566,26 +594,9 @@ def test__task_info():
 # _Graph tests
 
 
-def test__Graph():
-    a = iotaa.NodeExternal(taskname="a", assets=iotaa.asset(None, lambda: False))
-    b = iotaa.NodeExternal(taskname="b", assets=iotaa.asset(None, lambda: True))
-    root = iotaa.NodeTasks(taskname="root", reqs=[a, b])
-    name = lambda x: md5(x.encode("utf-8")).hexdigest()
-    graph = iotaa._Graph(root=root)
-    assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
-    assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
-    expected = """
-    digraph g {{
-      _{a} [fillcolor=orange, label="a", style=filled]
-      _{root} -> _{a}
-      _{root} -> _{b}
-      _{root} [fillcolor=orange, label="root", style=filled]
-      _{b} [fillcolor=palegreen, label="b", style=filled]
-    }}
-    """.format(
-        a=name("a"), b=name("b"), root=name("root")
-    )
-    assert str(graph).strip() == dedent(expected).strip()
+def test__Graph(graphkit):
+    expected, graph, _ = graphkit
+    assert str(graph).strip() == expected
 
 
 # Node tests
