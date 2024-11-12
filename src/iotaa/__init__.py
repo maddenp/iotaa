@@ -102,7 +102,7 @@ class Node(ABC):
         :param log: The logger to use.
         :return: The root node of the current (sub)graph.
         """
-        if self._root and not self._assembled:
+        if self.root and not self._assembled:
             g: TopologicalSorter = TopologicalSorter()
             self._header("Task Graph", log)
             self._dedupe()
