@@ -635,6 +635,6 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 ![teatime-dry-run-image](img/teatime-2.svg)
 
-- After the third invocation, when tea has steeped and sugar has been added, showing final workflow state:
+- After the third invocation, when the tea has steeped and sugar has been added, showing final workflow state:
 
 ![teatime-dry-run-image](img/teatime-3.svg)
