@@ -5,40 +5,39 @@ iotaa.demo.
 # pylint: disable=C0116
 
 import datetime as dt
-import logging
 from pathlib import Path
 
 from iotaa import asset, external, refs, task, tasks
 
 
 @tasks
-def a_cup_of_tea(basedir):
+def a_cup_of_tea(basedir, log):
     # The cup of steeped tea with sugar, and a spoon.
     yield "The perfect cup of tea"
-    yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
+    yield [steeped_tea_with_sugar(basedir), spoon(basedir, log)]
 
 
 @task
-def cup(basedir):
+def cup(basedir, log):
     # The cup for the tea.
     path = Path(basedir) / "cup"
     taskname = "The cup"
     yield taskname
     yield asset(path, path.exists)
     yield None
-    logging.info("%s: Getting cup", taskname)
+    log.info("%s: Getting cup", taskname)
     path.mkdir(parents=True)
 
 
 @task
-def spoon(basedir):
+def spoon(basedir, log):
     # The spoon to stir the tea.
     path = Path(basedir) / "spoon"
     taskname = "The spoon"
     yield taskname
     yield asset(path, path.exists)
     yield None
-    logging.info("%s: Getting spoon", taskname)
+    log.info("%s: Getting spoon", taskname)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
 
@@ -50,7 +49,7 @@ def steeped_tea_with_sugar(basedir):
 
 
 @task
-def steeped_tea(basedir):
+def steeped_tea(basedir, log):
     # Give tea time to steep.
     taskname = "Steeped tea"
     yield taskname
@@ -70,7 +69,7 @@ def steeped_tea(basedir):
         yield steep_time(False)
     yield steeping_tea(basedir)
     if not ready:
-        logging.warning("%s: Tea needs to steep for %ss", taskname, remaining)
+        log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 
 
 @task
@@ -92,12 +91,12 @@ def box_of_tea_bags(basedir):
     yield asset(path, path.exists)
 
 
-def ingredient(basedir, fn, name, req=None):
+def ingredient(basedir, fn, name, log, req=None):
     taskname = f"{name} in cup"
     yield taskname
-    the_cup = cup(basedir)
+    the_cup = cup(basedir, log)
     path = refs(the_cup) / fn
     yield {fn: asset(path, path.exists)}
     yield [the_cup] + ([req(basedir)] if req else [])
-    logging.info("%s: Adding %s to cup", taskname, fn)
+    log.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
