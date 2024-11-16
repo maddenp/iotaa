@@ -15,7 +15,7 @@ from textwrap import dedent
 from typing import cast
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from pytest import fixture, mark, raises
 
@@ -285,15 +285,19 @@ def test_main_live_syspath(capsys, module_for_main):
     assert "hello world!" in capsys.readouterr().out
 
 
-def test_main_mocked_up(capsys, tmp_path):
+@mark.parametrize("g,log", [(lambda s, i, f, b: None, False), (lambda s, i, f, b, log: None, True)])
+def test_main_mocked_up(capsys, g, log, tmp_path):
     with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
         with patch.object(iotaa, "graph", return_value="DOT code") as graph:
             mocks["_parse_args"].return_value = args(path=tmp_path, tasks=False)
-            with patch.object(iotaa, "getattr", create=True) as getattr_:
+            f = Mock(__code__=g.__code__)
+            with patch.object(iotaa, "getattr", create=True, return_value=f) as getattr_:
                 iotaa.main()
                 mocks["import_module"].assert_called_once_with("a")
-                getattr_.assert_called_once_with(mocks["import_module"](), "a_function")
-                getattr_().assert_called_once_with("foo", 88, 3.14, True, dry_run=True)
+                getattr_.assert_any_call(mocks["import_module"](), "a_function")
+                task_args = ["foo", 88, 3.14, True]
+                task_kwargs = {"dry_run": True, **({"log": iotaa.getLogger()} if log else {})}
+                getattr_().assert_called_once_with(*task_args, **task_kwargs)
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
             graph.assert_called_once()
@@ -466,6 +470,12 @@ def test_tasks_ready(tasks_baz, tmp_path):
 # Private function tests
 
 
+def test__accepts():
+    f = lambda n: n * 2
+    assert iotaa._accepts(f, "n")
+    assert not iotaa._accepts(f, "unacceptable")
+
+
 def test__cacheable():
     a = {
         "bool": True,
@@ -519,6 +529,12 @@ def test__mark():
     assert hasattr(f, "__iotaa_task__")
 
 
+def test__modobj():
+    assert iotaa._modobj("iotaa") == iotaa
+    with raises(ModuleNotFoundError):
+        assert iotaa._modobj("$")
+
+
 def test__next():
     with raises(iotaa.IotaaError) as e:
         iotaa._next(iter([]), "foo")
@@ -567,9 +583,9 @@ def test__reify():
     assert hash(o) == hash((("a", 1), ("b", 2)))
 
 
-def test__show_tasks(capsys, task_class):
+def test__show_tasks_and_exit(capsys, task_class):
     with raises(SystemExit):
-        iotaa._show_tasks(name="X", obj=task_class)
+        iotaa._show_tasks_and_exit(name="X", obj=task_class)
     expected = """
     Tasks in X:
       bar

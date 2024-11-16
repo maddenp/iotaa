@@ -312,19 +312,17 @@ def main() -> None:
 
     args = _parse_args(sys.argv[1:])
     logcfg(verbose=args.verbose)
-    modname = args.module
-    modpath = Path(modname)
-    if modpath.is_file():
-        sys.path.append(str(modpath.parent.resolve()))
-        modname = modpath.stem
-    modobj = import_module(modname)
+    modobj = _modobj(args.module)
     if args.tasks:
-        _show_tasks(args.module, modobj)
+        _show_tasks_and_exit(args.module, modobj)
+    task_func = getattr(modobj, args.function)
     task_args = [_reify(arg) for arg in args.args]
-    task_kwargs = {"dry_run": True} if args.dry_run else {}
+    task_kwargs = {
+        **({"dry_run": True} if args.dry_run else {}),
+        **({"log": getLogger()} if _accepts(task_func, "log") else {}),
+    }
     try:
-        func = getattr(modobj, args.function)
-        root = func(*task_args, **task_kwargs)
+        root = task_func(*task_args, **task_kwargs)
     except IotaaError as e:
         logging.error(str(e))
         sys.exit(1)
@@ -414,19 +412,6 @@ def tasknames(obj: object) -> list[str]:
 # Public task-graph decorator functions:
 
 
-def _split_kwargs(kwargs: dict[str, Any]) -> tuple[bool, Optional[Logger], dict[str, Any]]:
-    """
-    Returns dry_run and log arguments, and remaining kwargs.
-
-    :param kwargs: Original keyword arguments.
-    """
-    return (
-        kwargs.get("dry_run", False),
-        kwargs.get("log"),
-        {k: v for k, v in kwargs.items() if k not in ["dry_run", "log"]},
-    )
-
-
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
@@ -491,6 +476,17 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
 
 # Private helper functions:
+
+
+def _accepts(f: Callable, arg: str) -> bool:
+    """
+    Does 'f' accept an argument named 'arg'?
+
+    :param f: A callable (e.g. function)
+    :param arg: The name of the argument to check.
+    """
+    f = getattr(f, "__wrapped__", f)
+    return arg in f.__code__.co_varnames[: f.__code__.co_argcount]
 
 
 _CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
@@ -601,6 +597,19 @@ def _mark(f: T) -> T:
     return f
 
 
+def _modobj(modname: str) -> ModuleType:
+    """
+    Returns the module object corresponding to the given name.
+
+    :param modname: The name of the module.
+    """
+    modpath = Path(modname)
+    if modpath.is_file():
+        sys.path.append(str(modpath.parent.resolve()))
+        modname = modpath.stem
+    return import_module(modname)
+
+
 def _next(g: Iterator, desc: str) -> Any:
     """
     Return the next value from the generator, if available. Otherwise log an error and exit.
@@ -656,7 +665,7 @@ def _reify(s: str) -> _CacheableT:
         return _cacheable(loads(f'"{s}"'))
 
 
-def _show_tasks(name: str, obj: ModuleType) -> None:
+def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     """
     Print names and descriptions of tasks available in module.
 
@@ -671,6 +680,19 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
+def _split_kwargs(kwargs: dict[str, Any]) -> tuple[bool, Optional[Logger], dict[str, Any]]:
+    """
+    Returns dry_run and log arguments, and remaining kwargs.
+
+    :param kwargs: Original keyword arguments.
+    """
+    return (
+        kwargs.get("dry_run", False),
+        kwargs.get("log", getLogger()),
+        {k: v for k, v in kwargs.items() if k != "dry_run"},
+    )
+
+
 def _task_info(f: Callable, *args, **kwargs) -> tuple[str, Generator]:
     """
     Collect and return info about the task.
@@ -678,7 +700,8 @@ def _task_info(f: Callable, *args, **kwargs) -> tuple[str, Generator]:
     :param f: A task function (receives the provided args & kwargs).
     :return: The task's name and the generator returned by the task.
     """
-    g = f(*args, **kwargs)
+    task_kwargs = {k: v for k, v in kwargs.items() if k != "log" or _accepts(f, "log")}
+    g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
     return taskname, g
 

@@ -14,7 +14,7 @@ from iotaa import asset, external, refs, task, tasks
 def a_cup_of_tea(basedir, log):
     # The cup of steeped tea with sugar, and a spoon.
     yield "The perfect cup of tea"
-    yield [steeped_tea_with_sugar(basedir), spoon(basedir, log)]
+    yield [steeped_tea_with_sugar(basedir, log), spoon(basedir, log)]
 
 
 @task
@@ -43,9 +43,9 @@ def spoon(basedir, log):
 
 
 @task
-def steeped_tea_with_sugar(basedir):
+def steeped_tea_with_sugar(basedir, log):
     # Add sugar to the steeped tea. Requires tea to have steeped.
-    yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
+    yield from ingredient(basedir, "sugar", "Sugar", log, steeped_tea)
 
 
 @task
@@ -53,7 +53,7 @@ def steeped_tea(basedir, log):
     # Give tea time to steep.
     taskname = "Steeped tea"
     yield taskname
-    water = refs(steeping_tea(basedir))["water"]
+    water = refs(steeping_tea(basedir, log))["water"]
     steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
@@ -67,25 +67,25 @@ def steeped_tea(basedir, log):
         ready = False
         remaining = t
         yield steep_time(False)
-    yield steeping_tea(basedir)
+    yield steeping_tea(basedir, log)
     if not ready:
         log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 
 
 @task
-def steeping_tea(basedir):
+def steeping_tea(basedir, log):
     # Pour boiling water over the tea. Requires tea bag in cup.
-    yield from ingredient(basedir, "water", "Boiling water", tea_bag)
+    yield from ingredient(basedir, "water", "Boiling water", log, tea_bag)
 
 
 @task
-def tea_bag(basedir):
+def tea_bag(basedir, log):
     # Place tea bag in the cup. Requires box of tea bags.
-    yield from ingredient(basedir, "tea-bag", "Tea bag", box_of_tea_bags)
+    yield from ingredient(basedir, "tea-bag", "Tea bag", log, box_of_tea_bags)
 
 
 @external
-def box_of_tea_bags(basedir):
+def box_of_tea_bags(basedir, log):  # pylint: disable=unused-argument
     path = Path(basedir) / "box-of-tea-bags"
     yield f"Box of tea bags ({path})"
     yield asset(path, path.exists)
@@ -97,6 +97,6 @@ def ingredient(basedir, fn, name, log, req=None):
     the_cup = cup(basedir, log)
     path = refs(the_cup) / fn
     yield {fn: asset(path, path.exists)}
-    yield [the_cup] + ([req(basedir)] if req else [])
+    yield [the_cup] + ([req(basedir, log)] if req else [])
     log.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
