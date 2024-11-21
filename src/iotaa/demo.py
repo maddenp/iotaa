@@ -99,11 +99,18 @@ def tea_bag(basedir, log):
 
     Requires box of tea bags.
     """
-    yield from ingredient(basedir, "tea bag", "Tea bag", log, box_of_tea_bags)
+    the_cup = cup(basedir, log)
+    path = refs(the_cup) / "tea-bag"
+    taskname = "Tea bag in cup"
+    yield taskname
+    yield asset(path, path.exists)
+    yield [the_cup, box_of_tea_bags(basedir)]
+    log.info("%s: Adding tea bag to cup", taskname)
+    path.touch()
 
 
 @external
-def box_of_tea_bags(basedir, log):  # pylint: disable=unused-argument
+def box_of_tea_bags(basedir):
     """
     A box of tea bags.
     """
