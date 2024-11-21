@@ -159,7 +159,9 @@ The first `@tasks` method defines the end result: A cup of tea, steeped, with su
 ``` python
 @tasks
 def a_cup_of_tea(basedir):
-    # The cup of steeped tea with sugar, and a spoon.
+    """
+    The cup of steeped tea with sugar, and a spoon.
+    """
     yield "The perfect cup of tea"
     yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
 ```
@@ -171,7 +173,9 @@ The `cup()` and `spoon()` `@task` functions are straightforward:
 ``` python
 @task
 def cup(basedir):
-    # The cup for the tea.
+    """
+    The spoon to stir the tea.
+    """
     path = Path(basedir) / "cup"
     taskname = "The cup"
     yield taskname
@@ -184,7 +188,9 @@ def cup(basedir):
 ``` python
 @task
 def spoon(basedir):
-    # The spoon to stir the tea.
+    """
+    The spoon to stir the tea.
+    """
     path = Path(basedir) / "spoon"
     taskname = "The spoon"
     yield taskname
@@ -204,7 +210,11 @@ The `steeped_tea_with_sugar()` `@task` function is next:
 ``` python
 @task
 def steeped_tea_with_sugar(basedir):
-    # Add sugar to the steeped tea. Requires tea to have steeped.
+    """
+    Add sugar to the steeped tea.
+
+    Requires tea to have steeped.
+    """
     yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
 ```
 
@@ -212,6 +222,9 @@ Two new ideas are demonstrated here. First, a task function can call arbitrary l
 
 ``` python
 def ingredient(basedir, fn, name, req=None):
+    """
+    Add an ingredient to the cup.
+    """
     taskname = f"{name} in cup"
     yield taskname
     the_cup = cup(basedir)
@@ -231,7 +244,9 @@ Next up, the `steeped_tea()` function, which is more complex:
 ``` python
 @task
 def steeped_tea(basedir):
-    # Give tea time to steep.
+    """
+    Give tea time to steep.
+    """
     taskname = "Steeped tea"
     yield taskname
     water = refs(steeping_tea(basedir))["water"]
@@ -263,20 +278,37 @@ water = refs(steeping_tea(basedir))["water"]
 
 The path to the `water` file is located by calling `refs()` on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` `yield`s its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `tea-bag`, `water`.) This is a useful way to delegate ownership of knowledge about an asset to the tasks responsible for that asset.
 
-The `steeping_tea()` and `tea_bag()` functions are again straightforward `@task`s, leveraging the `ingredient()` helper:
+The `steeping_tea()` function is again a straightforward `@task`, leveraging the `ingredient()` helper:
 
 ``` python
 @task
 def steeping_tea(basedir):
-    # Pour boiling water over the tea. Requires tea bag in cup.
+    """
+    Pour boiling water over the tea.
+
+    Requires tea bag in cup.
+    """
     yield from ingredient(basedir, "water", "Boiling water", tea_bag)
 ```
 
+The `tea_bag()` function should be self-explanatory at this point. It requires `the_cup`, and extracts that task's reference (a path to a directory) to construct its own path:
+
 ``` python
 @task
-def tea_bag(basedir):
-    # Place tea bag in the cup. Requires box of tea bags.
-    yield from ingredient(basedir, "tea bag", "Tea bag", box_of_tea_bags)
+def tea_bag(basedir, log):
+    """
+    Place tea bag in the cup.
+
+    Requires box of tea bags.
+    """
+    the_cup = cup(basedir, log)
+    path = refs(the_cup) / "tea-bag"
+    taskname = "Tea bag in cup"
+    yield taskname
+    yield asset(path, path.exists)
+    yield [the_cup, box_of_tea_bags(basedir)]
+    log.info("%s: Adding tea bag to cup", taskname)
+    path.touch()
 ```
 
 Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` `yield`s, after its name, only the _assets_ it represents. It `yield`s no task requirements, and has no executable statements to ready the asset:
@@ -284,6 +316,9 @@ Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The
 ``` python
 @external
 def box_of_tea_bags(basedir):
+    """
+    A box of tea bags.
+    """
     path = Path(basedir) / "box-of-tea-bags"
     yield f"Box of tea bags ({path})"
     yield asset(path, path.exists)
