@@ -159,12 +159,12 @@ The first `@tasks` method defines the end result: A cup of tea, steeped, with su
 
 ``` python
 @tasks
-def a_cup_of_tea(basedir):
+def a_cup_of_tea(basedir, log):
     """
     The cup of steeped tea with sugar, and a spoon.
     """
     yield "The perfect cup of tea"
-    yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
+    yield [steeped_tea_with_sugar(basedir, log), spoon(basedir, log)]
 ```
 
 As described above, a `@tasks` function is just a collection of other tasks, and must `yield` its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` connection, no executable statements follow the final `yield.`
@@ -173,22 +173,22 @@ The `cup()` and `spoon()` `@task` functions are straightforward:
 
 ``` python
 @task
-def cup(basedir):
+def cup(basedir, log):
     """
-    The spoon to stir the tea.
+    The cup for the tea.
     """
     path = Path(basedir) / "cup"
     taskname = "The cup"
     yield taskname
     yield asset(path, path.exists)
     yield None
-    logging.info("%s: Getting cup", taskname)
+    log.info("%s: Getting cup", taskname)
     path.mkdir(parents=True)
 ```
 
 ``` python
 @task
-def spoon(basedir):
+def spoon(basedir, log):
     """
     The spoon to stir the tea.
     """
@@ -197,7 +197,7 @@ def spoon(basedir):
     yield taskname
     yield asset(path, path.exists)
     yield None
-    logging.info("%s: Getting spoon", taskname)
+    log.info("%s: Getting spoon", taskname)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
 ```
@@ -210,29 +210,29 @@ The `steeped_tea_with_sugar()` `@task` function is next:
 
 ``` python
 @task
-def steeped_tea_with_sugar(basedir):
+def steeped_tea_with_sugar(basedir, log):
     """
     Add sugar to the steeped tea.
 
     Requires tea to have steeped.
     """
-    yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
+    yield from ingredient(basedir, "sugar", "Sugar", log, steeped_tea)
 ```
 
 Two new ideas are demonstrated here. First, a task function can call arbitrary logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined thus:
 
 ``` python
-def ingredient(basedir, fn, name, req=None):
+def ingredient(basedir, fn, name, log, req=None):
     """
     Add an ingredient to the cup.
     """
     taskname = f"{name} in cup"
     yield taskname
-    the_cup = cup(basedir)
+    the_cup = cup(basedir, log)
     path = refs(the_cup) / fn
     yield {fn: asset(path, path.exists)}
-    yield [the_cup] + ([req(basedir)] if req else [])
-    logging.info("%s: Adding %s to cup", taskname, fn)
+    yield [the_cup] + ([req(basedir, log)] if req else [])
+    log.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
 ```
 
@@ -244,13 +244,13 @@ Next up, the `steeped_tea()` function, which is more complex:
 
 ``` python
 @task
-def steeped_tea(basedir):
+def steeped_tea(basedir, log):
     """
     Give tea time to steep.
     """
     taskname = "Steeped tea"
     yield taskname
-    water = refs(steeping_tea(basedir))["water"]
+    water = refs(steeping_tea(basedir, log))["water"]
     steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
@@ -264,9 +264,9 @@ def steeped_tea(basedir):
         ready = False
         remaining = t
         yield steep_time(False)
-    yield steeping_tea(basedir)
+    yield steeping_tea(basedir, log)
     if not ready:
-        logging.warning("%s: Tea needs to steep for %ss", taskname, remaining)
+        log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 ```
 
 Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
@@ -283,13 +283,13 @@ The `steeping_tea()` function is again a straightforward `@task`, leveraging the
 
 ``` python
 @task
-def steeping_tea(basedir):
+def steeping_tea(basedir, log):
     """
     Pour boiling water over the tea.
 
     Requires tea bag in cup.
     """
-    yield from ingredient(basedir, "water", "Boiling water", tea_bag)
+    yield from ingredient(basedir, "water", "Boiling water", log, tea_bag)
 ```
 
 The `tea_bag()` function should be self-explanatory at this point. It requires `the_cup`, and extracts that task's reference (a path to a directory) to construct its own path:
