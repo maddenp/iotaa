@@ -178,7 +178,7 @@ class Node(ABC):
             return
         reqs = {req: req.ready for req in _flatten(self.reqs)}
         if reqs:
-            log.warning("%s: Requires...", self.taskname)
+            log.warning("%s: Requires:", self.taskname)
             for req, ready in reqs.items():
                 status = "✔" if ready else "✖"
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)

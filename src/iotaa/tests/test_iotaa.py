@@ -383,7 +383,7 @@ def test_task_not_ready(caplog, logger, request, task, tmp_path, val):
     assert val(iotaa.refs(node)) == f_bar
     assert not val(node.assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    for msg in ["Not ready", "Requires...", f"✖ external foo {f_foo}"]:
+    for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
         assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 

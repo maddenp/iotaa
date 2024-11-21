@@ -301,22 +301,22 @@ $ iotaa iotaa.demo a_cup_of_tea ./teatime
 [2024-10-22T00:32:22] INFO    The spoon: Getting spoon
 [2024-10-22T00:32:22] INFO    The spoon: Ready
 [2024-10-22T00:32:22] WARNING Tea bag in cup: Not ready
-[2024-10-22T00:32:22] WARNING Tea bag in cup: Requires...
+[2024-10-22T00:32:22] WARNING Tea bag in cup: Requires:
 [2024-10-22T00:32:22] WARNING Tea bag in cup: ✔ The cup
 [2024-10-22T00:32:22] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
 [2024-10-22T00:32:22] WARNING Boiling water in cup: Not ready
-[2024-10-22T00:32:22] WARNING Boiling water in cup: Requires...
+[2024-10-22T00:32:22] WARNING Boiling water in cup: Requires:
 [2024-10-22T00:32:22] WARNING Boiling water in cup: ✔ The cup
 [2024-10-22T00:32:22] WARNING Boiling water in cup: ✖ Tea bag in cup
 [2024-10-22T00:32:22] WARNING Steeped tea: Not ready
-[2024-10-22T00:32:22] WARNING Steeped tea: Requires...
+[2024-10-22T00:32:22] WARNING Steeped tea: Requires:
 [2024-10-22T00:32:22] WARNING Steeped tea: ✖ Boiling water in cup
 [2024-10-22T00:32:22] WARNING Sugar in cup: Not ready
-[2024-10-22T00:32:22] WARNING Sugar in cup: Requires...
+[2024-10-22T00:32:22] WARNING Sugar in cup: Requires:
 [2024-10-22T00:32:22] WARNING Sugar in cup: ✔ The cup
 [2024-10-22T00:32:22] WARNING Sugar in cup: ✖ Steeped tea
 [2024-10-22T00:32:22] WARNING The perfect cup of tea: Not ready
-[2024-10-22T00:32:22] WARNING The perfect cup of tea: Requires...
+[2024-10-22T00:32:22] WARNING The perfect cup of tea: Requires:
 [2024-10-22T00:32:22] WARNING The perfect cup of tea: ✖ Sugar in cup
 [2024-10-22T00:32:22] WARNING The perfect cup of tea: ✔ The spoon
 ```
@@ -361,7 +361,7 @@ $ iotaa iotaa.demo a_cup_of_tea ./teatime
 [2024-10-22T00:32:56] INFO    Box of tea bags (teatime/box-of-tea-bags): Ready
 [2024-10-22T00:32:56] INFO    The spoon: Ready
 [2024-10-22T00:32:56] INFO    Tea bag in cup: Executing
-[2024-10-22T00:32:56] INFO    Tea bag in cup: Adding tea-bag to cup
+[2024-10-22T00:32:56] INFO    Tea bag in cup: Adding tea bag to cup
 [2024-10-22T00:32:56] INFO    Tea bag in cup: Ready
 [2024-10-22T00:32:56] INFO    Boiling water in cup: Executing
 [2024-10-22T00:32:56] INFO    Boiling water in cup: Adding water to cup
@@ -369,14 +369,14 @@ $ iotaa iotaa.demo a_cup_of_tea ./teatime
 [2024-10-22T00:32:56] INFO    Steeped tea: Executing
 [2024-10-22T00:32:56] WARNING Steeped tea: Tea needs to steep for 10s
 [2024-10-22T00:32:56] WARNING Steeped tea: Not ready
-[2024-10-22T00:32:56] WARNING Steeped tea: Requires...
+[2024-10-22T00:32:56] WARNING Steeped tea: Requires:
 [2024-10-22T00:32:56] WARNING Steeped tea: ✔ Boiling water in cup
 [2024-10-22T00:32:56] WARNING Sugar in cup: Not ready
-[2024-10-22T00:32:56] WARNING Sugar in cup: Requires...
+[2024-10-22T00:32:56] WARNING Sugar in cup: Requires:
 [2024-10-22T00:32:56] WARNING Sugar in cup: ✔ The cup
 [2024-10-22T00:32:56] WARNING Sugar in cup: ✖ Steeped tea
 [2024-10-22T00:32:56] WARNING The perfect cup of tea: Not ready
-[2024-10-22T00:32:56] WARNING The perfect cup of tea: Requires...
+[2024-10-22T00:32:56] WARNING The perfect cup of tea: Requires:
 [2024-10-22T00:32:56] WARNING The perfect cup of tea: ✖ Sugar in cup
 [2024-10-22T00:32:56] WARNING The perfect cup of tea: ✔ The spoon
 ```
@@ -505,7 +505,7 @@ $ iotaa iotaa.demo steeped_tea ./teatime
 [2024-10-22T00:39:50] INFO    The cup: Ready
 [2024-10-22T00:39:50] INFO    Box of tea bags (teatime/box-of-tea-bags): Ready
 [2024-10-22T00:39:50] INFO    Tea bag in cup: Executing
-[2024-10-22T00:39:50] INFO    Tea bag in cup: Adding tea-bag to cup
+[2024-10-22T00:39:50] INFO    Tea bag in cup: Adding tea bag to cup
 [2024-10-22T00:39:50] INFO    Tea bag in cup: Ready
 [2024-10-22T00:39:50] INFO    Boiling water in cup: Executing
 [2024-10-22T00:39:50] INFO    Boiling water in cup: Adding water to cup
@@ -513,7 +513,7 @@ $ iotaa iotaa.demo steeped_tea ./teatime
 [2024-10-22T00:39:50] INFO    Steeped tea: Executing
 [2024-10-22T00:39:50] WARNING Steeped tea: Tea needs to steep for 10s
 [2024-10-22T00:39:50] WARNING Steeped tea: Not ready
-[2024-10-22T00:39:50] WARNING Steeped tea: Requires...
+[2024-10-22T00:39:50] WARNING Steeped tea: Requires:
 [2024-10-22T00:39:50] WARNING Steeped tea: ✔ Boiling water in cup
 ```
 
@@ -567,22 +567,22 @@ $ iotaa --verbose iotaa.demo a_cup_of_tea ./teatime
 [2024-10-22T01:03:18] INFO    The spoon: Getting spoon
 [2024-10-22T01:03:18] INFO    The spoon: Ready
 [2024-10-22T01:03:18] WARNING Tea bag in cup: Not ready
-[2024-10-22T01:03:18] WARNING Tea bag in cup: Requires...
+[2024-10-22T01:03:18] WARNING Tea bag in cup: Requires:
 [2024-10-22T01:03:18] WARNING Tea bag in cup: ✔ The cup
 [2024-10-22T01:03:18] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
 [2024-10-22T01:03:18] WARNING Boiling water in cup: Not ready
-[2024-10-22T01:03:18] WARNING Boiling water in cup: Requires...
+[2024-10-22T01:03:18] WARNING Boiling water in cup: Requires:
 [2024-10-22T01:03:18] WARNING Boiling water in cup: ✔ The cup
 [2024-10-22T01:03:18] WARNING Boiling water in cup: ✖ Tea bag in cup
 [2024-10-22T01:03:18] WARNING Steeped tea: Not ready
-[2024-10-22T01:03:18] WARNING Steeped tea: Requires...
+[2024-10-22T01:03:18] WARNING Steeped tea: Requires:
 [2024-10-22T01:03:18] WARNING Steeped tea: ✖ Boiling water in cup
 [2024-10-22T01:03:18] WARNING Sugar in cup: Not ready
-[2024-10-22T01:03:18] WARNING Sugar in cup: Requires...
+[2024-10-22T01:03:18] WARNING Sugar in cup: Requires:
 [2024-10-22T01:03:18] WARNING Sugar in cup: ✔ The cup
 [2024-10-22T01:03:18] WARNING Sugar in cup: ✖ Steeped tea
 [2024-10-22T01:03:18] WARNING The perfect cup of tea: Not ready
-[2024-10-22T01:03:18] WARNING The perfect cup of tea: Requires...
+[2024-10-22T01:03:18] WARNING The perfect cup of tea: Requires:
 [2024-10-22T01:03:18] WARNING The perfect cup of tea: ✖ Sugar in cup
 [2024-10-22T01:03:18] WARNING The perfect cup of tea: ✔ The spoon
 ```
@@ -599,22 +599,22 @@ $ iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T s
 [2024-10-22T00:41:53] INFO    The spoon: SKIPPING (DRY RUN)
 [2024-10-22T00:41:53] WARNING The spoon: Not ready
 [2024-10-22T00:41:53] WARNING Tea bag in cup: Not ready
-[2024-10-22T00:41:53] WARNING Tea bag in cup: Requires...
+[2024-10-22T00:41:53] WARNING Tea bag in cup: Requires:
 [2024-10-22T00:41:53] WARNING Tea bag in cup: ✖ The cup
 [2024-10-22T00:41:53] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
 [2024-10-22T00:41:53] WARNING Boiling water in cup: Not ready
-[2024-10-22T00:41:53] WARNING Boiling water in cup: Requires...
+[2024-10-22T00:41:53] WARNING Boiling water in cup: Requires:
 [2024-10-22T00:41:53] WARNING Boiling water in cup: ✖ The cup
 [2024-10-22T00:41:53] WARNING Boiling water in cup: ✖ Tea bag in cup
 [2024-10-22T00:41:53] WARNING Steeped tea: Not ready
-[2024-10-22T00:41:53] WARNING Steeped tea: Requires...
+[2024-10-22T00:41:53] WARNING Steeped tea: Requires:
 [2024-10-22T00:41:53] WARNING Steeped tea: ✖ Boiling water in cup
 [2024-10-22T00:41:53] WARNING Sugar in cup: Not ready
-[2024-10-22T00:41:53] WARNING Sugar in cup: Requires...
+[2024-10-22T00:41:53] WARNING Sugar in cup: Requires:
 [2024-10-22T00:41:53] WARNING Sugar in cup: ✖ The cup
 [2024-10-22T00:41:53] WARNING Sugar in cup: ✖ Steeped tea
 [2024-10-22T00:41:53] WARNING The perfect cup of tea: Not ready
-[2024-10-22T00:41:53] WARNING The perfect cup of tea: Requires...
+[2024-10-22T00:41:53] WARNING The perfect cup of tea: Requires:
 [2024-10-22T00:41:53] WARNING The perfect cup of tea: ✖ Sugar in cup
 [2024-10-22T00:41:53] WARNING The perfect cup of tea: ✖ The spoon
 ```

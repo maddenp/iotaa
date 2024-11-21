@@ -99,7 +99,7 @@ def tea_bag(basedir, log):
 
     Requires box of tea bags.
     """
-    yield from ingredient(basedir, "tea-bag", "Tea bag", log, box_of_tea_bags)
+    yield from ingredient(basedir, "tea bag", "Tea bag", log, box_of_tea_bags)
 
 
 @external
