@@ -2,8 +2,6 @@
 iotaa.demo.
 """
 
-# pylint: disable=C0116
-
 import datetime as dt
 from pathlib import Path
 
@@ -12,14 +10,18 @@ from iotaa import asset, external, refs, task, tasks
 
 @tasks
 def a_cup_of_tea(basedir, log):
-    # The cup of steeped tea with sugar, and a spoon.
+    """
+    The cup of steeped tea with sugar, and a spoon.
+    """
     yield "The perfect cup of tea"
     yield [steeped_tea_with_sugar(basedir, log), spoon(basedir, log)]
 
 
 @task
 def cup(basedir, log):
-    # The cup for the tea.
+    """
+    The cup for the tea.
+    """
     path = Path(basedir) / "cup"
     taskname = "The cup"
     yield taskname
@@ -31,7 +33,9 @@ def cup(basedir, log):
 
 @task
 def spoon(basedir, log):
-    # The spoon to stir the tea.
+    """
+    The spoon to stir the tea.
+    """
     path = Path(basedir) / "spoon"
     taskname = "The spoon"
     yield taskname
@@ -44,13 +48,19 @@ def spoon(basedir, log):
 
 @task
 def steeped_tea_with_sugar(basedir, log):
-    # Add sugar to the steeped tea. Requires tea to have steeped.
+    """
+    Add sugar to the steeped tea.
+
+    Requires tea to have steeped.
+    """
     yield from ingredient(basedir, "sugar", "Sugar", log, steeped_tea)
 
 
 @task
 def steeped_tea(basedir, log):
-    # Give tea time to steep.
+    """
+    Give tea time to steep.
+    """
     taskname = "Steeped tea"
     yield taskname
     water = refs(steeping_tea(basedir, log))["water"]
@@ -74,24 +84,38 @@ def steeped_tea(basedir, log):
 
 @task
 def steeping_tea(basedir, log):
-    # Pour boiling water over the tea. Requires tea bag in cup.
+    """
+    Pour boiling water over the tea.
+
+    Requires tea bag in cup.
+    """
     yield from ingredient(basedir, "water", "Boiling water", log, tea_bag)
 
 
 @task
 def tea_bag(basedir, log):
-    # Place tea bag in the cup. Requires box of tea bags.
+    """
+    Place tea bag in the cup.
+
+    Requires box of tea bags.
+    """
     yield from ingredient(basedir, "tea-bag", "Tea bag", log, box_of_tea_bags)
 
 
 @external
 def box_of_tea_bags(basedir, log):  # pylint: disable=unused-argument
+    """
+    A box of tea bags.
+    """
     path = Path(basedir) / "box-of-tea-bags"
     yield f"Box of tea bags ({path})"
     yield asset(path, path.exists)
 
 
 def ingredient(basedir, fn, name, log, req=None):
+    """
+    Add an ingredient to the cup.
+    """
     taskname = f"{name} in cup"
     yield taskname
     the_cup = cup(basedir, log)
