@@ -249,6 +249,12 @@ def test_Asset(asset):
     assert asset.ready()
 
 
+def test_assets(external_foo_scalar, tmp_path):
+    node = external_foo_scalar(tmp_path)
+    asset = cast(iotaa.Asset, iotaa.assets(node))
+    assert asset.ref == tmp_path / "foo"
+
+
 def test_graph(graphkit):
     expected, _, root = graphkit
     assert iotaa.graph(root).strip() == expected
@@ -260,6 +266,38 @@ def test_logcfg(vals):
     with patch.object(iotaa.logging, "basicConfig") as basicConfig:
         iotaa.logcfg(verbose=verbose)
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
+
+
+def test_ready(external_foo_scalar, tmp_path):
+    node_before = external_foo_scalar(tmp_path)
+    assert not iotaa.ready(node_before)
+    iotaa.refs(node_before).touch()
+    node_after = external_foo_scalar(tmp_path)
+    assert iotaa.ready(node_after)
+
+
+def test_refs():
+    expected = "bar"
+    asset = iotaa.asset(ref="bar", ready=lambda: True)
+    node = iotaa.NodeExternal(taskname="test", assets=None)
+    assert iotaa.refs(node=node) is None
+    node.assets = {"foo": asset}
+    assert iotaa.refs(node=node)["foo"] == expected
+    node.assets = [asset]
+    assert iotaa.refs(node=node)[0] == expected
+    node.assets = asset
+    assert iotaa.refs(node=node) == expected
+
+
+def test_requirements(external_foo_scalar, task_bar_dict, tmp_path):
+    assert iotaa.requirements(task_bar_dict(tmp_path)) == external_foo_scalar(tmp_path)
+
+
+def test_tasknames(task_class):
+    assert iotaa.tasknames(task_class()) == ["bar", "baz", "foo"]
+
+
+# main() tests
 
 
 def test_main_error(caplog):
@@ -318,23 +356,6 @@ def test_main_mocked_up_tasknames(tmp_path):
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
             graph.assert_not_called()
-
-
-def test_refs():
-    expected = "bar"
-    asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", assets=None)
-    assert iotaa.refs(node=node) is None
-    node.assets = {"foo": asset}
-    assert iotaa.refs(node=node)["foo"] == expected
-    node.assets = [asset]
-    assert iotaa.refs(node=node)[0] == expected
-    node.assets = asset
-    assert iotaa.refs(node=node) == expected
-
-
-def test_tasknames(task_class):
-    assert iotaa.tasknames(task_class()) == ["bar", "baz", "foo"]
 
 
 # Decorator tests
