@@ -113,9 +113,8 @@ class Node(ABC):
                 node(dry_run, log)
         else:
             is_external = isinstance(self, NodeExternal)
-            ready = self.ready
-            extmsg = " [external asset]" if is_external and not ready else ""
-            logf, readymsg = (log.info, "Ready") if ready else (log.warning, "Not ready")
+            extmsg = " [external asset]" if is_external and not self.ready else ""
+            logf, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
             logf("%s: %s%s", self.taskname, readymsg, extmsg)
             self._report_readiness(log)
         return self
@@ -179,8 +178,8 @@ class Node(ABC):
         reqs = {req: req.ready for req in _flatten(self.reqs)}
         if reqs:
             log.warning("%s: Requires:", self.taskname)
-            for req, ready in reqs.items():
-                status = "✔" if ready else "✖"
+            for req, ready_ in reqs.items():
+                status = "✔" if ready_ else "✖"
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
     @property
@@ -197,7 +196,11 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(self, taskname: str, assets: _AssetT) -> None:
+    def __init__(
+        self,
+        taskname: str,
+        assets: _AssetT,  # pylint: disable=redefined-outer-name
+    ) -> None:
         super().__init__(taskname)
         self.assets = assets
 
@@ -211,7 +214,13 @@ class NodeTask(Node):
     A node encapsulating a @task-decorated function/method.
     """
 
-    def __init__(self, taskname: str, assets: _AssetT, reqs: _ReqsT, execute: Callable) -> None:
+    def __init__(
+        self,
+        taskname: str,
+        assets: _AssetT,  # pylint: disable=redefined-outer-name
+        reqs: _ReqsT,
+        execute: Callable,
+    ) -> None:
         super().__init__(taskname)
         self.assets = assets
         self.reqs = reqs
@@ -333,7 +342,7 @@ def main() -> None:
 # Public API functions:
 
 
-def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
+def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=redefined-outer-name
     """
     Returns an Asset object.
 
@@ -341,6 +350,15 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
     return Asset(ref, ready)
+
+
+def assets(node: Node) -> Optional[_AssetT]:
+    """
+    Return the node's assets.
+
+    :param node: A node.
+    """
+    return node.assets
 
 
 def graph(node: Node) -> str:
@@ -365,6 +383,15 @@ def logcfg(verbose: bool = False) -> None:
     )
 
 
+def ready(node: Node) -> bool:
+    """
+    Return the node's ready status.
+
+    :param node: A node.
+    """
+    return node.ready
+
+
 def refs(node: Node) -> Any:
     """
     Extract and return asset references.
@@ -372,13 +399,12 @@ def refs(node: Node) -> Any:
     :param node: A node.
     :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
-    assets = node.assets
-    if isinstance(assets, dict):
-        return {k: v.ref for k, v in assets.items()}
-    if isinstance(assets, list):
-        return [a.ref for a in assets]
-    if isinstance(assets, Asset):
-        return assets.ref
+    if isinstance(node.assets, dict):
+        return {k: v.ref for k, v in node.assets.items()}
+    if isinstance(node.assets, list):
+        return [a.ref for a in node.assets]
+    if isinstance(node.assets, Asset):
+        return node.assets.ref
     return None
 
 
@@ -424,8 +450,8 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
         dry_run, log, kwargs = _split_kwargs(kwargs)
         taskname, g = _task_info(f, *args, **kwargs)
-        assets = _next(g, "assets")
-        return _construct_and_call(NodeExternal, dry_run, log, taskname=taskname, assets=assets)
+        assets_ = _next(g, "assets")
+        return _construct_and_call(NodeExternal, dry_run, log, taskname=taskname, assets=assets_)
 
     return _mark(__iotaa_wrapper__)
 
@@ -442,14 +468,14 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
         dry_run, log, kwargs = _split_kwargs(kwargs)
         taskname, g = _task_info(f, *args, **kwargs)
-        assets = _next(g, "assets")
+        assets_ = _next(g, "assets")
         reqs: _ReqsT = _next(g, "requirements")
         return _construct_and_call(
             NodeTask,
             dry_run,
             log,
             taskname=taskname,
-            assets=assets,
+            assets=assets_,
             reqs=reqs,
             execute=lambda log: _execute(g, taskname, log),
         )
