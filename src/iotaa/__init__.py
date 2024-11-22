@@ -131,7 +131,7 @@ class Node(ABC):
         :return: The (possibly updated) set of known nodes.
         """
 
-        def f(node: Node, nodes: set[Node]) -> set[Node]:
+        def collect(node: Node, nodes: set[Node]) -> set[Node]:
             nodes.add(node)
             return node._dedupe(nodes)  # pylint: disable=protected-access
 
@@ -141,16 +141,16 @@ class Node(ABC):
         if isinstance(self.reqs, dict):
             deduped = {}
             for k, node in self.reqs.items():
-                nodes = f(node, nodes)
+                nodes = collect(node, nodes)
                 deduped[k] = existing(node)
         elif isinstance(self.reqs, list):
             deduped = []
             for node in self.reqs:
-                nodes = f(node, nodes)
+                nodes = collect(node, nodes)
                 deduped.append(existing(node))
         elif isinstance(self.reqs, Node):
             node = self.reqs
-            nodes = f(node, nodes)
+            nodes = collect(node, nodes)
             deduped = existing(node)
         else:
             deduped = self.reqs
