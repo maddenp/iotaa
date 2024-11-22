@@ -86,7 +86,7 @@ class Node(ABC):
         :param log: The logger to use.
         :param level: The distance from the task-graph root node.
         """
-        log.debug("  " * level + node.taskname)
+        log.debug("  " * level + str(node.taskname))
         g.add(node)
         if not node.ready:
             predecessor: Node
