@@ -358,7 +358,7 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Node) -> Optional[_AssetT]:
+def assets(node: Node) -> _AssetT:
     """
     Return the node's assets.
 
