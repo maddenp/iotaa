@@ -137,7 +137,7 @@ class Node(ABC):
 
         nodes = nodes or {self}
         existing = lambda node: [e for e in nodes if e == node][0]
-        deduped: Optional[Union[Node, dict[str, Node], list[Node]]] = self.reqs
+        deduped: Optional[Union[Node, dict[str, Node], list[Node]]]
         if isinstance(self.reqs, dict):
             deduped = {}
             for k, node in self.reqs.items():
@@ -152,6 +152,8 @@ class Node(ABC):
             node = self.reqs
             nodes = f(node, nodes)
             deduped = existing(node)
+        else:
+            deduped = self.reqs
         self.reqs = deduped
         return nodes
 
