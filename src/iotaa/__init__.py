@@ -119,7 +119,7 @@ class Node(ABC):
             self._report_readiness(log)
         return self
 
-    def _dedupe(self, nodes: Optional[set[Node]] = None) -> set[Node]:
+    def _dedupe(self, known: Optional[set[Node]] = None) -> set[Node]:
         """
         Unify equivalent task-graph nodes.
 
@@ -127,35 +127,39 @@ class Node(ABC):
         created by others. Walk the task graph, deduplicating such nodes. Nodes are equivalent if
         their tasknames match.
 
-        :param nodes: The set of known nodes.
+        :param known: The set of known nodes.
         :return: The (possibly updated) set of known nodes.
         """
 
-        def collect(node: Node, nodes: set[Node]) -> set[Node]:
-            nodes.add(node)
-            return node._dedupe(nodes)  # pylint: disable=protected-access
+        def existing(node: Node, known: set[Node]) -> Node:
+            duplicates = [n for n in known if n == node]
+            return duplicates[0]
 
-        nodes = nodes or {self}
-        existing = lambda node: [e for e in nodes if e == node][0]
+        def recur(node: Node, known: set[Node]) -> set[Node]:
+            known.add(node)
+            return node._dedupe(known)  # pylint: disable=protected-access
+
         deduped: Optional[Union[Node, dict[str, Node], list[Node]]]
-        if isinstance(self.reqs, dict):
+
+        known = known or {self}
+        if isinstance(self.reqs, Node):
+            node = self.reqs
+            known = recur(node, known)
+            deduped = existing(node, known)
+        elif isinstance(self.reqs, dict):
             deduped = {}
             for k, node in self.reqs.items():
-                nodes = collect(node, nodes)
-                deduped[k] = existing(node)
+                known = recur(node, known)
+                deduped[k] = existing(node, known)
         elif isinstance(self.reqs, list):
             deduped = []
             for node in self.reqs:
-                nodes = collect(node, nodes)
-                deduped.append(existing(node))
-        elif isinstance(self.reqs, Node):
-            node = self.reqs
-            nodes = collect(node, nodes)
-            deduped = existing(node)
+                known = recur(node, known)
+                deduped.append(existing(node, known))
         else:
-            deduped = self.reqs
+            deduped = None
         self.reqs = deduped
-        return nodes
+        return known
 
     def _header(self, msg: str, log: Logger) -> None:
         """
