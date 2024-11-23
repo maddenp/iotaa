@@ -66,7 +66,7 @@ def logger():
     logger = logging.getLogger("iotaa-test")
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
+    handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(handler)
     return logger
@@ -460,10 +460,10 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
+def test_tasks_not_ready(caplog, logger, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    node = tasks_baz(tmp_path)
+    node = tasks_baz(tmp_path, log=logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -474,18 +474,18 @@ def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
     for msg in [
         "Not ready",
         "Requires:",
-        f"✖ external foo {tmp_path}/foo",
-        f"✖ task bar {tmp_path}/bar",
+        "✖ external foo %s/foo" % tmp_path,
+        "✖ task bar %s/bar" % tmp_path,
     ]:
         assert logged(f"tasks baz: {msg}", caplog)
 
 
-def test_tasks_ready(caplog, tasks_baz, tmp_path):
+def test_tasks_ready(caplog, logger, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = tasks_baz(tmp_path)
+    node = tasks_baz(tmp_path, log=logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -493,13 +493,7 @@ def test_tasks_ready(caplog, tasks_baz, tmp_path):
         a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
     )
     assert all(x.is_file() for x in [f_foo, f_bar])
-    for msg in [
-        "Ready",
-        "Requires:",
-        f"✔ external foo {tmp_path}/foo",
-        f"✔ task bar {tmp_path}/bar",
-    ]:
-        assert logged(f"tasks baz: {msg}", caplog)
+    assert logged("tasks baz: Ready", caplog)
 
 
 # Private function tests

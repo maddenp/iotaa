@@ -188,6 +188,14 @@ class Node(ABC):
                 status = "✔" if ready_ else "✖"
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
+    def _reset_ready(self) -> None:
+        """
+        Reset the cached ready property.
+        """
+        attr = "ready"
+        if hasattr(self, attr):
+            delattr(self, attr)
+
     @property
     def _root(self) -> bool:
         """
@@ -239,7 +247,7 @@ class NodeTask(Node):
                 log.info("%s: SKIPPING (DRY RUN)", self.taskname)
             else:
                 self.execute(log)
-                delattr(self, "ready")  # clear cached value
+                self._reset_ready()
         return self._assemble_and_exec(dry_run, log)
 
 
@@ -256,6 +264,7 @@ class NodeTasks(Node):
         )
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
+        self._reset_ready()
         log = log or getLogger()
         return self._assemble_and_exec(dry_run, log)
 
