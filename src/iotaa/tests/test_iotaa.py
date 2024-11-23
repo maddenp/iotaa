@@ -460,7 +460,7 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-def test_tasks_not_ready(tasks_baz, tmp_path):
+def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = tasks_baz(tmp_path)
@@ -471,9 +471,16 @@ def test_tasks_not_ready(tasks_baz, tmp_path):
         a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
     )
     assert not any(x.is_file() for x in [f_foo, f_bar])
+    for msg in [
+        "Not ready",
+        "Requires:",
+        f"✖ external foo {tmp_path}/foo",
+        f"✖ task bar {tmp_path}/bar",
+    ]:
+        assert logged(f"tasks baz: {msg}", caplog)
 
 
-def test_tasks_ready(tasks_baz, tmp_path):
+def test_tasks_ready(caplog, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
@@ -486,6 +493,13 @@ def test_tasks_ready(tasks_baz, tmp_path):
         a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
     )
     assert all(x.is_file() for x in [f_foo, f_bar])
+    for msg in [
+        "Ready",
+        "Requires:",
+        f"✔ external foo {tmp_path}/foo",
+        f"✔ task bar {tmp_path}/bar",
+    ]:
+        assert logged(f"tasks baz: {msg}", caplog)
 
 
 # Private function tests
