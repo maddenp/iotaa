@@ -463,8 +463,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
-        dry_run, log, kwargs = _split_kwargs(kwargs)
-        taskname, g = _task_info(f, *args, **kwargs)
+        dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         return _construct_and_call(NodeExternal, dry_run, log, taskname=taskname, assets=assets_)
 
@@ -481,8 +480,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
-        dry_run, log, kwargs = _split_kwargs(kwargs)
-        taskname, g = _task_info(f, *args, **kwargs)
+        dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         reqs: _ReqsT = _next(g, "requirements")
         return _construct_and_call(
@@ -508,8 +506,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
-        dry_run, log, kwargs = _split_kwargs(kwargs)
-        taskname, g = _task_info(f, *args, **kwargs)
+        dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         reqs: _ReqsT = _next(g, "requirements")
         return _construct_and_call(NodeTasks, dry_run, log, taskname=taskname, reqs=reqs)
 
@@ -721,30 +718,21 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _split_kwargs(kwargs: dict[str, Any]) -> tuple[bool, Optional[Logger], dict[str, Any]]:
-    """
-    Returns dry_run and log arguments, and remaining kwargs.
-
-    :param kwargs: Original keyword arguments.
-    """
-    return (
-        kwargs.get("dry_run", False),
-        kwargs.get("log", getLogger()),
-        {k: v for k, v in kwargs.items() if k != "dry_run"},
-    )
-
-
-def _task_info(f: Callable, *args, **kwargs) -> tuple[str, Generator]:
+def _task_info(f: Callable, *args, **kwargs) -> tuple[bool, Logger, str, Generator]:
     """
     Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The task's name and the generator returned by the task.
+    :return: The dry-run setting, the logger, the task's name, the generator returned by the task.
     """
-    task_kwargs = {k: v for k, v in kwargs.items() if k != "log" or _accepts(f, "log")}
+    dry_run = kwargs.get("dry_run", False)
+    log = kwargs.get("log", getLogger())
+    task_kwargs = {k: v for k, v in kwargs.items() if k not in ("dry_run", "log")}
+    if _accepts(f, "log"):
+        task_kwargs["log"] = log
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return taskname, g
+    return dry_run, log, taskname, g
 
 
 def _version() -> str:

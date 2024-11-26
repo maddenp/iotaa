@@ -631,7 +631,24 @@ def test__task_info():
         yield n
 
     tn = "task"
-    taskname, g = iotaa._task_info(f, tn, n=88)
+    dry_run, log, taskname, g = iotaa._task_info(f, tn, n=88)
+    assert dry_run is False
+    assert log == logging.getLogger()
+    assert taskname == tn
+    assert next(g) == 88
+
+
+def test__task_info_extras():
+    def f(taskname, n, log):
+        yield taskname
+        yield n
+        log.info("testing")
+
+    tn = "task"
+    test_logger = logging.getLogger("test")
+    dry_run, log, taskname, g = iotaa._task_info(f, tn, n=88, dry_run=True, log=test_logger)
+    assert dry_run is True
+    assert log == test_logger
     assert taskname == tn
     assert next(g) == 88
 
