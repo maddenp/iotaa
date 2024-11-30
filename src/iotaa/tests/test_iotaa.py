@@ -553,9 +553,9 @@ def test__mark():
     def f():
         pass
 
-    assert not hasattr(f, "__iotaa_task__")
+    assert not hasattr(f, iotaa._MARKER)
     assert iotaa._mark(f) is f
-    assert hasattr(f, "__iotaa_task__")
+    assert hasattr(f, iotaa._MARKER)
 
 
 def test__modobj():

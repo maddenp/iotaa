@@ -23,7 +23,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union, overload
 
-_TASK_MARKER = "__iotaa_task__"
+_MARKER = "__IOTAA__"
 
 # Public return-value classes:
 
@@ -442,7 +442,7 @@ def tasknames(obj: object) -> list[str]:
 
     def f(o):
         return (
-            getattr(o, _TASK_MARKER, False)
+            getattr(o, _MARKER, False)
             and not hasattr(o, "__isabstractmethod__")
             and not o.__name__.startswith("_")
         )
@@ -631,7 +631,7 @@ def _mark(f: T) -> T:
 
     :param g: The function to mark.
     """
-    setattr(f, _TASK_MARKER, True)
+    setattr(f, _MARKER, True)
     return f
 
 
