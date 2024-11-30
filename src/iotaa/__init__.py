@@ -629,9 +629,12 @@ def _formatter(prog: str) -> HelpFormatter:
 
 def _get_logger(log: Optional[Logger] = None) -> Logger:
     """
-    PM WRITEME.
+    Returns either the given or the default logger, annotated with the iotaa marker.
+
+    :param log: An optional logger to use.
     """
     log = log or getLogger()
+    setattr(log, _MARKER, True)
     return log
 
 
