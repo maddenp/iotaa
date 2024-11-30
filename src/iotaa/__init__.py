@@ -465,7 +465,9 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
         dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         assets_ = _next(g, "assets")
-        return _construct_and_call(NodeExternal, dry_run, log, taskname=taskname, assets=assets_)
+        return _construct_and_call_if_root(
+            NodeExternal, dry_run, log, taskname=taskname, assets=assets_
+        )
 
     return _mark(__iotaa_wrapper__)
 
@@ -483,7 +485,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
         dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         reqs: _Reqs = _next(g, "requirements")
-        return _construct_and_call(
+        return _construct_and_call_if_root(
             NodeTask,
             dry_run,
             log,
@@ -508,7 +510,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
         dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         reqs: _Reqs = _next(g, "requirements")
-        return _construct_and_call(NodeTasks, dry_run, log, taskname=taskname, reqs=reqs)
+        return _construct_and_call_if_root(NodeTasks, dry_run, log, taskname=taskname, reqs=reqs)
 
     return _mark(__iotaa_wrapper__)
 
@@ -552,7 +554,7 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
     return o
 
 
-def _construct_and_call(
+def _construct_and_call_if_root(
     node_class: Type[_Node], dry_run: bool, log: Optional[Logger], *args, **kwargs
 ) -> _Node:
     """
