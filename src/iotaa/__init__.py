@@ -569,7 +569,7 @@ def _construct_and_call(
     return node
 
 
-def _execute(g: Generator, taskname: str, log: Logger = getLogger()) -> None:
+def _execute(g: Generator, taskname: str, log: Logger) -> None:
     """
     Execute the post-yield body of a decorated function.
 

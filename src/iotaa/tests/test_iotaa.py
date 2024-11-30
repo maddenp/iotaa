@@ -526,8 +526,8 @@ def test__cacheable():
     assert hash(b) is not None
 
 
-def test__execute_live(caplog, rungen):
-    iotaa._execute(g=rungen, taskname="task")
+def test__execute_live(caplog, logger, rungen):
+    iotaa._execute(g=rungen, taskname="task", log=logger)
     assert logged("task: Executing", caplog)
 
 
