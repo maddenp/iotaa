@@ -342,7 +342,7 @@ def main() -> None:
     task_func = getattr(modobj, args.function)
     task_args = [_reify(arg) for arg in args.args]
     task_kwargs = {
-        **({"dry_run": True} if args.dry_run else {}),
+        "dry_run": args.dry_run,
         **({"log": getLogger()} if _accepts(task_func, "log") else {}),
     }
     try:
