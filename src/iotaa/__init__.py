@@ -52,7 +52,7 @@ class Node(ABC):
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
         self.assets: Optional[_AssetOrAssets] = None
-        self.reqs: Optional[_ReqsT] = None
+        self.reqs: Optional[_Reqs] = None
         self.root = self._root
         self._assembled = False
 
@@ -232,7 +232,7 @@ class NodeTask(Node):
         self,
         taskname: str,
         assets: _AssetOrAssets,  # pylint: disable=redefined-outer-name
-        reqs: _ReqsT,
+        reqs: _Reqs,
         execute: Callable,
     ) -> None:
         super().__init__(taskname)
@@ -256,7 +256,7 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(self, taskname: str, reqs: Optional[_ReqsT] = None) -> None:
+    def __init__(self, taskname: str, reqs: Optional[_Reqs] = None) -> None:
         super().__init__(taskname)
         self.reqs = reqs
         self.assets = list(
@@ -279,8 +279,8 @@ class IotaaError(Exception):
 
 
 T = TypeVar("T")
-_NodeT = TypeVar("_NodeT", bound=Node)
-_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
+_Node = TypeVar("_Node", bound=Node)
+_Reqs = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 # Private helper classes and their instances:
 
@@ -423,7 +423,7 @@ def refs(node: Node) -> Any:
     return None
 
 
-def requirements(node: Node) -> _ReqsT:
+def requirements(node: Node) -> _Reqs:
     """
     Return the node's requirements.
 
@@ -482,7 +482,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
         dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
         assets_ = _next(g, "assets")
-        reqs: _ReqsT = _next(g, "requirements")
+        reqs: _Reqs = _next(g, "requirements")
         return _construct_and_call(
             NodeTask,
             dry_run,
@@ -507,7 +507,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
         dry_run, log, taskname, g = _task_info(f, *args, **kwargs)
-        reqs: _ReqsT = _next(g, "requirements")
+        reqs: _Reqs = _next(g, "requirements")
         return _construct_and_call(NodeTasks, dry_run, log, taskname=taskname, reqs=reqs)
 
     return _mark(__iotaa_wrapper__)
@@ -527,10 +527,10 @@ def _accepts(f: Callable, arg: str) -> bool:
     return arg in f.__code__.co_varnames[: f.__code__.co_argcount]
 
 
-_CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
+_Cacheable = Optional[Union[bool, dict, float, int, tuple, str]]
 
 
-def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _CacheableT:
+def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cacheable:
     """
     Returns a cacheable version of the given value.
 
@@ -553,8 +553,8 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
 
 
 def _construct_and_call(
-    node_class: Type[_NodeT], dry_run: bool, log: Optional[Logger], *args, **kwargs
-) -> _NodeT:
+    node_class: Type[_Node], dry_run: bool, log: Optional[Logger], *args, **kwargs
+) -> _Node:
     """
     Construct a Node object and, if it is a root node, call it.
 
@@ -690,7 +690,7 @@ def _parse_args(raw: list[str]) -> Namespace:
     return args
 
 
-def _reify(s: str) -> _CacheableT:
+def _reify(s: str) -> _Cacheable:
     """
     Convert strings, when possible, to more specifically typed objects.
 
