@@ -41,7 +41,7 @@ class Asset:
     ready: Callable[..., bool]
 
 
-_AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_AssetOrAssets = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 
 
 class Node(ABC):
@@ -51,7 +51,7 @@ class Node(ABC):
 
     def __init__(self, taskname: str) -> None:
         self.taskname = taskname
-        self.assets: Optional[_AssetT] = None
+        self.assets: Optional[_AssetOrAssets] = None
         self.reqs: Optional[_ReqsT] = None
         self.root = self._root
         self._assembled = False
@@ -213,7 +213,7 @@ class NodeExternal(Node):
     def __init__(
         self,
         taskname: str,
-        assets: _AssetT,  # pylint: disable=redefined-outer-name
+        assets: _AssetOrAssets,  # pylint: disable=redefined-outer-name
     ) -> None:
         super().__init__(taskname)
         self.assets = assets
@@ -231,7 +231,7 @@ class NodeTask(Node):
     def __init__(
         self,
         taskname: str,
-        assets: _AssetT,  # pylint: disable=redefined-outer-name
+        assets: _AssetOrAssets,  # pylint: disable=redefined-outer-name
         reqs: _ReqsT,
         execute: Callable,
     ) -> None:
@@ -367,7 +367,7 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Node) -> _AssetT:
+def assets(node: Node) -> _AssetOrAssets:
     """
     Return the node's assets.
 
