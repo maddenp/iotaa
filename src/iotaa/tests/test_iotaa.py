@@ -334,7 +334,7 @@ def test_main_mocked_up(capsys, g, log, tmp_path):
                 mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_any_call(mocks["import_module"](), "a_function")
                 task_args = ["foo", 88, 3.14, True]
-                task_kwargs = {"dry_run": True, **({"log": iotaa.getLogger()} if log else {})}
+                task_kwargs = {"dry_run": True, "log": iotaa.getLogger() if log else None}
                 getattr_().assert_called_once_with(*task_args, **task_kwargs)
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)

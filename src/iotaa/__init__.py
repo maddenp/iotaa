@@ -219,7 +219,7 @@ class NodeExternal(Node):
         self.assets = assets
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
-        log = log or getLogger()
+        log = _get_logger(log)
         return self._assemble_and_exec(dry_run, log)
 
 
@@ -241,7 +241,7 @@ class NodeTask(Node):
         self.execute = execute
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
-        log = log or getLogger()
+        log = _get_logger(log)
         if not self.ready and all(req.ready for req in _flatten(self.reqs)):
             if dry_run:
                 log.info("%s: SKIPPING (DRY RUN)", self.taskname)
@@ -265,7 +265,7 @@ class NodeTasks(Node):
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
         self._reset_ready()
-        log = log or getLogger()
+        log = _get_logger(log)
         return self._assemble_and_exec(dry_run, log)
 
 
@@ -343,7 +343,7 @@ def main() -> None:
     task_args = [_reify(arg) for arg in args.args]
     task_kwargs = {
         "dry_run": args.dry_run,
-        **({"log": getLogger()} if _accepts(task_func, "log") else {}),
+        "log": _get_logger() if _accepts(task_func, "log") else None,
     }
     try:
         root = task_func(*task_args, **task_kwargs)
@@ -627,6 +627,14 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
+def _get_logger(log: Optional[Logger] = None) -> Logger:
+    """
+    PM WRITEME.
+    """
+    log = log or getLogger()
+    return log
+
+
 def _mark(f: T) -> T:
     """
     Returns a function, marked as an iotaa task.
@@ -728,7 +736,7 @@ def _task_info(f: Callable, *args, **kwargs) -> tuple[bool, Logger, str, Generat
     :return: The dry-run setting, the logger, the task's name, the generator returned by the task.
     """
     dry_run = kwargs.get("dry_run", False)
-    log = kwargs.get("log", getLogger())
+    log = kwargs.get("log", _get_logger())
     task_kwargs = {k: v for k, v in kwargs.items() if k not in ("dry_run", "log")}
     if _accepts(f, "log"):
         task_kwargs["log"] = log
