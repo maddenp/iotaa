@@ -521,7 +521,7 @@ def test__cacheable():
 
 
 def test__execute_live(caplog, logger, rungen):
-    iotaa._execute(g=rungen, taskname="task", log=logger)
+    iotaa._execute(g=rungen, taskname="task", log_=logger)
     assert logged("task: Executing", caplog)
 
 
@@ -625,9 +625,8 @@ def test__task_info():
         yield n
 
     tn = "task"
-    dry_run, log, taskname, g = iotaa._task_info(f, tn, n=88)
+    dry_run, taskname, g = iotaa._task_info(f, tn, n=88)
     assert dry_run is False
-    assert log == logging.getLogger()
     assert taskname == tn
     assert next(g) == 88
 
@@ -639,10 +638,8 @@ def test__task_info_extras():
         log.info("testing")
 
     tn = "task"
-    test_logger = logging.getLogger("test")
-    dry_run, log, taskname, g = iotaa._task_info(f, tn, n=88, dry_run=True, log=test_logger)
+    dry_run, taskname, g = iotaa._task_info(f, tn, n=88, dry_run=True)
     assert dry_run is True
-    assert log == test_logger
     assert taskname == tn
     assert next(g) == 88
 
