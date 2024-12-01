@@ -219,7 +219,7 @@ class NodeExternal(Node):
         self.assets = assets
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
-        log = _get_logger(log)
+        log = _logger(log)
         return self._assemble_and_exec(dry_run, log)
 
 
@@ -241,7 +241,7 @@ class NodeTask(Node):
         self.execute = execute
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
-        log = _get_logger(log)
+        log = _logger(log)
         if not self.ready and all(req.ready for req in _flatten(self.reqs)):
             if dry_run:
                 log.info("%s: SKIPPING (DRY RUN)", self.taskname)
@@ -265,7 +265,7 @@ class NodeTasks(Node):
 
     def __call__(self, dry_run: bool = False, log: Optional[Logger] = None) -> Node:
         self._reset_ready()
-        log = _get_logger(log)
+        log = _logger(log)
         return self._assemble_and_exec(dry_run, log)
 
 
@@ -321,6 +321,26 @@ class _Graph:
         return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
 
 
+class _LoggerProxy:
+    """
+    A proxy for the Logger object currently in use by iotaa.
+
+    Search the stack for an iotaa-marked "log" local variable, which will exist for calls made from
+    iotaa task functions.
+    """
+
+    def __getattr__(self, name):
+        log = None
+        for frameinfo in inspect.stack():
+            if log := frameinfo.frame.f_locals.get("log"):
+                if getattr(log, _MARKER, None):
+                    break
+        if log is None:
+            msg = "No logger found: Ensure this call originated in an iotaa task function."
+            raise IotaaError(msg)
+        return getattr(log, name)
+
+
 # Main entry-point function:
 
 
@@ -341,10 +361,7 @@ def main() -> None:
         _show_tasks_and_exit(args.module, modobj)
     task_func = getattr(modobj, args.function)
     task_args = [_reify(arg) for arg in args.args]
-    task_kwargs = {
-        "dry_run": args.dry_run,
-        "log": _get_logger() if _accepts(task_func, "log") else None,
-    }
+    task_kwargs = {"dry_run": args.dry_run}
     try:
         root = task_func(*task_args, **task_kwargs)
     except IotaaError as e:
@@ -383,6 +400,9 @@ def graph(node: Node) -> str:
     :param ndoe: The root node.
     """
     return str(_Graph(root=node))
+
+
+log = _LoggerProxy()
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -518,17 +538,6 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 # Private helper functions:
 
 
-def _accepts(f: Callable, arg: str) -> bool:
-    """
-    Does 'f' accept an argument named 'arg'?
-
-    :param f: A callable (e.g. function)
-    :param arg: The name of the argument to check.
-    """
-    f = getattr(f, "__wrapped__", f)
-    return arg in f.__code__.co_varnames[: f.__code__.co_argcount]
-
-
 _Cacheable = Optional[Union[bool, dict, float, int, tuple, str]]
 
 
@@ -627,7 +636,7 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _get_logger(log: Optional[Logger] = None) -> Logger:
+def _logger(log: Optional[Logger] = None) -> Logger:
     """
     Returns either the given or the default logger, annotated with the iotaa marker.
 
@@ -739,10 +748,8 @@ def _task_info(f: Callable, *args, **kwargs) -> tuple[bool, Logger, str, Generat
     :return: The dry-run setting, the logger, the task's name, the generator returned by the task.
     """
     dry_run = kwargs.get("dry_run", False)
-    log = kwargs.get("log", _get_logger())
+    log = kwargs.get("log", _logger())
     task_kwargs = {k: v for k, v in kwargs.items() if k not in ("dry_run", "log")}
-    if _accepts(f, "log"):
-        task_kwargs["log"] = log
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
     return dry_run, log, taskname, g

@@ -499,12 +499,6 @@ def test_tasks_ready(caplog, logger, tasks_baz, tmp_path):
 # Private function tests
 
 
-def test__accepts():
-    f = lambda n: n * 2
-    assert iotaa._accepts(f, "n")
-    assert not iotaa._accepts(f, "unacceptable")
-
-
 def test__cacheable():
     a = {
         "bool": True,
