@@ -203,13 +203,9 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(
-        self,
-        taskname: str,
-        assets: _AssetOrAssets,  # pylint: disable=redefined-outer-name
-    ) -> None:
+    def __init__(self, taskname: str, assets_: _AssetOrAssets) -> None:
         super().__init__(taskname)
-        self.assets = assets
+        self.assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
         return self._assemble_and_exec(dry_run)
@@ -223,12 +219,12 @@ class NodeTask(Node):
     def __init__(
         self,
         taskname: str,
-        assets: _AssetOrAssets,  # pylint: disable=redefined-outer-name
+        assets_: _AssetOrAssets,
         reqs: _Reqs,
         execute: Callable,
     ) -> None:
         super().__init__(taskname)
-        self.assets = assets
+        self.assets = assets_
         self.reqs = reqs
         self.execute = execute
 
@@ -476,7 +472,9 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
         dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
         assert isinstance(log_, Logger)
         assets_ = _next(g, "assets")
-        return _construct_and_call_if_root(NodeExternal, dry_run, taskname=taskname, assets=assets_)
+        return _construct_and_call_if_root(
+            NodeExternal, dry_run, taskname=taskname, assets_=assets_
+        )
 
     return _mark(__iotaa_wrapper__)
 
@@ -499,7 +497,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             NodeTask,
             dry_run,
             taskname=taskname,
-            assets=assets_,
+            assets_=assets_,
             reqs=reqs,
             execute=lambda: _execute(g, taskname),
         )
