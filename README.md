@@ -161,12 +161,12 @@ The first `@tasks` method defines the end result: A cup of tea, steeped, with su
 
 ``` python
 @tasks
-def a_cup_of_tea(basedir, log):
+def a_cup_of_tea(basedir):
     """
     The cup of steeped tea with sugar, and a spoon.
     """
     yield "The perfect cup of tea"
-    yield [steeped_tea_with_sugar(basedir, log), spoon(basedir, log)]
+    yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
 ```
 
 As described above, a `@tasks` function is just a collection of other tasks, and must `yield` its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` connection, no executable statements follow the final `yield.`
@@ -175,7 +175,7 @@ The `cup()` and `spoon()` `@task` functions are straightforward:
 
 ``` python
 @task
-def cup(basedir, log):
+def cup(basedir):
     """
     The cup for the tea.
     """
@@ -190,7 +190,7 @@ def cup(basedir, log):
 
 ``` python
 @task
-def spoon(basedir, log):
+def spoon(basedir):
     """
     The spoon to stir the tea.
     """
@@ -212,28 +212,28 @@ The `steeped_tea_with_sugar()` `@task` function is next:
 
 ``` python
 @task
-def steeped_tea_with_sugar(basedir, log):
+def steeped_tea_with_sugar(basedir):
     """
     Add sugar to the steeped tea.
 
     Requires tea to have steeped.
     """
-    yield from ingredient(basedir, "sugar", "Sugar", log, steeped_tea)
+    yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
 ```
 
 Two new ideas are demonstrated here. First, a task function can call arbitrary logic to help it carry out its duties. In this case, it calls an `ingredient()` helper function defined thus:
 
 ``` python
-def ingredient(basedir, fn, name, log, req=None):
+def ingredient(basedir, fn, name, req=None):
     """
     Add an ingredient to the cup.
     """
     taskname = f"{name} in cup"
     yield taskname
-    the_cup = cup(basedir, log)
+    the_cup = cup(basedir)
     path = refs(the_cup) / fn
     yield {fn: asset(path, path.exists)}
-    yield [the_cup] + ([req(basedir, log)] if req else [])
+    yield [the_cup] + ([req(basedir)] if req else [])
     log.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
 ```
@@ -246,13 +246,13 @@ Next up, the `steeped_tea()` function, which is more complex:
 
 ``` python
 @task
-def steeped_tea(basedir, log):
+def steeped_tea(basedir):
     """
     Give tea time to steep.
     """
     taskname = "Steeped tea"
     yield taskname
-    water = refs(steeping_tea(basedir, log))["water"]
+    water = refs(steeping_tea(basedir))["water"]
     steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
@@ -266,7 +266,7 @@ def steeped_tea(basedir, log):
         ready = False
         remaining = t
         yield steep_time(False)
-    yield steeping_tea(basedir, log)
+    yield steeping_tea(basedir)
     if not ready:
         log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 ```
@@ -285,26 +285,26 @@ The `steeping_tea()` function is again a straightforward `@task`, leveraging the
 
 ``` python
 @task
-def steeping_tea(basedir, log):
+def steeping_tea(basedir):
     """
     Pour boiling water over the tea.
 
     Requires tea bag in cup.
     """
-    yield from ingredient(basedir, "water", "Boiling water", log, tea_bag)
+    yield from ingredient(basedir, "water", "Boiling water", tea_bag)
 ```
 
 The `tea_bag()` function should be self-explanatory at this point. It requires `the_cup`, and extracts that task's reference (a path to a directory) to construct its own path:
 
 ``` python
 @task
-def tea_bag(basedir, log):
+def tea_bag(basedir):
     """
     Place tea bag in the cup.
 
     Requires box of tea bags.
     """
-    the_cup = cup(basedir, log)
+    the_cup = cup(basedir)
     path = refs(the_cup) / "tea-bag"
     taskname = "Tea bag in cup"
     yield taskname
