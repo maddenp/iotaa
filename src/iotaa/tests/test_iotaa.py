@@ -396,11 +396,12 @@ def test_external_ready(external_foo_scalar, tmp_path):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_not_ready(caplog, logger, request, task, tmp_path, val):
+def test_task_not_ready(caplog, request, task, tmp_path, val):
+    log_ = iotaa.log
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = request.getfixturevalue(task)(tmp_path)
-    node(log=logger)
+    node(log_=log_)
     assert val(iotaa.refs(node)) == f_bar
     assert not val(node.assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
@@ -619,27 +620,29 @@ def test__show_tasks_and_exit(capsys, task_class):
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
 
 
-def test__task_info():
+def test__task_common():
     def f(taskname, n):
         yield taskname
         yield n
 
     tn = "task"
-    dry_run, taskname, g = iotaa._task_info(f, tn, n=88)
+    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=88)
     assert dry_run is False
+    assert log is iotaa.logging.getLogger()
     assert taskname == tn
     assert next(g) == 88
 
 
-def test__task_info_extras():
-    def f(taskname, n, log):
+def test__task_common_extras():
+    def f(taskname, n):
         yield taskname
         yield n
-        log.info("testing")
+        iotaa.log.info("testing")
 
     tn = "task"
-    dry_run, taskname, g = iotaa._task_info(f, tn, n=88, dry_run=True)
+    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=88, dry_run=True)
     assert dry_run is True
+    assert log is iotaa.logging.getLogger()
     assert taskname == tn
     assert next(g) == 88
 

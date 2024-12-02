@@ -330,7 +330,7 @@ class _LoggerProxy:
         log_ = None
         for frameinfo in inspect.stack():
             if log_ := frameinfo.frame.f_locals.get("log_"):
-                if getattr(log_, _MARKER, None):
+                if _MARKER in dir(log_):  # getattr() => stack overflow
                     break
         if log_ is None:
             msg = "No logger found: Ensure this call originated in an iotaa task function."
@@ -480,7 +480,8 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
-        dry_run, taskname, g = _task_info(f, *args, **kwargs)
+        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
+        assert isinstance(log_, Logger)
         assets_ = _next(g, "assets")
         return _construct_and_call_if_root(NodeExternal, dry_run, taskname=taskname, assets=assets_)
 
@@ -497,7 +498,8 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
-        dry_run, taskname, g = _task_info(f, *args, **kwargs)
+        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
+        assert isinstance(log_, Logger)
         assets_ = _next(g, "assets")
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_call_if_root(
@@ -522,7 +524,8 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
-        dry_run, taskname, g = _task_info(f, *args, **kwargs)
+        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
+        assert isinstance(log_, Logger)
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_call_if_root(NodeTasks, dry_run, taskname=taskname, reqs=reqs)
 
@@ -627,17 +630,6 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _logger(log_: Optional[Logger] = None) -> Logger:
-    """
-    Returns either the given or the default logger, annotated with the iotaa marker.
-
-    :param log_: An optional logger to use.
-    """
-    log_ = log_ or getLogger()
-    setattr(log_, _MARKER, True)
-    return log_
-
-
 def _mark(f: T) -> T:
     """
     Returns a function, marked as an iotaa task.
@@ -731,7 +723,7 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_info(f: Callable, *args, **kwargs) -> tuple[bool, str, Generator]:
+def _task_common(f: Callable, *args, **kwargs) -> tuple[bool, _LoggerProxy, str, Generator]:
     """
     Collect and return info about the task.
 
@@ -739,10 +731,11 @@ def _task_info(f: Callable, *args, **kwargs) -> tuple[bool, str, Generator]:
     :return: The dry-run setting, the logger, the task's name, the generator returned by the task.
     """
     dry_run = kwargs.get("dry_run", False)
-    task_kwargs = {k: v for k, v in kwargs.items() if k != "dry_run"}
+    log_ = _mark(kwargs.get("log", getLogger()))
+    task_kwargs = {k: v for k, v in kwargs.items() if k not in ("dry_run", "log")}
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return dry_run, taskname, g
+    return dry_run, log_, taskname, g
 
 
 def _version() -> str:
