@@ -366,7 +366,8 @@ def test_main_mocked_up_tasknames(tmp_path):
     [("EXTERNAL!", "external_foo_scalar"), ("TASK!", "task_bar_scalar"), ("TASKS!", "tasks_baz")],
 )
 def test_docstrings(docstring, request, task):
-    assert request.getfixturevalue(task).__doc__.strip() == docstring
+    func = request.getfixturevalue(task)
+    assert func.__doc__.strip() == docstring
 
 
 def test_external_not_ready(external_foo_scalar, log_, tmp_path):  # pylint: disable=unused-argument
@@ -396,12 +397,11 @@ def test_external_ready(external_foo_scalar, log_, tmp_path):  # pylint: disable
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_not_ready(
-    caplog, log_, request, task, tmp_path, val
-):  # pylint: disable=unused-argument
+def test_task_not_ready(caplog, log_, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    node = request.getfixturevalue(task)(tmp_path)
+    func = request.getfixturevalue(task)
+    node = func(tmp_path, log=log_)
     node()
     assert val(iotaa.refs(node)) == f_bar
     assert not val(node.assets).ready()
@@ -418,12 +418,13 @@ def test_task_not_ready(
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_ready(caplog, log_, request, task, tmp_path, val):  # pylint: disable=unused-argument
+def test_task_ready(caplog, log_, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = request.getfixturevalue(task)(tmp_path)
+    func = request.getfixturevalue(task)
+    node = func(tmp_path, log=log_)
     assert val(iotaa.refs(node)) == f_bar
     assert val(node.assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
@@ -482,12 +483,12 @@ def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
         assert logged(f"tasks baz: {msg}", caplog)
 
 
-def test_tasks_ready(caplog, log_, tasks_baz, tmp_path):  # pylint: disable=unused-argument
+def test_tasks_ready(caplog, log_, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = tasks_baz(tmp_path)
+    node = tasks_baz(tmp_path, log=log_)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
