@@ -649,14 +649,6 @@ def test__task_common_extras():
     assert next(g) == 88
 
 
-# _Graph tests
-
-
-def test__Graph(graphkit):
-    expected, graph, _ = graphkit
-    assert str(graph).strip() == expected
-
-
 # Node tests
 
 
@@ -669,3 +661,22 @@ def test_Node___call___dry_run(caplog, task_bar_scalar, tmp_path):
     (tmp_path / "foo").touch()
     node = task_bar_scalar(tmp_path, dry_run=True)
     assert logged("%s: SKIPPING (DRY RUN)" % node.taskname, caplog)
+
+
+# _Graph tests
+
+
+def test__Graph(graphkit):
+    expected, graph, _ = graphkit
+    assert str(graph).strip() == expected
+
+
+# _LoggerProxy tests
+
+
+def test__LoggerProxy():
+    lp = iotaa._LoggerProxy()
+    with raises(iotaa.IotaaError) as e:
+        lp.info("fail")
+    expected = "No logger found: Ensure this call originated in an iotaa task function."
+    assert str(e.value) == expected
