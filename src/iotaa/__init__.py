@@ -57,7 +57,7 @@ class Node(ABC):
         self._assembled = False
 
     @abstractmethod
-    def __call__(self, log_: _LoggerProxy, dry_run: bool = False) -> Node: ...
+    def __call__(self, dry_run: bool = False) -> Node: ...
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -75,48 +75,44 @@ class Node(ABC):
         """
         return all(x.ready() for x in _flatten(self.assets))
 
-    def _add_node_and_predecessors(
-        self, node: Node, g: TopologicalSorter, log_: _LoggerProxy, level: int = 0
-    ) -> None:
+    def _add_node_and_predecessors(self, node: Node, g: TopologicalSorter, level: int = 0) -> None:
         """
         Assemble the task graph based on this node and its children.
 
         :param node: The current task-graph node.
         :param g: The task graph.
-        :param log_: The logger to use.
         :param level: The distance from the task-graph root node.
         """
-        log_.debug("  " * level + str(node.taskname))
+        log.debug("  " * level + str(node.taskname))
         g.add(node)
         if not node.ready:
             predecessor: Node
             for predecessor in _flatten(node.reqs):
                 g.add(node, predecessor)
-                self._add_node_and_predecessors(predecessor, g, log_, level + 1)
+                self._add_node_and_predecessors(predecessor, g, level + 1)
 
-    def _assemble_and_exec(self, dry_run: bool, log_: _LoggerProxy) -> Node:
+    def _assemble_and_exec(self, dry_run: bool) -> Node:
         """
         Assemble and then execute the task graph.
 
         :param dry_run: Avoid executing state-affecting code?
-        :param log_: The logger to use.
         :return: The root node of the current (sub)graph.
         """
         if self.root and not self._assembled:
             g: TopologicalSorter = TopologicalSorter()
-            self._header("Task Graph", log_)
+            self._header("Task Graph")
             self._dedupe()
-            self._add_node_and_predecessors(self, g, log_)
+            self._add_node_and_predecessors(self, g)
             self._assembled = True
-            self._header("Execution", log_)
+            self._header("Execution")
             for node in g.static_order():
-                node(log_, dry_run)
+                node(dry_run)
         else:
             is_external = isinstance(self, NodeExternal)
             extmsg = " [external asset]" if is_external and not self.ready else ""
-            logf, readymsg = (log_.info, "Ready") if self.ready else (log_.warning, "Not ready")
+            logf, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
             logf("%s: %s%s", self.taskname, readymsg, extmsg)
-            self._report_readiness(log_)
+            self._report_readiness()
         return self
 
     def _dedupe(self, known: Optional[set[Node]] = None) -> set[Node]:
@@ -161,32 +157,29 @@ class Node(ABC):
         self.reqs = deduped
         return known
 
-    def _header(self, msg: str, log_: _LoggerProxy) -> None:
+    def _header(self, msg: str) -> None:
         """
         Log a header message.
 
         :param msg: The message to log_.
-        :param log_: The logger to use.
         """
         sep = "─" * len(msg)
-        log_.debug(sep)
-        log_.debug(msg)
-        log_.debug(sep)
+        log.debug(sep)
+        log.debug(msg)
+        log.debug(sep)
 
-    def _report_readiness(self, log_: _LoggerProxy) -> None:
+    def _report_readiness(self) -> None:
         """
         Log information about [un]ready requirements of this task-graph node.
-
-        :param log_: The logger to use.
         """
         if self.ready:
             return
         reqs = {req: req.ready for req in _flatten(self.reqs)}
         if reqs:
-            log_.warning("%s: Requires:", self.taskname)
+            log.warning("%s: Requires:", self.taskname)
             for req, ready_ in reqs.items():
                 status = "✔" if ready_ else "✖"
-                log_.warning("%s: %s %s", self.taskname, status, req.taskname)
+                log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
     def _reset_ready(self) -> None:
         """
@@ -218,8 +211,8 @@ class NodeExternal(Node):
         super().__init__(taskname)
         self.assets = assets
 
-    def __call__(self, log_: _LoggerProxy, dry_run: bool = False) -> Node:
-        return self._assemble_and_exec(dry_run, log_)
+    def __call__(self, dry_run: bool = False) -> Node:
+        return self._assemble_and_exec(dry_run)
 
 
 class NodeTask(Node):
@@ -239,14 +232,14 @@ class NodeTask(Node):
         self.reqs = reqs
         self.execute = execute
 
-    def __call__(self, log_: _LoggerProxy, dry_run: bool = False) -> Node:
+    def __call__(self, dry_run: bool = False) -> Node:
         if not self.ready and all(req.ready for req in _flatten(self.reqs)):
             if dry_run:
-                log_.info("%s: SKIPPING (DRY RUN)", self.taskname)
+                log.info("%s: SKIPPING (DRY RUN)", self.taskname)
             else:
-                self.execute(log_)
+                self.execute()
                 self._reset_ready()
-        return self._assemble_and_exec(dry_run, log_)
+        return self._assemble_and_exec(dry_run)
 
 
 class NodeTasks(Node):
@@ -261,9 +254,9 @@ class NodeTasks(Node):
             chain.from_iterable([_flatten(req.assets) for req in _flatten(self.reqs)])
         )
 
-    def __call__(self, log_: _LoggerProxy, dry_run: bool = False) -> Node:
+    def __call__(self, dry_run: bool = False) -> Node:
         self._reset_ready()
-        return self._assemble_and_exec(dry_run, log_)
+        return self._assemble_and_exec(dry_run)
 
 
 class IotaaError(Exception):
@@ -508,7 +501,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             taskname=taskname,
             assets=assets_,
             reqs=reqs,
-            execute=lambda log_: _execute(g, taskname, log_),
+            execute=lambda: _execute(g, taskname),
         )
 
     return _mark(__iotaa_wrapper__)
@@ -570,11 +563,11 @@ def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, *
     """
     node = node_class(*args, **kwargs)
     if node.root:
-        node(log, dry_run)
+        node(dry_run)
     return node
 
 
-def _execute(g: Generator, taskname: str, log_: Logger) -> None:
+def _execute(g: Generator, taskname: str) -> None:
     """
     Execute the post-yield body of a decorated function.
 
@@ -582,7 +575,7 @@ def _execute(g: Generator, taskname: str, log_: Logger) -> None:
     :param taskname: The current task's name.
     """
     try:
-        log_.info("%s: Executing", taskname)
+        log.info("%s: Executing", taskname)
         next(g)
     except StopIteration:
         pass
