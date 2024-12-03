@@ -54,8 +54,8 @@ class Node(ABC):
         self.assets: Optional[_AssetOrAssets] = None
         self.reqs: Optional[_Reqs] = None
         self.root = self._root
+        self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
-        self._prep = True
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -103,7 +103,7 @@ class Node(ABC):
         self._dedupe()
         self._add_node_and_predecessors(self)
         self._debug_header("Execution")
-        self._prep = False
+        self._first_visit = False
         for node in self._graph.static_order():
             node(dry_run)
 
@@ -164,6 +164,7 @@ class Node(ABC):
         """
         Log information about [un]ready requirements of this task-graph node.
         """
+        self._reset_ready()
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
         logf, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
@@ -204,7 +205,7 @@ class NodeExternal(Node):
         self.assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._prep:
+        if self.root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
             self._report_readiness()
@@ -229,7 +230,7 @@ class NodeTask(Node):
         self._exec_task_body = exec_task_body
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._prep:
+        if self.root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self.reqs)):
@@ -237,7 +238,6 @@ class NodeTask(Node):
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self._exec_task_body()
-                    self._reset_ready()
             self._report_readiness()
         return self
 
@@ -255,9 +255,8 @@ class NodeTasks(Node):
         )
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._prep:
+        if self.root and self._first_visit:
             self._assemble_and_exec(dry_run)
-            self._reset_ready()
         else:
             self._report_readiness()
         return self
