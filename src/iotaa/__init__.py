@@ -502,7 +502,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             taskname=taskname,
             assets_=assets_,
             reqs=reqs,
-            exec_task_body=lambda: _execute_task_body(g, taskname),
+            exec_task_body=_exec_task_body_later(g, taskname),
         )
 
     return _mark(__iotaa_wrapper__)
@@ -568,18 +568,22 @@ def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, *
     return node
 
 
-def _execute_task_body(g: Generator, taskname: str) -> None:
+def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
     """
-    Execute the post-yield body of a decorated function.
+    Returns a function that, when called, executes the post-yield body of a decorated function.
 
     :param g: The current task.
     :param taskname: The current task's name.
     """
-    try:
-        log.info("%s: Executing", taskname)
-        next(g)
-    except StopIteration:
-        pass
+
+    def exec_task_body():
+        try:
+            log.info("%s: Executing", taskname)
+            next(g)
+        except StopIteration:
+            pass
+
+    return exec_task_body
 
 
 @overload

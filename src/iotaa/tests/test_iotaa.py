@@ -523,8 +523,9 @@ def test__cacheable():
     assert hash(b) is not None
 
 
-def test__execute_live(caplog, log_, rungen):  # pylint: disable=unused-argument
-    iotaa._execute(g=rungen, taskname="task")
+def test__exec_task_body_later(caplog, log_, rungen):  # pylint: disable=unused-argument
+    exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
+    exec_task_body()
     assert logged("task: Executing", caplog)
 
 
