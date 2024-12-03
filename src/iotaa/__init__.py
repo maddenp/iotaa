@@ -49,11 +49,12 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str) -> None:
+    def __init__(self, taskname: str, dry_run: bool) -> None:
         self.taskname = taskname
         self.assets: Optional[_AssetOrAssets] = None
         self.reqs: Optional[_Reqs] = None
         self.root = self._root
+        self._dry_run = dry_run
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
 
@@ -200,8 +201,8 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(self, taskname: str, assets_: _AssetOrAssets) -> None:
-        super().__init__(taskname)
+    def __init__(self, taskname: str, dry_run: bool, assets_: _AssetOrAssets) -> None:
+        super().__init__(taskname, dry_run)
         self.assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -218,9 +219,14 @@ class NodeTask(Node):
     """
 
     def __init__(
-        self, taskname: str, assets_: _AssetOrAssets, reqs: _Reqs, exec_task_body: Callable
+        self,
+        taskname: str,
+        dry_run: bool,
+        assets_: _AssetOrAssets,
+        reqs: _Reqs,
+        exec_task_body: Callable,
     ) -> None:
-        super().__init__(taskname)
+        super().__init__(taskname, dry_run)
         self.assets = assets_
         self.reqs = reqs
         self._exec_task_body = exec_task_body
@@ -230,7 +236,7 @@ class NodeTask(Node):
             self._assemble_and_exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self.reqs)):
-                if dry_run:
+                if dry_run or self._dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self._exec_task_body()
@@ -243,8 +249,8 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(self, taskname: str, reqs: Optional[_Reqs] = None) -> None:
-        super().__init__(taskname)
+    def __init__(self, taskname: str, dry_run: bool, reqs: Optional[_Reqs] = None) -> None:
+        super().__init__(taskname, dry_run)
         self.reqs = reqs
         self.assets = list(
             chain.from_iterable([_flatten(req.assets) for req in _flatten(self.reqs)])
@@ -465,6 +471,7 @@ def tasknames(obj: object) -> list[str]:
 # function below and will use it when logging via iotaa.log. The assert statements suppress linter
 # complaints about unused variables.
 
+
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
@@ -479,7 +486,10 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
         assert isinstance(log_, Logger)
         assets_ = _next(g, "assets")
         return _construct_and_call_if_root(
-            NodeExternal, dry_run, taskname=taskname, assets_=assets_
+            NodeExternal,
+            dry_run,
+            taskname=taskname,
+            assets_=assets_,
         )
 
     return _mark(__iotaa_wrapper__)
@@ -524,7 +534,12 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
         dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
         assert isinstance(log_, Logger)
         reqs: _Reqs = _next(g, "requirements")
-        return _construct_and_call_if_root(NodeTasks, dry_run, taskname=taskname, reqs=reqs)
+        return _construct_and_call_if_root(
+            NodeTasks,
+            dry_run,
+            taskname=taskname,
+            reqs=reqs,
+        )
 
     return _mark(__iotaa_wrapper__)
 
@@ -565,7 +580,7 @@ def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, *
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
-    node = node_class(*args, **kwargs)
+    node = node_class(*args, **{**kwargs, "dry_run": dry_run})
     if node.root:
         node(dry_run)
     return node
