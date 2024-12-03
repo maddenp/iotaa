@@ -461,7 +461,6 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-
 # NB: When inspecting the call stack, _LoggerProxy will find the log_ local variable in each wrapper
 # function below and will use it when logging via iotaa.log. The assert statements suppress linter
 # complaints about unused variables.
