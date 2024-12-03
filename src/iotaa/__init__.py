@@ -218,11 +218,7 @@ class NodeTask(Node):
     """
 
     def __init__(
-        self,
-        taskname: str,
-        assets_: _AssetOrAssets,
-        reqs: _Reqs,
-        exec_task_body: Callable
+        self, taskname: str, assets_: _AssetOrAssets, reqs: _Reqs, exec_task_body: Callable
     ) -> None:
         super().__init__(taskname)
         self.assets = assets_
