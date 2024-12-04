@@ -35,7 +35,7 @@ def iotaa_task_call(call: astroid.Call) -> Optional[astroid.nodes.NodeNG]:
 
 def rm_dry_run(call: astroid.Call) -> None:
     argname = "dry_run"
-    # Ignore stdlib or 3rd-party library calls:
+    # Ignore calls originating in stdlib or 3rd-party libraries:
     if Path(call.root().file).is_relative_to(sys.prefix):
         return
     # Ignore calls that do not include argnamme:
@@ -47,7 +47,10 @@ def rm_dry_run(call: astroid.Call) -> None:
     # Ignore calls to functions that accept argname:
     if argname in [arg.name for arg in func.args.args]:
         return
+    # Remove the keyword argument:
     call.keywords = [kw for kw in call.keywords if kw.arg != argname]
+    # Add a no-op statement to ensure the argument is still used:
+    # call.scope().body.append(astroid.parse(f"assert {argname} is {argname}").body[0])
 
 
 astroid.MANAGER.register_transform(astroid.Call, rm_dry_run)
