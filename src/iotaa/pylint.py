@@ -32,9 +32,10 @@ def iotaa_task_call(call: astroid.Call) -> Optional[astroid.nodes.NodeNG]:
 
 def rm_dry_run(call: astroid.Call) -> None:
     x = "dry_run"
-    if func := iotaa_task_call(call):
-        if not x in [arg.name for arg in func.args.args]:
-            call.keywords = [kw for kw in call.keywords if kw.arg != x]
+    if x in [kw.arg for kw in call.keywords]:
+        if func := iotaa_task_call(call):
+            if not x in [arg.name for arg in func.args.args]:
+                call.keywords = [kw for kw in call.keywords if kw.arg != x]
 
 
 astroid.MANAGER.register_transform(astroid.Call, rm_dry_run)
