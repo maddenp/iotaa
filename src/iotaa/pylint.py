@@ -5,14 +5,11 @@ pylint.
 # pylint: disable=too-many-nested-blocks
 # pylint: disable=missing-function-docstring
 
-import sys
 from typing import Optional
 
 import astroid  # type: ignore
 from pylint.checkers.utils import safe_infer
 from pylint.lint import PyLinter
-
-sys.setrecursionlimit(2000)
 
 
 def register(_: PyLinter) -> None:
