@@ -40,7 +40,7 @@ def _looks_like_iotaa_task_call(node: astroid.Call) -> bool:
         or _accepts_argname(func)  # to functions that accept argname
     ):
         return False
-    # Return the function if it is iotaa-decorated:
+    # Report whether the function is iotaa-decorated:
     for decorator in decorators.get_children():
         if (node := safe_infer(decorator)) and node is not astroid.Uninferable:
             if getattr(node.root(), "name", None) == "iotaa":
@@ -55,7 +55,7 @@ def _transform(node: astroid.Call) -> astroid.Call:
     """
     # Remove the keyword argument:
     node.keywords = [kw for kw in node.keywords if kw.arg != ARGNAME]
-    # Add a no-op statement to ensure the argument is still used:
+    # If necessary, add a no-op statement to ensure the argument is still used:
     hostfunc = node.scope()
     if _accepts_argname(hostfunc):
         stmt = astroid.parse(f"print({ARGNAME})").body[0]
