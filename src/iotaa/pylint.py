@@ -2,8 +2,6 @@
 pylint.
 """
 
-# pylint: disable=too-many-boolean-expressions
-
 import sys
 from pathlib import Path
 
@@ -25,6 +23,7 @@ def _looks_like_iotaa_task_call(node: astroid.Call) -> bool:
     """
     Does the node look like a call to an iotaa-decorated task function?
     """
+    # pylint: disable=too-many-boolean-expressions
     if (  # Ignore calls...
         Path(node.root().file).is_relative_to(sys.prefix)  # from stdlib / 3rd-party libs
         or not ARGNAME in [kw.arg for kw in node.keywords]  # that do not include argname
