@@ -49,7 +49,7 @@ def _transform(node: astroid.Call) -> astroid.Call:
     # Remove the keyword argument:
     node.keywords = [kw for kw in node.keywords if kw.arg != ARGNAME]
     # Add a no-op statement to ensure the argument is still used:
-    node.scope().body.insert(0, astroid.parse(f"assert {ARGNAME} is {ARGNAME}").body[0])
+    node.scope().body = [astroid.parse(f"print({ARGNAME})").body[0], *node.scope().body]
 
 
 astroid.MANAGER.register_transform(astroid.Call, _transform, _looks_like_iotaa_task_call)
