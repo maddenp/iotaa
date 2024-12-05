@@ -2,11 +2,10 @@
 pylint.
 """
 
-# pylint: disable=missing-function-docstring
+# pylint: disable=too-many-boolean-expressions
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import astroid  # type: ignore
 from pylint.checkers.utils import safe_infer
@@ -14,43 +13,44 @@ from pylint.lint import PyLinter
 
 
 def register(_: PyLinter) -> None:
-    pass
+    """
+    Register.
+    """
 
 
-def iotaa_task_call(call: astroid.Call) -> Optional[astroid.nodes.NodeNG]:
-    # Ignore calls to uninferable functions:
-    if (func := safe_infer(call.func)) is astroid.Uninferable:
-        return None
-    # Ignore undecorated functions:
-    if not (decorators := getattr(func, "decorators", None)):
-        return None
+ARGNAME = "dry_run"
+
+
+def _looks_like_iotaa_task_call(node: astroid.Call) -> bool:
+    """
+    Does the node look like a call to an iotaa-decorated task function?
+    """
+    if (  # Ignore calls...
+        Path(node.root().file).is_relative_to(sys.prefix)  # from stdlib / 3rd-party libs
+        or not ARGNAME in [kw.arg for kw in node.keywords]  # that do not include argname
+        or (func := safe_infer(node.func)) is astroid.Uninferable  # to uninferable functions
+        or not (decorators := getattr(func, "decorators", None))  # to undecorated functions
+        or not (args := getattr(func, "args", None))  # to functions taking no arguments
+        or ARGNAME in [arg.name for arg in args.args]  # to functions that accept argname
+    ):
+        return False
     # Return the function if it is iotaa-decorated:
     for decorator in decorators.get_children():
         if (node := safe_infer(decorator)) and node is not astroid.Uninferable:
             if getattr(node.root(), "name", None) == "iotaa":
                 if getattr(node, "name", None) in ("external", "task", "tasks"):
-                    return func
-    return None
+                    return True
+    return False
 
 
-def rm_dry_run(call: astroid.Call) -> None:
-    argname = "dry_run"
-    # Ignore calls originating in stdlib or 3rd-party libraries:
-    if Path(call.root().file).is_relative_to(sys.prefix):
-        return
-    # Ignore calls that do not include argnamme:
-    if not argname in [kw.arg for kw in call.keywords]:
-        return
-    # Ignore calls to non-iotaa-decorated functions:
-    if not (func := iotaa_task_call(call)):
-        return
-    # Ignore calls to functions that accept argname:
-    if argname in [arg.name for arg in func.args.args]:
-        return
+def _transform(node: astroid.Call) -> astroid.Call:
+    """
+    Transform.
+    """
     # Remove the keyword argument:
-    call.keywords = [kw for kw in call.keywords if kw.arg != argname]
+    node.keywords = [kw for kw in node.keywords if kw.arg != ARGNAME]
     # Add a no-op statement to ensure the argument is still used:
-    # call.scope().body.append(astroid.parse(f"assert {argname} is {argname}").body[0])
+    node.scope().body.insert(0, astroid.parse(f"assert {ARGNAME} is {ARGNAME}").body[0])
 
 
-astroid.MANAGER.register_transform(astroid.Call, rm_dry_run)
+astroid.MANAGER.register_transform(astroid.Call, _transform, _looks_like_iotaa_task_call)
