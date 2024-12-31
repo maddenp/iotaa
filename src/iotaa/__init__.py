@@ -51,12 +51,11 @@ class Node(ABC):
 
     def __init__(self, taskname: str, dry_run: bool) -> None:
         self.taskname = taskname
-        self.assets: Optional[_AssetOrAssets] = None
-        self.reqs: Optional[_Reqs] = None
-        self.root = self._root
         self._dry_run = dry_run
+        self._assets: Optional[_AssetOrAssets] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
+        self._reqs: Optional[_Reqs] = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -75,7 +74,7 @@ class Node(ABC):
         """
         Are the assets represented by this task-graph node ready?
         """
-        return all(x.ready() for x in _flatten(self.assets))
+        return all(x.ready() for x in _flatten(self._assets))
 
     def _add_node_and_predecessors(self, node: Node, level: int = 0) -> None:
         """
@@ -89,7 +88,7 @@ class Node(ABC):
         self._graph.add(node)
         if not node.ready:
             predecessor: Node
-            for predecessor in _flatten(node.reqs):
+            for predecessor in _flatten(node._reqs):
                 self._graph.add(node, predecessor)
                 self._add_node_and_predecessors(predecessor, level + 1)
 
@@ -137,28 +136,28 @@ class Node(ABC):
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
-            return node._dedupe(known)  # pylint: disable=protected-access
+            return node._dedupe(known)
 
         deduped: Optional[Union[Node, dict[str, Node], list[Node]]]
 
         known = known or {self}
-        if isinstance(self.reqs, Node):
-            node = self.reqs
+        if isinstance(self._reqs, Node):
+            node = self._reqs
             known = recur(node, known)
             deduped = existing(node, known)
-        elif isinstance(self.reqs, dict):
+        elif isinstance(self._reqs, dict):
             deduped = {}
-            for k, node in self.reqs.items():
+            for k, node in self._reqs.items():
                 known = recur(node, known)
                 deduped[k] = existing(node, known)
-        elif isinstance(self.reqs, list):
+        elif isinstance(self._reqs, list):
             deduped = []
-            for node in self.reqs:
+            for node in self._reqs:
                 known = recur(node, known)
                 deduped.append(existing(node, known))
         else:
             deduped = None
-        self.reqs = deduped
+        self._reqs = deduped
         return known
 
     def _report_readiness(self) -> None:
@@ -172,7 +171,7 @@ class Node(ABC):
         logf("%s: %s%s", self.taskname, readymsg, extmsg)
         if self.ready:
             return
-        reqs = {req: req.ready for req in _flatten(self.reqs)}
+        reqs = {req: req.ready for req in _flatten(self._reqs)}
         if reqs:
             log.warning("%s: Requires:", self.taskname)
             for req, ready_ in reqs.items():
@@ -187,7 +186,7 @@ class Node(ABC):
         if hasattr(self, attr):
             delattr(self, attr)
 
-    @property
+    @cached_property
     def _root(self) -> bool:
         """
         Is this the root node (i.e. is it not a requirement of another task)?
@@ -203,10 +202,10 @@ class NodeExternal(Node):
 
     def __init__(self, taskname: str, dry_run: bool, assets_: _AssetOrAssets) -> None:
         super().__init__(taskname, dry_run)
-        self.assets = assets_
+        self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
             self._report_readiness()
@@ -227,15 +226,15 @@ class NodeTask(Node):
         exec_task_body: Callable,
     ) -> None:
         super().__init__(taskname, dry_run)
-        self.assets = assets_
-        self.reqs = reqs
+        self._assets = assets_
+        self._reqs = reqs
         self._exec_task_body = exec_task_body
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
-            if not self.ready and all(req.ready for req in _flatten(self.reqs)):
+            if not self.ready and all(req.ready for req in _flatten(self._reqs)):
                 if dry_run or self._dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
@@ -251,13 +250,13 @@ class NodeTasks(Node):
 
     def __init__(self, taskname: str, dry_run: bool, reqs: Optional[_Reqs] = None) -> None:
         super().__init__(taskname, dry_run)
-        self.reqs = reqs
-        self.assets = list(
-            chain.from_iterable([_flatten(req.assets) for req in _flatten(self.reqs)])
+        self._reqs = reqs
+        self._assets = list(
+            chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
         )
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
             self._report_readiness()
@@ -300,7 +299,7 @@ class _Graph:
         :param node: The root node of the current subgraph.
         """
         self._nodes.add(node)
-        for req in _flatten(node.reqs):
+        for req in _flatten(node._reqs):
             self._edges.add((node, req))
             self._build(req)
 
@@ -385,7 +384,7 @@ def assets(node: Node) -> _AssetOrAssets:
 
     :param node: A node.
     """
-    return node.assets
+    return node._assets
 
 
 def graph(node: Node) -> str:
@@ -429,12 +428,12 @@ def refs(node: Node) -> Any:
     :param node: A node.
     :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
-    if isinstance(node.assets, dict):
-        return {k: v.ref for k, v in node.assets.items()}
-    if isinstance(node.assets, list):
-        return [a.ref for a in node.assets]
-    if isinstance(node.assets, Asset):
-        return node.assets.ref
+    if isinstance(node._assets, dict):
+        return {k: v.ref for k, v in node._assets.items()}
+    if isinstance(node._assets, list):
+        return [a.ref for a in node._assets]
+    if isinstance(node._assets, Asset):
+        return node._assets.ref
     return None
 
 
@@ -444,7 +443,7 @@ def requirements(node: Node) -> _Reqs:
 
     :param node: A node.
     """
-    return node.reqs
+    return node._reqs
 
 
 def tasknames(obj: object) -> list[str]:
@@ -581,7 +580,7 @@ def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, *
     :return: A constructed Node object.
     """
     node = node_class(*args, **{**kwargs, "dry_run": dry_run})
-    if node.root:
+    if node._root:
         node(dry_run)
     return node
 

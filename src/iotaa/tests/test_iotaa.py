@@ -3,7 +3,6 @@ Tests for module iotaa.
 """
 
 # pylint: disable=missing-function-docstring
-# pylint: disable=protected-access
 # pylint: disable=redefined-outer-name
 
 import logging
@@ -281,11 +280,11 @@ def test_refs():
     asset = iotaa.asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(taskname="test", dry_run=False, assets_=None)
     assert iotaa.refs(node=node) is None
-    node.assets = {"foo": asset}
+    node._assets = {"foo": asset}
     assert iotaa.refs(node=node)["foo"] == expected
-    node.assets = [asset]
+    node._assets = [asset]
     assert iotaa.refs(node=node)[0] == expected
-    node.assets = asset
+    node._assets = asset
     assert iotaa.refs(node=node) == expected
 
 
@@ -376,7 +375,7 @@ def test_external_not_ready(external_foo_scalar, log_, tmp_path):  # pylint: dis
     node = external_foo_scalar(tmp_path)
     node()
     assert iotaa.refs(node) == f
-    assert not node.assets.ready()
+    assert not node._assets.ready()
 
 
 def test_external_ready(external_foo_scalar, log_, tmp_path):  # pylint: disable=unused-argument
@@ -386,7 +385,7 @@ def test_external_ready(external_foo_scalar, log_, tmp_path):  # pylint: disable
     node = external_foo_scalar(tmp_path)
     node()
     assert iotaa.refs(node) == f
-    assert node.assets.ready()
+    assert node._assets.ready()
 
 
 @mark.parametrize(
@@ -404,7 +403,7 @@ def test_task_not_ready(caplog, log_, request, task, tmp_path, val):
     node = func(tmp_path, log=log_)
     node()
     assert val(iotaa.refs(node)) == f_bar
-    assert not val(node.assets).ready()
+    assert not val(node._assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
         assert logged(f"task bar {f_bar}: {msg}", caplog)
@@ -426,7 +425,7 @@ def test_task_ready(caplog, log_, request, task, tmp_path, val):
     func = request.getfixturevalue(task)
     node = func(tmp_path, log=log_)
     assert val(iotaa.refs(node)) == f_bar
-    assert val(node.assets).ready()
+    assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
         assert logged(f"task bar {f_bar}: {msg}", caplog)
@@ -471,7 +470,7 @@ def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
     assert not any(
-        a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
     )
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in [
@@ -493,7 +492,7 @@ def test_tasks_ready(caplog, log_, tasks_baz, tmp_path):
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
     assert all(
-        a.ready() for a in chain.from_iterable(iotaa._flatten(req.assets) for req in requirements)
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
     )
     assert all(x.is_file() for x in [f_foo, f_bar])
     assert logged("tasks baz: Ready", caplog)
