@@ -2,8 +2,7 @@
 Tests for module iotaa.
 """
 
-# pylint: disable=missing-function-docstring
-# pylint: disable=redefined-outer-name
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
 import logging
 import re

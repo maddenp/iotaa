@@ -35,7 +35,6 @@ disable = [
   "consider-using-f-string",
   "disallowed-name",
   "invalid-name",
-  "protected-access",
   "too-few-public-methods",
   "too-many-arguments",
   "too-many-positional-arguments",

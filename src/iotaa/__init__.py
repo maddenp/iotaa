@@ -88,7 +88,7 @@ class Node(ABC):
         self._graph.add(node)
         if not node.ready:
             predecessor: Node
-            for predecessor in _flatten(node._reqs):
+            for predecessor in _flatten(requirements(node)):
                 self._graph.add(node, predecessor)
                 self._add_node_and_predecessors(predecessor, level + 1)
 
@@ -136,7 +136,7 @@ class Node(ABC):
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
-            return node._dedupe(known)
+            return node._dedupe(known)  # pylint: disable=protected-access
 
         deduped: Optional[Union[Node, dict[str, Node], list[Node]]]
 
@@ -299,7 +299,7 @@ class _Graph:
         :param node: The root node of the current subgraph.
         """
         self._nodes.add(node)
-        for req in _flatten(node._reqs):
+        for req in _flatten(requirements(node)):
             self._edges.add((node, req))
             self._build(req)
 
@@ -384,7 +384,7 @@ def assets(node: Node) -> _AssetOrAssets:
 
     :param node: A node.
     """
-    return node._assets
+    return node._assets  # pylint: disable=protected-access
 
 
 def graph(node: Node) -> str:
@@ -428,12 +428,13 @@ def refs(node: Node) -> Any:
     :param node: A node.
     :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
-    if isinstance(node._assets, dict):
-        return {k: v.ref for k, v in node._assets.items()}
-    if isinstance(node._assets, list):
-        return [a.ref for a in node._assets]
-    if isinstance(node._assets, Asset):
-        return node._assets.ref
+    _assets = assets(node)
+    if isinstance(_assets, dict):
+        return {k: v.ref for k, v in _assets.items()}
+    if isinstance(_assets, list):
+        return [a.ref for a in _assets]
+    if isinstance(_assets, Asset):
+        return _assets.ref
     return None
 
 
@@ -443,7 +444,7 @@ def requirements(node: Node) -> _Reqs:
 
     :param node: A node.
     """
-    return node._reqs
+    return node._reqs  # pylint: disable=protected-access
 
 
 def tasknames(obj: object) -> list[str]:
@@ -580,7 +581,7 @@ def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, *
     :return: A constructed Node object.
     """
     node = node_class(*args, **{**kwargs, "dry_run": dry_run})
-    if node._root:
+    if node._root:  # pylint: disable=protected-access
         node(dry_run)
     return node
 
