@@ -23,6 +23,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union, overload
 
+_G = Generator[Any, None, None]
 _MARKER = "__IOTAA__"
 
 # Public return-value classes:
@@ -472,7 +473,7 @@ def tasknames(obj: object) -> list[str]:
 # complaints about unused variables.
 
 
-def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
+def external(f: Callable[..., _G]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
 
@@ -495,7 +496,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     return _mark(__iotaa_wrapper__)
 
 
-def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
+def task(f: Callable[..., _G]) -> Callable[..., NodeTask]:
     """
     The @task decorator for assets that the workflow can produce.
 
@@ -521,7 +522,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     return _mark(__iotaa_wrapper__)
 
 
-def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
+def tasks(f: Callable[..., _G]) -> Callable[..., NodeTasks]:
     """
     The @tasks decorator for collections of @task (or @external) calls.
 
@@ -586,7 +587,7 @@ def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, *
     return node
 
 
-def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
+def _exec_task_body_later(g: _G, taskname: str) -> Callable:
     """
     Returns a function that, when called, executes the post-yield body of a decorated function.
 
@@ -739,7 +740,7 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_common(f: Callable, *args, **kwargs) -> tuple[bool, _LoggerProxy, str, Generator]:
+def _task_common(f: Callable, *args, **kwargs) -> tuple[bool, _LoggerProxy, str, _G]:
     """
     Collect and return info about the task.
 
