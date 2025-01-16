@@ -4,7 +4,6 @@ cli() {
   msg Testing CLI program
   (
     set -eux
-    iotaa --help
     iotaa --version
   )
   msg OK

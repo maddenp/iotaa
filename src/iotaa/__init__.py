@@ -4,23 +4,26 @@ iotaa.
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import sys
+from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
-from collections import defaultdict
 from dataclasses import dataclass
-from functools import wraps
+from functools import cached_property, wraps
+from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
 from importlib import resources as res
 from itertools import chain
 from json import JSONDecodeError, loads
+from logging import Logger, getLogger
 from pathlib import Path
-from subprocess import STDOUT, CalledProcessError, check_output
 from types import ModuleType
-from types import SimpleNamespace as ns
-from typing import Any, Callable, Generator, Iterator, Optional, Union
+from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union, overload
+
+_MARKER = "__IOTAA__"
 
 # Public return-value classes:
 
@@ -38,25 +41,240 @@ class Asset:
     ready: Callable[..., bool]
 
 
-@dataclass
-class Result:
+_AssetOrAssets = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+
+
+class Node(ABC):
     """
-    The result of running an external command.
-
-    output: Content of the combined stderr/stdout streams.
-    success: Did the command exit with 0 status?
+    The base class for task-graph nodes.
     """
 
-    output: str
-    success: bool
+    def __init__(self, taskname: str, dry_run: bool) -> None:
+        self.taskname = taskname
+        self._dry_run = dry_run
+        self._assets: Optional[_AssetOrAssets] = None
+        self._first_visit = True
+        self._graph: Optional[TopologicalSorter] = None
+        self._reqs: Optional[_Reqs] = None
+
+    @abstractmethod
+    def __call__(self, dry_run: bool = False) -> Node: ...
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __hash__(self):
+        return hash(self.taskname)
+
+    def __repr__(self):
+        return "%s <%s>" % (self.taskname, id(self))
+
+    @cached_property
+    def ready(self) -> bool:
+        """
+        Are the assets represented by this task-graph node ready?
+        """
+        return all(x.ready() for x in _flatten(self._assets))
+
+    def _add_node_and_predecessors(self, node: Node, level: int = 0) -> None:
+        """
+        Assemble the task graph based on this node and its children.
+
+        :param node: The current task-graph node.
+        :param level: The distance from the task-graph root node.
+        """
+        log.debug("  " * level + str(node.taskname))
+        assert self._graph is not None
+        self._graph.add(node)
+        if not node.ready:
+            predecessor: Node
+            for predecessor in _flatten(requirements(node)):
+                self._graph.add(node, predecessor)
+                self._add_node_and_predecessors(predecessor, level + 1)
+
+    def _assemble_and_exec(self, dry_run: bool) -> None:
+        """
+        Assemble and then execute the task graph.
+
+        :param dry_run: Avoid executing state-affecting code?
+        """
+        self._graph = TopologicalSorter()
+        self._debug_header("Task Graph")
+        self._dedupe()
+        self._add_node_and_predecessors(self)
+        self._debug_header("Execution")
+        self._first_visit = False
+        for node in self._graph.static_order():
+            node(dry_run)
+
+    def _debug_header(self, msg: str) -> None:
+        """
+        Log a header message.
+
+        :param msg: The message to log.
+        """
+        sep = "─" * len(msg)
+        log.debug(sep)
+        log.debug(msg)
+        log.debug(sep)
+
+    def _dedupe(self, known: Optional[set[Node]] = None) -> set[Node]:
+        """
+        Unify equivalent task-graph nodes.
+
+        Decorated task functions/methods may create Node objects semantically equivalent to those
+        created by others. Walk the task graph, deduplicating such nodes. Nodes are equivalent if
+        their tasknames match.
+
+        :param known: The set of known nodes.
+        :return: The (possibly updated) set of known nodes.
+        """
+
+        def existing(node: Node, known: set[Node]) -> Node:
+            duplicates = [n for n in known if n == node]
+            return duplicates[0]
+
+        def recur(node: Node, known: set[Node]) -> set[Node]:
+            known.add(node)
+            return node._dedupe(known)  # pylint: disable=protected-access
+
+        deduped: Optional[Union[Node, dict[str, Node], list[Node]]]
+
+        known = known or {self}
+        if isinstance(self._reqs, Node):
+            node = self._reqs
+            known = recur(node, known)
+            deduped = existing(node, known)
+        elif isinstance(self._reqs, dict):
+            deduped = {}
+            for k, node in self._reqs.items():
+                known = recur(node, known)
+                deduped[k] = existing(node, known)
+        elif isinstance(self._reqs, list):
+            deduped = []
+            for node in self._reqs:
+                known = recur(node, known)
+                deduped.append(existing(node, known))
+        else:
+            deduped = None
+        self._reqs = deduped
+        return known
+
+    def _report_readiness(self) -> None:
+        """
+        Log information about [un]ready requirements of this task-graph node.
+        """
+        self._reset_ready()
+        is_external = isinstance(self, NodeExternal)
+        extmsg = " [external asset]" if is_external and not self.ready else ""
+        logf, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
+        logf("%s: %s%s", self.taskname, readymsg, extmsg)
+        if self.ready:
+            return
+        reqs = {req: req.ready for req in _flatten(self._reqs)}
+        if reqs:
+            log.warning("%s: Requires:", self.taskname)
+            for req, ready_ in reqs.items():
+                status = "✔" if ready_ else "✖"
+                log.warning("%s: %s %s", self.taskname, status, req.taskname)
+
+    def _reset_ready(self) -> None:
+        """
+        Reset the cached ready property.
+        """
+        attr = "ready"
+        if hasattr(self, attr):
+            delattr(self, attr)
+
+    @cached_property
+    def _root(self) -> bool:
+        """
+        Is this the root node (i.e. is it not a requirement of another task)?
+        """
+        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function == "__iotaa_wrapper__"
+        return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
 
 
-# Types:
+class NodeExternal(Node):
+    """
+    A node encapsulating an @external-decorated function/method.
+    """
 
-_AssetT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
-_CacheableT = Optional[Union[bool, dict, float, int, tuple, str]]
-_JSONT = Optional[Union[bool, dict, float, int, list, str]]
-_TaskT = Callable[..., _AssetT]
+    def __init__(self, taskname: str, dry_run: bool, assets_: _AssetOrAssets) -> None:
+        super().__init__(taskname, dry_run)
+        self._assets = assets_
+
+    def __call__(self, dry_run: bool = False) -> Node:
+        if self._root and self._first_visit:
+            self._assemble_and_exec(dry_run)
+        else:
+            self._report_readiness()
+        return self
+
+
+class NodeTask(Node):
+    """
+    A node encapsulating a @task-decorated function/method.
+    """
+
+    def __init__(
+        self,
+        taskname: str,
+        dry_run: bool,
+        assets_: _AssetOrAssets,
+        reqs: _Reqs,
+        exec_task_body: Callable,
+    ) -> None:
+        super().__init__(taskname, dry_run)
+        self._assets = assets_
+        self._reqs = reqs
+        self._exec_task_body = exec_task_body
+
+    def __call__(self, dry_run: bool = False) -> Node:
+        if self._root and self._first_visit:
+            self._assemble_and_exec(dry_run)
+        else:
+            if not self.ready and all(req.ready for req in _flatten(self._reqs)):
+                if dry_run or self._dry_run:
+                    log.info("%s: SKIPPING (DRY RUN)", self.taskname)
+                else:
+                    self._exec_task_body()
+            self._report_readiness()
+        return self
+
+
+class NodeTasks(Node):
+    """
+    A node encapsulating a @tasks-decorated function/method.
+    """
+
+    def __init__(self, taskname: str, dry_run: bool, reqs: Optional[_Reqs] = None) -> None:
+        super().__init__(taskname, dry_run)
+        self._reqs = reqs
+        self._assets = list(
+            chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
+        )
+
+    def __call__(self, dry_run: bool = False) -> Node:
+        if self._root and self._first_visit:
+            self._assemble_and_exec(dry_run)
+        else:
+            self._report_readiness()
+        return self
+
+
+class IotaaError(Exception):
+    """
+    A custom exception type for iotaa-specific errors.
+    """
+
+
+# Types
+
+
+T = TypeVar("T")
+_Node = TypeVar("_Node", bound=Node)
+_Reqs = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 # Private helper classes and their instances:
 
@@ -66,159 +284,119 @@ class _Graph:
     Graphviz digraph support.
     """
 
-    def __init__(self) -> None:
-        self.reset()
+    def __init__(self, root: Node) -> None:
+        """
+        :param root: The task-graph root node.
+        """
+        self._nodes: set = set()
+        self._edges: set = set()
+        self._build(root)
+
+    def _build(self, node: Node) -> None:
+        """
+        Recursively add task nodes with edges to nodes they require.
+
+        :param node: The root node of the current subgraph.
+        """
+        self._nodes.add(node)
+        for req in _flatten(requirements(node)):
+            self._edges.add((node, req))
+            self._build(req)
 
     def __repr__(self) -> str:
         """
-        Returns the task/asset graph in Graphviz dot format.
+        Returns the task graph in Graphviz DOT format.
         """
-        f = (
-            lambda name, shape, ready=None: '%s [fillcolor=%s, label="%s", shape=%s, style=filled]'
-            % (
-                self.name(name),
-                self.color[ready],
-                name,
-                shape,
-            )
-        )
-        edges = ["%s -> %s" % (self.name(a), self.name(b)) for a, b in self.edges]
-        nodes_a = [f(ref, self.shape.asset, ready()) for ref, ready in self.assets.items()]
-        nodes_t = [f(x, self.shape.task) for x in self.tasks]
-        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes_t + nodes_a + edges))
-
-    @property
-    def color(self) -> dict[Any, str]:
-        """
-        Graphviz colors.
-        """
-        return defaultdict(lambda: "grey", [(True, "palegreen"), (False, "orange")])
-
-    def name(self, name: str) -> str:
-        """
-        Convert an iotaa asset/task name to a Graphviz-appropriate node name.
-
-        :param name: An iotaa asset/task name.
-        :return: A Graphviz-appropriate node name.
-        """
-        return "_%s" % md5(str(name).encode("utf-8")).hexdigest()
-
-    @property
-    def shape(self) -> ns:
-        """
-        Graphviz shapes.
-        """
-        return ns(asset="box", task="ellipse")
-
-    def reset(self) -> None:
-        """
-        Reset graph state.
-        """
-        self.assets: dict = {}
-        self.edges: set = set()
-        self.tasks: set = set()
-
-    def update_from_requirements(self, taskname: str, alist: list[Asset]) -> None:
-        """
-        Update graph data structures with required-task info.
-
-        :param taskname: The current task's name.
-        :param alist: Flattened required-task assets.
-        """
-        asset_taskname = lambda a: getattr(a, "taskname", None)
-        self.assets.update({a.ref: a.ready for a in alist})
-        self.edges |= set((asset_taskname(a), a.ref) for a in alist)
-        self.edges |= set((taskname, asset_taskname(a)) for a in alist)
-        self.tasks |= set(asset_taskname(a) for a in alist)
-        self.tasks.add(taskname)
-
-    def update_from_task(self, taskname: str, assets: _AssetT) -> None:
-        """
-        Update graph data structures with current task info.
-
-        :param taskname: The current task's name.
-        :param assets: An asset, a collection of assets, or None.
-        """
-        alist = _flatten(assets)
-        self.assets.update({a.ref: a.ready for a in alist})
-        self.edges |= set((taskname, a.ref) for a in alist)
-        self.tasks.add(taskname)
+        s = '%s [fillcolor=%s, label="%s", style=filled]'
+        name = lambda node: "_%s" % md5(str(node.taskname).encode("utf-8")).hexdigest()
+        color = lambda node: "palegreen" if node.ready else "orange"
+        nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
+        edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
+        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
 
 
-_graph = _Graph()
-
-
-class _Logger:
+class _LoggerProxy:
     """
-    Support for swappable loggers.
+    A proxy for the logger currently in use by iotaa.
+
+    Search the stack for an iotaa-marked "log_" local variable, which will exist for calls made from
+    iotaa task functions.
     """
 
-    def __init__(self) -> None:
-        self.logger = logging.getLogger()  # default to Python root logger.
-
-    def __getattr__(self, attr: str) -> Any:
-        """
-        Delegate attribute access to the currently-used logger.
-
-        :param attr: The attribute to access.
-        :returns: The requested attribute.
-        """
-        return getattr(self.logger, attr)
-
-
-_log = _Logger()
+    def __getattr__(self, name):
+        log_ = None
+        for frameinfo in inspect.stack():
+            if log_ := frameinfo.frame.f_locals.get("log_"):
+                if _MARKER in dir(log_):  # getattr() => stack overflow
+                    break
+        if log_ is None:
+            msg = "No logger found: Ensure this call originated in an iotaa task function."
+            raise IotaaError(msg)
+        return getattr(log_, name)
 
 
-class _State:
+# Main entry-point function:
+
+
+def main() -> None:
     """
-    Global iotaa state.
+    Main CLI entry point.
     """
+    # Parse the command-line arguments, set up logging, then: If the module-name argument represents
+    # a file, append its parent directory to sys.path and remove any extension (presumably .py) so
+    # that it can be imported. If it does not represent a file, assume that it names a module that
+    # can be imported via standard means, maybe via PYTHONPATH. Trailing positional command-line
+    # arguments are then JSON-parsed to Python objects and passed to the specified function.
 
-    def __init__(self) -> None:
-        self.dry_run = False
-        self.initialized = False
+    args = _parse_args(sys.argv[1:])
+    logcfg(verbose=args.verbose)
+    modobj = _modobj(args.module)
+    if args.tasks:
+        _show_tasks_and_exit(args.module, modobj)
+    task_func = getattr(modobj, args.function)
+    task_args = [_reify(arg) for arg in args.args]
+    task_kwargs = {"dry_run": args.dry_run}
+    try:
+        root = task_func(*task_args, **task_kwargs)
+    except IotaaError as e:
+        logging.error(str(e))
+        sys.exit(1)
+    if args.graph:
+        print(graph(root))
 
-    def initialize(self) -> None:
-        """
-        Mark iotaa as initialized.
-        """
-        self.initialized = True
-
-    def reset(self) -> None:
-        """
-        Reset state.
-        """
-        self.initialized = False
-
-
-_state = _State()
 
 # Public API functions:
 
 
-def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
+def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=redefined-outer-name
     """
-    Factory function for Asset objects.
+    Returns an Asset object.
 
     :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
     :param ready: A function that, when called, indicates whether the asset is ready to use.
-    :return: An Asset object.
     """
     return Asset(ref, ready)
 
 
-def dryrun(enable: bool = True) -> None:
+def assets(node: Optional[Node]) -> _AssetOrAssets:
     """
-    Enable (default) or disable dry-run mode.
+    Return the node's assets.
+
+    :param node: A node.
     """
-    _state.dry_run = enable
+    return node._assets if node else None  # pylint: disable=protected-access
 
 
-def graph() -> str:
+def graph(node: Node) -> str:
     """
-    Returns the Graphivz graph of the most recent task execution tree.
+    Returns Graphivz DOT code describing the task graph rooted at the given node.
+
+    :param ndoe: The root node.
     """
-    return str(_graph)
+    return str(_Graph(root=node))
+
+
+log = _LoggerProxy()
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -234,134 +412,39 @@ def logcfg(verbose: bool = False) -> None:
     )
 
 
-def logset(logger: logging.Logger) -> None:
+def ready(node: Node) -> bool:
     """
-    Log hereafter via the given logger.
+    Return the node's ready status.
 
-    :param logger: The logger to log to.
+    :param node: A node.
     """
-    _log.logger = logger
+    return node.ready
 
 
-def main() -> None:
-    """
-    Main CLI entry point.
-    """
-
-    # Parse the command-line arguments, set up logging, configure dry-run mode (maybe), then: If the
-    # module-name argument represents a file, append its parent directory to sys.path and remove any
-    # extension (presumably .py) so that it can be imported. If it does not represent a file, assume
-    # that it names a module that can be imported via standard means, maybe via PYTHONPATH. Trailing
-    # positional command-line arguments are then JSON-parsed to Python objects and passed to the
-    # specified function.
-
-    args = _parse_args(sys.argv[1:])
-    logcfg(verbose=args.verbose)
-    if args.dry_run:
-        dryrun()
-    modname = args.module
-    modpath = Path(modname)
-    if modpath.is_file():
-        sys.path.append(str(modpath.parent.resolve()))
-        modname = modpath.stem
-    modobj = import_module(modname)
-    if args.tasks:
-        _show_tasks(args.module, modobj)
-    reified = [_reify(arg) for arg in args.args]
-    getattr(modobj, args.function)(*reified)
-    if args.graph:
-        print(_graph)
-
-
-def refs(assets: _AssetT) -> Any:
+def refs(node: Optional[Node]) -> Any:
     """
     Extract and return asset references.
 
-    :param assets: An asset, a collection of assets, or None.
-    :return: Asset reference(s) in the same shape (e.g. dict, list, scalar, None) as the asets.
+    :param node: A node.
+    :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
     """
-
-    if isinstance(assets, dict):
-        return {k: v.ref for k, v in assets.items()}
-    if isinstance(assets, list):
-        return [a.ref for a in assets]
-    if isinstance(assets, Asset):
-        return assets.ref
+    _assets = assets(node)
+    if isinstance(_assets, dict):
+        return {k: v.ref for k, v in _assets.items()}
+    if isinstance(_assets, list):
+        return [a.ref for a in _assets]
+    if isinstance(_assets, Asset):
+        return _assets.ref
     return None
 
 
-def run(
-    taskname: str,
-    cmd: str,
-    cwd: Optional[Union[Path, str]] = None,
-    env: Optional[dict[str, str]] = None,
-    log: Optional[bool] = False,
-) -> Result:
+def requirements(node: Node) -> _Reqs:
     """
-    Run a command in a subshell.
+    Return the node's requirements.
 
-    :param taskname: The current task's name.
-    :param cmd: The command to run.
-    :param cwd: Change to this directory before running cmd.
-    :param env: Environment variables to set before running cmd.
-    :param log: Log output from successful cmd? (Error output is always logged.)
-    :return: The stderr, stdout and success info.
+    :param node: A node.
     """
-    indent = "  "
-    _log.info("%s: Running: %s", taskname, cmd)
-    if cwd:
-        _log.info("%s: %sin %s", taskname, indent, cwd)
-    if env:
-        _log.info("%s: %swith environment variables:", taskname, indent)
-        for key, val in env.items():
-            _log.info("%s: %s%s=%s", taskname, indent * 2, key, val)
-    try:
-        output = check_output(
-            cmd, cwd=cwd, encoding="utf=8", env=env, shell=True, stderr=STDOUT, text=True
-        )
-        logfunc = _log.info
-        success = True
-    except CalledProcessError as e:
-        output = e.output
-        _log.error("%s: %sFailed with status: %s", taskname, indent, e.returncode)
-        logfunc = _log.error
-        success = False
-    if output and (log or not success):
-        logfunc("%s: %sOutput:", taskname, indent)
-        for line in output.split("\n"):
-            logfunc("%s: %s%s", taskname, indent * 2, line)
-    return Result(output=output, success=success)
-
-
-def runconda(
-    conda_path: str,
-    conda_env: str,
-    taskname: str,
-    cmd: str,
-    cwd: Optional[Union[Path, str]] = None,
-    env: Optional[dict[str, str]] = None,
-    log: Optional[bool] = False,
-) -> Result:
-    """
-    Run a command in the specified conda environment.
-
-    :param conda_path: Path to the conda installation to use.
-    :param conda_env: Name of the conda environment in which to run cmd.
-    :param taskname: The current task's name.
-    :param cmd: The command to run.
-    :param cwd: Change to this directory before running cmd.
-    :param env: Environment variables to set before running cmd.
-    :param log: Log output from successful cmd? (Error output is always logged.)
-    :return: The stderr, stdout and success info.
-    """
-    cmd = " && ".join(
-        [
-            'eval "$(%s/bin/conda shell.bash hook)"' % conda_path,
-            "conda activate %s" % conda_env,
-            cmd,
-        ]
-    )
-    return run(taskname=taskname, cmd=cmd, cwd=cwd, env=env, log=log)
+    return node._reqs  # pylint: disable=protected-access
 
 
 def tasknames(obj: object) -> list[str]:
@@ -374,7 +457,7 @@ def tasknames(obj: object) -> list[str]:
 
     def f(o):
         return (
-            getattr(o, "__iotaa_task__", False)
+            getattr(o, _MARKER, False)
             and not hasattr(o, "__isabstractmethod__")
             and not o.__name__.startswith("_")
         )
@@ -384,8 +467,12 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
+# NB: When inspecting the call stack, _LoggerProxy will find the log_ local variable in each wrapper
+# function below and will use it when logging via iotaa.log. The assert statements suppress linter
+# complaints about unused variables.
 
-def external(f: Callable) -> _TaskT:
+
+def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
 
@@ -394,19 +481,21 @@ def external(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def g(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_initial(f, *args, **kwargs)
-        assets = _next(g, "assets")
-        ready = _ready(assets)
-        if not ready or top:
-            _graph.update_from_task(taskname, assets)
-            _report_readiness(ready=ready, taskname=taskname, is_external=True)
-        return _task_final(top, taskname, assets)
+    def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
+        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
+        assert isinstance(log_, Logger)
+        assets_ = _next(g, "assets")
+        return _construct_and_call_if_root(
+            NodeExternal,
+            dry_run,
+            taskname=taskname,
+            assets_=assets_,
+        )
 
-    return _mark_task(g)
+    return _mark(__iotaa_wrapper__)
 
 
-def task(f: Callable) -> _TaskT:
+def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     """
     The @task decorator for assets that the workflow can produce.
 
@@ -415,55 +504,53 @@ def task(f: Callable) -> _TaskT:
     """
 
     @wraps(f)
-    def g(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_initial(f, *args, **kwargs)
-        assets = _next(g, "assets")
-        ready_initial = _ready(assets)
-        if not ready_initial or top:
-            _graph.update_from_task(taskname, assets)
-            _report_readiness(ready=ready_initial, taskname=taskname, initial=True)
-        if not ready_initial:
-            required_assets = _delegate(g, taskname)
-            if _ready(required_assets):
-                _log.info("%s: Requirement(s) ready", taskname)
-                _execute(g, taskname)
-            else:
-                _log.info("%s: Requirement(s) not ready", taskname)
-                _report_readiness(ready=False, taskname=taskname)
-        ready_final = _ready(assets)
-        if ready_final != ready_initial:
-            _report_readiness(ready=ready_final, taskname=taskname)
-        return _task_final(top, taskname, assets)
+    def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
+        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
+        assert isinstance(log_, Logger)
+        assets_ = _next(g, "assets")
+        reqs: _Reqs = _next(g, "requirements")
+        return _construct_and_call_if_root(
+            NodeTask,
+            dry_run,
+            taskname=taskname,
+            assets_=assets_,
+            reqs=reqs,
+            exec_task_body=_exec_task_body_later(g, taskname),
+        )
 
-    return _mark_task(g)
+    return _mark(__iotaa_wrapper__)
 
 
-def tasks(f: Callable) -> _TaskT:
+def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     """
-    The @tasks decorator for collections of @task (or @external) function calls.
+    The @tasks decorator for collections of @task (or @external) calls.
 
     :param f: The function being decorated.
     :return: A decorated function.
     """
 
     @wraps(f)
-    def g(*args, **kwargs) -> _AssetT:
-        taskname, top, g = _task_initial(f, *args, **kwargs)
-        if top:
-            _report_readiness(ready=False, taskname=taskname, initial=True)
-        required_assets = _delegate(g, taskname)
-        ready = _ready(required_assets)
-        if not ready or top:
-            _report_readiness(ready=ready, taskname=taskname)
-        return _task_final(top, taskname, required_assets)
+    def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
+        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
+        assert isinstance(log_, Logger)
+        reqs: _Reqs = _next(g, "requirements")
+        return _construct_and_call_if_root(
+            NodeTasks,
+            dry_run,
+            taskname=taskname,
+            reqs=reqs,
+        )
 
-    return _mark_task(g)
+    return _mark(__iotaa_wrapper__)
 
 
 # Private helper functions:
 
 
-def _cacheable(o: _JSONT) -> _CacheableT:
+_Cacheable = Optional[Union[bool, dict, float, int, tuple, str]]
+
+
+def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cacheable:
     """
     Returns a cacheable version of the given value.
 
@@ -485,55 +572,68 @@ def _cacheable(o: _JSONT) -> _CacheableT:
     return o
 
 
-def _delegate(g: Generator, taskname: str) -> _AssetT:
+def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, **kwargs) -> _Node:
     """
-    Delegate execution to the current task's requirement(s).
+    Construct a Node object and, if it is a root node, call it.
 
-    :param g: The current task.
-    :param taskname: The current task's name.
-    :return: The assets of the required task(s).
+    :param node_class: The type of Node to construct.
+    :param dry_run: Avoid executing state-affecting code?
+    :return: A constructed Node object.
     """
-
-    # The next value of the generator is the collection of requirements of the current task. This
-    # may be a dict or list of task-function calls, a single task-function call, or None, so convert
-    # it to a list for iteration. The value of each task-function call is a collection of assets,
-    # one asset, or None. Convert those values to lists, flatten them, and filter None objects.
-
-    _log.info("%s: Checking requirements", taskname)
-    assets: _AssetT = _next(g, "requirements")
-    _graph.update_from_requirements(taskname, _flatten(assets))
-    return assets
+    node = node_class(*args, **{**kwargs, "dry_run": dry_run})
+    if node._root:  # pylint: disable=protected-access
+        node(dry_run)
+    return node
 
 
-def _execute(g: Generator, taskname: str) -> None:
+def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
     """
-    Execute the post-yield body of a decorated function.
+    Returns a function that, when called, executes the post-yield body of a decorated function.
 
     :param g: The current task.
     :param taskname: The current task's name.
     """
-    if _state.dry_run:
-        _log.info("%s: SKIPPING (DRY RUN)", taskname)
-        return
-    try:
-        _log.info("%s: Executing", taskname)
-        next(g)
-    except StopIteration:
-        pass
+
+    def exec_task_body():
+        try:
+            log.info("%s: Executing", taskname)
+            next(g)
+        except StopIteration:
+            pass
+
+    return exec_task_body
 
 
-def _flatten(assets: Union[_AssetT, dict[str, _AssetT], list[_AssetT]]) -> list[Asset]:
+@overload
+def _flatten(o: dict[str, T]) -> list[T]: ...
+
+
+@overload
+def _flatten(o: list[T]) -> list[T]: ...
+
+
+@overload
+def _flatten(o: None) -> list: ...
+
+
+@overload
+def _flatten(o: T) -> list[T]: ...
+
+
+def _flatten(o):
     """
-    Return a simple list of assets formed by collapsing potentially nested collections.
+    Return a simple list formed by collapsing potentially nested collections.
 
-    :param assets: An asset, a collection of assets, or None.
+    :param o: An object, a collection of objects, or None.
     """
-    if assets is None:
+    f: Callable = lambda xs: list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
+    if isinstance(o, dict):
+        return f(list(o.values()))
+    if isinstance(o, list):
+        return f(o)
+    if o is None:
         return []
-    if isinstance(assets, Asset):
-        return [assets]
-    xs = assets if isinstance(assets, list) else assets.values()
-    return list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
+    return [o]
 
 
 def _formatter(prog: str) -> HelpFormatter:
@@ -546,27 +646,27 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _i_am_top_task() -> bool:
-    """
-    Is the calling task the task-tree entry point?
-
-    :return: Is it?
-    """
-    if _state.initialized:
-        return False
-    _state.initialize()
-    _graph.reset()
-    return True
-
-
-def _mark_task(f: _TaskT) -> _TaskT:
+def _mark(f: T) -> T:
     """
     Returns a function, marked as an iotaa task.
 
     :param g: The function to mark.
     """
-    setattr(f, "__iotaa_task__", True)
+    setattr(f, _MARKER, True)
     return f
+
+
+def _modobj(modname: str) -> ModuleType:
+    """
+    Returns the module object corresponding to the given name.
+
+    :param modname: The name of the module.
+    """
+    modpath = Path(modname)
+    if modpath.is_file():
+        sys.path.append(str(modpath.parent.resolve()))
+        modname = modpath.stem
+    return import_module(modname)
 
 
 def _next(g: Iterator, desc: str) -> Any:
@@ -577,9 +677,8 @@ def _next(g: Iterator, desc: str) -> Any:
     """
     try:
         return next(g)
-    except StopIteration:
-        _log.error("Failed to get %s: Check yield statements.", desc)
-        sys.exit(1)
+    except StopIteration as e:
+        raise IotaaError(f"Failed to get {desc}: Check yield statements.") from e
 
 
 def _parse_args(raw: list[str]) -> Namespace:
@@ -612,53 +711,20 @@ def _parse_args(raw: list[str]) -> Namespace:
     return args
 
 
-def _ready(assets: _AssetT) -> bool:
-    """
-    Readiness of the specified asset(s).
-
-    :param assets: An asset, a collection of assets, or None.
-    :return: Are all the assets ready?
-    """
-    return all(a.ready() for a in _flatten(assets))
-
-
-def _reify(s: str) -> _CacheableT:
+def _reify(s: str) -> _Cacheable:
     """
     Convert strings, when possible, to more specifically typed objects.
 
     :param s: The string to convert.
     :return: A more Pythonic representation of the input string.
     """
-
     try:
         return _cacheable(loads(s))
     except JSONDecodeError:
         return _cacheable(loads(f'"{s}"'))
 
 
-def _report_readiness(
-    ready: bool, taskname: str, is_external: Optional[bool] = False, initial: Optional[bool] = False
-) -> None:
-    """
-    Log information about the readiness of an asset.
-
-    :param ready: Is the asset ready to use?
-    :param taskname: The current task's name.
-    :param is_external: Is this an @external task?
-    :param initial: Is this a initial (i.e. pre-run) readiness report?
-    """
-    extmsg = " (external asset)" if is_external and not ready else ""
-    logf = _log.info if initial or ready else _log.warning
-    logf(
-        "%s: %s: %s%s",
-        taskname,
-        "State" if is_external else "Initial state" if initial else "Final state",
-        "Ready" if ready else "Not Ready",
-        extmsg,
-    )
-
-
-def _show_tasks(name: str, obj: ModuleType) -> None:
+def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     """
     Print names and descriptions of tasks available in module.
 
@@ -673,39 +739,25 @@ def _show_tasks(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_final(top: bool, taskname: str, assets: _AssetT) -> _AssetT:
+def _task_common(f: Callable, *args, **kwargs) -> tuple[bool, _LoggerProxy, str, Generator]:
     """
-    Final steps common to all task types.
-
-    :param top: Is this the top task?
-    :param taskname: The current task's name.
-    :param assets: An asset, a collection of assets, or None.
-    :return: The same assets that were provided as input.
-    """
-    if top:
-        _state.reset()
-    for a in _flatten(assets):
-        setattr(a, "taskname", taskname)
-    return assets
-
-
-def _task_initial(f: Callable, *args, **kwargs) -> tuple[str, bool, Generator]:
-    """
-    Inital steps common to all task types.
+    Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The task's name, its "top" status, and the generator returned by the task.
+    :return: The dry-run setting, the logger, the task's name, the generator returned by the task.
     """
-    top = _i_am_top_task()  # Must precede delegation to other tasks!
-    g = f(*args, **kwargs)
+    dry_run = kwargs.get("dry_run", False)
+    log_ = _mark(kwargs.get("log", getLogger()))
+    task_kwargs = {k: v for k, v in kwargs.items() if k not in ("dry_run", "log")}
+    g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return taskname, top, g
+    return dry_run, log_, taskname, g
 
 
 def _version() -> str:
     """
     Return version information.
     """
-    with res.files("iotaa.resources").joinpath("info.json").open("r") as f:
+    with res.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
         return "version %s build %s" % (info["version"], info["buildnum"])

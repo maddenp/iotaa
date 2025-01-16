@@ -2,36 +2,24 @@
 Tests for module iotaa.
 """
 
-# pylint: disable=missing-function-docstring
-# pylint: disable=protected-access
-# pylint: disable=redefined-outer-name
-# pylint: disable=use-implicit-booleaness-not-comparison
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
 import logging
 import re
-import sys
 from abc import abstractmethod
 from hashlib import md5
+from itertools import chain
 from textwrap import dedent
+from typing import cast
 from unittest.mock import ANY
 from unittest.mock import DEFAULT as D
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from pytest import fixture, mark, raises, skip
+from pytest import fixture, mark, raises
 
 import iotaa
 
 # Fixtures
-
-
-@fixture
-def delegate_assets():
-    return (iotaa.asset(ref=n, ready=lambda: True) for n in range(4))
-
-
-@fixture
-def empty_graph():
-    return iotaa._Graph()
 
 
 @fixture
@@ -49,15 +37,54 @@ def external_foo_scalar():
 
 
 @fixture
+def graphkit():
+    a = iotaa.NodeExternal(taskname="a", dry_run=False, assets_=iotaa.asset(None, lambda: False))
+    b = iotaa.NodeExternal(taskname="b", dry_run=False, assets_=iotaa.asset(None, lambda: True))
+    root = iotaa.NodeTasks(taskname="root", dry_run=False, reqs=[a, b])
+    name = lambda x: md5(x.encode("utf-8")).hexdigest()
+    graph = iotaa._Graph(root=root)
+    assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
+    assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
+    expected = """
+    digraph g {{
+      _{a} [fillcolor=orange, label="a", style=filled]
+      _{root} -> _{a}
+      _{root} -> _{b}
+      _{root} [fillcolor=orange, label="root", style=filled]
+      _{b} [fillcolor=palegreen, label="b", style=filled]
+    }}
+    """.format(
+        a=name("a"), b=name("b"), root=name("root")
+    )
+    return dedent(expected).strip(), graph, root
+
+
+@fixture
+def log_():
+    logger = logging.getLogger("iotaa-test")
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    return iotaa._mark(logger)
+
+
+@fixture
 def module_for_main(tmp_path):
     func = """
-def hi(x):
-    print(f"hello {x}!")
-""".strip()
-    m = tmp_path / "a.py"
-    with open(m, "w", encoding="utf-8") as f:
-        print(func, file=f)
-    return m
+    from iotaa import asset, task
+    @task
+    def hi(x):
+        yield("test")
+        yield asset(None, lambda: False)
+        yield None
+        print(f"hello {x}!")
+    """
+    module = tmp_path / "a.py"
+    with open(module, "w", encoding="utf-8") as f:
+        print(dedent(func).strip(), file=f)
+    return module
 
 
 @fixture
@@ -189,6 +216,11 @@ def args(path, tasks):
     )
 
 
+@iotaa.external
+def badtask():
+    yield "Bad task yields no asset"
+
+
 def logged(msg, caplog):
     return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
@@ -215,39 +247,15 @@ def test_Asset(asset):
     assert asset.ready()
 
 
-@mark.parametrize(
-    # One without kwargs, one with:
-    "result",
-    [iotaa.Result("foo", True), iotaa.Result(output="foo", success=True)],
-)
-def test_Result(result):
-    assert result.output == "foo"
-    assert result.success
+def test_assets(external_foo_scalar, tmp_path):
+    node = external_foo_scalar(tmp_path)
+    asset = cast(iotaa.Asset, iotaa.assets(node))
+    assert asset.ref == tmp_path / "foo"
 
 
-def test_asset_kwargs():
-    a = iotaa.asset(ref="foo", ready=lambda: True)
-    assert a.ref == "foo"
-    assert a.ready()
-
-
-@mark.parametrize("args,expected", [([], True), ([True], True), ([False], False)])
-def test_dryrun(args, expected):
-    with patch.object(iotaa, "_state", iotaa._State()):
-        assert not iotaa._state.dry_run
-        iotaa.dryrun(*args)
-        assert iotaa._state.dry_run is expected
-
-
-def test_graph():
-
-    @iotaa.external
-    def noop():
-        yield "noop"
-        yield iotaa.asset("noop", lambda: True)
-
-    noop()
-    assert iotaa.graph().startswith("digraph")
+def test_graph(graphkit):
+    expected, _, root = graphkit
+    assert iotaa.graph(root).strip() == expected
 
 
 @mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
@@ -258,14 +266,43 @@ def test_logcfg(vals):
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_logset():
-    with patch.object(iotaa, "_log", iotaa._Logger()):
-        # Initially, logging uses the Python root logger:
-        assert iotaa._log.logger == logging.getLogger()
-        # But the logger can be swapped to use a logger of choice:
-        test_logger = logging.getLogger("test-logger")
-        iotaa.logset(test_logger)
-        assert iotaa._log.logger == test_logger
+def test_ready(external_foo_scalar, tmp_path):
+    node_before = external_foo_scalar(tmp_path)
+    assert not iotaa.ready(node_before)
+    iotaa.refs(node_before).touch()
+    node_after = external_foo_scalar(tmp_path)
+    assert iotaa.ready(node_after)
+
+
+def test_refs():
+    expected = "bar"
+    asset = iotaa.asset(ref="bar", ready=lambda: True)
+    node = iotaa.NodeExternal(taskname="test", dry_run=False, assets_=None)
+    assert iotaa.refs(node=node) is None
+    node._assets = {"foo": asset}
+    assert iotaa.refs(node=node)["foo"] == expected
+    node._assets = [asset]
+    assert iotaa.refs(node=node)[0] == expected
+    node._assets = asset
+    assert iotaa.refs(node=node) == expected
+
+
+def test_requirements(external_foo_scalar, task_bar_dict, tmp_path):
+    assert iotaa.requirements(task_bar_dict(tmp_path)) == external_foo_scalar(tmp_path)
+
+
+def test_tasknames(task_class):
+    assert iotaa.tasknames(task_class()) == ["bar", "baz", "foo"]
+
+
+# main() tests
+
+
+def test_main_error(caplog):
+    with patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]):
+        with raises(SystemExit):
+            iotaa.main()
+    assert logged("Failed to get assets: Check yield statements.", caplog)
 
 
 def test_main_live_abspath(capsys, module_for_main):
@@ -284,98 +321,39 @@ def test_main_live_syspath(capsys, module_for_main):
     assert "hello world!" in capsys.readouterr().out
 
 
-def test_main_mocked_up(tmp_path):
-    with patch.multiple(
-        iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
-    ) as mocks:
-        with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
-            parse_args = mocks["_parse_args"]
-            parse_args.return_value = args(path=tmp_path, tasks=False)
-            with patch.object(iotaa, "getattr", create=True) as getattr_:
+@mark.parametrize("g", [lambda s, i, f, b: (None, False), lambda s, i, f, b: (None, True)])
+def test_main_mocked_up(capsys, g, tmp_path):
+    with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
+        with patch.object(iotaa, "graph", return_value="DOT code") as graph:
+            mocks["_parse_args"].return_value = args(path=tmp_path, tasks=False)
+            f = Mock(__code__=g.__code__)
+            with patch.object(iotaa, "getattr", create=True, return_value=f) as getattr_:
                 iotaa.main()
-                import_module = mocks["import_module"]
-                import_module.assert_called_once_with("a")
-                getattr_.assert_called_once_with(import_module(), "a_function")
-                getattr_().assert_called_once_with("foo", 88, 3.14, True)
-            mocks["dryrun"].assert_called_once_with()
+                mocks["import_module"].assert_called_once_with("a")
+                getattr_.assert_any_call(mocks["import_module"](), "a_function")
+                task_args = ["foo", 88, 3.14, True]
+                task_kwargs = {"dry_run": True}
+                getattr_().assert_called_once_with(*task_args, **task_kwargs)
+            mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
-            __repr__.assert_called_once()
-            parse_args.assert_called_once()
+            graph.assert_called_once()
+            assert capsys.readouterr().out.strip() == "DOT code"
 
 
 def test_main_mocked_up_tasknames(tmp_path):
-    with patch.multiple(
-        iotaa, _parse_args=D, dryrun=D, import_module=D, logcfg=D, tasknames=D
-    ) as mocks:
-        with patch.object(iotaa._Graph, "__repr__", return_value="") as __repr__:
-            parse_args = mocks["_parse_args"]
-            parse_args.return_value = args(path=tmp_path, tasks=True)
+    with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
+        with patch.object(iotaa, "graph", return_value="DOT code") as graph:
+            mocks["_parse_args"].return_value = args(path=tmp_path, tasks=True)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 with raises(SystemExit) as e:
                     iotaa.main()
-                assert e.value.code == 0
-                import_module = mocks["import_module"]
-                import_module.assert_called_once_with("a")
+                    mocks["import_module"].assert_called_once_with("a")
+                    assert e.value.code == 0
                 getattr_.assert_not_called()
                 getattr_().assert_not_called()
-            mocks["dryrun"].assert_called_once_with()
+            mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
-            __repr__.assert_not_called()
-            parse_args.assert_called_once()
-
-
-def test_refs():
-    expected = "bar"
-    asset = iotaa.asset(ref="bar", ready=lambda: True)
-    assert iotaa.refs(assets={"foo": asset})["foo"] == expected
-    assert iotaa.refs(assets=[asset])[0] == expected
-    assert iotaa.refs(assets=asset) == expected
-    assert iotaa.refs(assets=None) is None
-
-
-def test_run_failure(caplog):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    cmd = "expr 1 / 0"
-    result = iotaa.run(taskname="task", cmd=cmd)
-    assert "division by zero" in result.output
-    assert result.success is False
-    assert logged("task: Running: %s" % cmd, caplog)
-    assert logged("task:   Failed with status: 2", caplog)
-    assert logged("task:   Output:", caplog)
-    assert logged("task:     expr: division by zero", caplog)
-
-
-def test_run_success(caplog, tmp_path):
-    if sys.platform.startswith("win"):
-        skip("unsupported platform")
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    cmd = "echo hello $FOO"
-    assert iotaa.run(taskname="task", cmd=cmd, cwd=tmp_path, env={"FOO": "bar"}, log=True)
-    assert logged("task: Running: %s" % cmd, caplog)
-    assert logged("task:   in %s" % tmp_path, caplog)
-    assert logged("task:   with environment variables:", caplog)
-    assert logged("task:     FOO=bar", caplog)
-    assert logged("task:   Output:", caplog)
-    assert logged("task:     hello bar", caplog)
-
-
-def test_runconda():
-    conda_path = "/path/to_conda"
-    conda_env = "env-name"
-    taskname = "task"
-    cmd = "foo"
-    fullcmd = 'eval "$(%s/bin/conda shell.bash hook)" && conda activate %s && %s' % (
-        conda_path,
-        conda_env,
-        cmd,
-    )
-    with patch.object(iotaa, "run") as run:
-        iotaa.runconda(conda_path=conda_path, conda_env=conda_env, taskname=taskname, cmd=cmd)
-        run.assert_called_once_with(taskname=taskname, cmd=fullcmd, cwd=None, env=None, log=False)
-
-
-def test_tasknames(task_class):
-    assert iotaa.tasknames(task_class()) == ["bar", "baz", "foo"]
+            graph.assert_not_called()
 
 
 # Decorator tests
@@ -386,24 +364,27 @@ def test_tasknames(task_class):
     [("EXTERNAL!", "external_foo_scalar"), ("TASK!", "task_bar_scalar"), ("TASKS!", "tasks_baz")],
 )
 def test_docstrings(docstring, request, task):
-    assert request.getfixturevalue(task).__doc__.strip() == docstring
+    func = request.getfixturevalue(task)
+    assert func.__doc__.strip() == docstring
 
 
-def test_external_not_ready(external_foo_scalar, tmp_path):
+def test_external_not_ready(external_foo_scalar, log_, tmp_path):  # pylint: disable=unused-argument
     f = tmp_path / "foo"
     assert not f.is_file()
-    assets = external_foo_scalar(tmp_path)
-    assert iotaa.refs(assets) == f
-    assert not assets.ready()
+    node = external_foo_scalar(tmp_path)
+    node()
+    assert iotaa.refs(node) == f
+    assert not node._assets.ready()
 
 
-def test_external_ready(external_foo_scalar, tmp_path):
+def test_external_ready(external_foo_scalar, log_, tmp_path):  # pylint: disable=unused-argument
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    asset = external_foo_scalar(tmp_path)
-    assert iotaa.refs(asset) == f
-    assert asset.ready()
+    node = external_foo_scalar(tmp_path)
+    node()
+    assert iotaa.refs(node) == f
+    assert node._assets.ready()
 
 
 @mark.parametrize(
@@ -414,15 +395,17 @@ def test_external_ready(external_foo_scalar, tmp_path):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_not_ready(caplog, request, task, tmp_path, val):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
+def test_task_not_ready(caplog, log_, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assets = request.getfixturevalue(task)(tmp_path)
-    assert val(iotaa.refs(assets)) == f_bar
-    assert not val(assets).ready()
+    func = request.getfixturevalue(task)
+    node = func(tmp_path, log=log_)
+    node()
+    assert val(iotaa.refs(node)) == f_bar
+    assert not val(node._assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Requirement(s) not ready", caplog)
+    for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
+        assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 
 @mark.parametrize(
@@ -433,17 +416,18 @@ def test_task_not_ready(caplog, request, task, tmp_path, val):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_ready(caplog, request, task, tmp_path, val):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
+def test_task_ready(caplog, log_, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = request.getfixturevalue(task)(tmp_path)
-    assert val(iotaa.refs(assets)) == f_bar
-    assert val(assets).ready()
+    func = request.getfixturevalue(task)
+    node = func(tmp_path, log=log_)
+    assert val(iotaa.refs(node)) == f_bar
+    assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
-    assert logged(f"task bar {f_bar}: Requirement(s) ready", caplog)
+    for msg in ["Executing", "Ready"]:
+        assert logged(f"task bar {f_bar}: {msg}", caplog)
 
 
 def test_tasks_structured():
@@ -469,36 +453,48 @@ def test_tasks_structured():
         yield "structured"
         yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
 
-    retval = structured()
-    assert isinstance(retval, dict)
-    assets = {**retval}
-    assert iotaa.refs(assets["dict"]) == {"foo": "a", "bar": "a"}
-    assert iotaa.refs(assets["list"]) == ["a", "a"]
-    assert iotaa.refs(assets["scalar"]) == "a"
+    node = structured()
+    requirements = iotaa.requirements(node)
+    assert isinstance(requirements, dict)
+    assert iotaa.refs(requirements["dict"]) == {"foo": "a", "bar": "a"}
+    assert iotaa.refs(requirements["list"]) == ["a", "a"]
+    assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-def test_tasks_not_ready(tasks_baz, tmp_path):
+def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    with patch.object(iotaa, "_state") as _state:
-        _state.initialized = False
-        assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets[0]) == f_foo
-    assert iotaa.refs(assets[1]["path"]) == f_bar
-    assert not any(x.ready() for x in iotaa._flatten(assets))
+    node = tasks_baz(tmp_path)
+    requirements = cast(list[iotaa.Node], iotaa.requirements(node))
+    assert iotaa.refs(requirements[0]) == f_foo
+    assert iotaa.refs(requirements[1])["path"] == f_bar
+    assert not any(
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
+    )
     assert not any(x.is_file() for x in [f_foo, f_bar])
+    for msg in [
+        "Not ready",
+        "Requires:",
+        "✖ external foo %s/foo" % tmp_path,
+        "✖ task bar %s/bar" % tmp_path,
+    ]:
+        assert logged(f"tasks baz: {msg}", caplog)
 
 
-def test_tasks_ready(tasks_baz, tmp_path):
+def test_tasks_ready(caplog, log_, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    assets = tasks_baz(tmp_path)
-    assert iotaa.refs(assets[0]) == f_foo
-    assert iotaa.refs(assets[1]["path"]) == f_bar
-    assert all(x.ready() for x in iotaa._flatten(assets))
+    node = tasks_baz(tmp_path, log=log_)
+    requirements = cast(list[iotaa.Node], iotaa.requirements(node))
+    assert iotaa.refs(requirements[0]) == f_foo
+    assert iotaa.refs(requirements[1])["path"] == f_bar
+    assert all(
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
+    )
     assert all(x.is_file() for x in [f_foo, f_bar])
+    assert logged("tasks baz: Ready", caplog)
 
 
 # Private function tests
@@ -525,67 +521,9 @@ def test__cacheable():
     assert hash(b) is not None
 
 
-def test__delegate_none(caplog):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-
-    def f():
-        yield None
-
-    assert not iotaa._delegate(f(), "task")
-    assert logged("task: Checking requirements", caplog)
-
-
-def test__delegate_scalar(caplog, delegate_assets):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    a1, *_ = delegate_assets
-    assets = a1
-
-    def f():
-        yield assets
-
-    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == assets
-        gufr.assert_called_once_with("task", [a1])
-    assert logged("task: Checking requirements", caplog)
-
-
-def test__delegate_dict_and_list_of_assets(caplog, delegate_assets):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    a1, a2, a3, a4 = delegate_assets
-    assets = [{"foo": a1, "bar": a2}, [a3, a4]]
-
-    def f():
-        yield assets
-
-    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == assets
-        gufr.assert_called_once_with("task", [a1, a2, a3, a4])
-    assert logged("task: Checking requirements", caplog)
-
-
-def test__delegate_none_and_scalar(caplog, delegate_assets):
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    a1, *_ = delegate_assets
-    assets = [None, a1]
-
-    def f():
-        yield assets
-
-    with patch.object(iotaa._graph, "update_from_requirements") as gufr:
-        assert iotaa._delegate(f(), "task") == assets
-        gufr.assert_called_once_with("task", [a1])
-    assert logged("task: Checking requirements", caplog)
-
-
-def test__execute_dry_run(caplog, rungen):
-    with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
-        _state.dry_run = True
-        iotaa._execute(g=rungen, taskname="task")
-    assert logged("task: SKIPPING (DRY RUN)", caplog)
-
-
-def test__execute_live(caplog, rungen):
-    iotaa._execute(g=rungen, taskname="task")
+def test__exec_task_body_later(caplog, log_, rungen):  # pylint: disable=unused-argument
+    exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
+    exec_task_body()
     assert logged("task: Executing", caplog)
 
 
@@ -606,27 +544,26 @@ def test__formatter():
     assert formatter._prog == "foo"
 
 
-@mark.parametrize("val", [True, False])
-def test__i_am_top_task(val):
-    with patch.object(iotaa, "_state", new=iotaa._State()) as _state:
-        _state.initialized = not val
-        assert iotaa._i_am_top_task() == val
-
-
-def test__mark_task():
+def test__mark():
 
     def f():
         pass
 
-    assert not hasattr(f, "__iotaa_task__")
-    assert iotaa._mark_task(f) is f
-    assert hasattr(f, "__iotaa_task__")
+    assert not hasattr(f, iotaa._MARKER)
+    assert iotaa._mark(f) is f
+    assert hasattr(f, iotaa._MARKER)
 
 
-def test__next(caplog):
-    with raises(SystemExit):
+def test__modobj():
+    assert iotaa._modobj("iotaa") == iotaa
+    with raises(ModuleNotFoundError):
+        assert iotaa._modobj("$")
+
+
+def test__next():
+    with raises(iotaa.IotaaError) as e:
         iotaa._next(iter([]), "foo")
-    assert logged("Failed to get foo: Check yield statements.", caplog)
+    assert str(e.value) == "Failed to get foo: Check yield statements."
 
 
 @mark.parametrize("graph", [None, "-g", "--graph"])
@@ -662,18 +599,6 @@ def test__parse_args_missing_task_ok(switch):
     assert args.tasks is True
 
 
-def test__ready():
-    af = iotaa.asset(ref=False, ready=lambda: False)
-    at = iotaa.asset(ref=True, ready=lambda: True)
-    assert iotaa._ready(None)
-    assert iotaa._ready([at])
-    assert iotaa._ready(at)
-    assert iotaa._ready({"ready": at})
-    assert not iotaa._ready([af])
-    assert not iotaa._ready(af)
-    assert not iotaa._ready({"not ready": af})
-
-
 def test__reify():
     strs = ["foo", "88", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 88, 3.14, True]
@@ -683,23 +608,9 @@ def test__reify():
     assert hash(o) == hash((("a", 1), ("b", 2)))
 
 
-@mark.parametrize(
-    "vals",
-    [
-        (True, False, True, "Initial state: Ready"),
-        (False, True, False, "State: Not Ready (external asset)"),
-    ],
-)
-def test__report_readiness(caplog, vals):
-    ready, ext, init, msg = vals
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
-    iotaa._report_readiness(ready=ready, taskname="task", is_external=ext, initial=init)
-    assert logged(f"task: {msg}", caplog)
-
-
-def test__show_tasks(capsys, task_class):
+def test__show_tasks_and_exit(capsys, task_class):
     with raises(SystemExit):
-        iotaa._show_tasks(name="X", obj=task_class)
+        iotaa._show_tasks_and_exit(name="X", obj=task_class)
     expected = """
     Tasks in X:
       bar
@@ -710,147 +621,61 @@ def test__show_tasks(capsys, task_class):
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
 
 
-@mark.parametrize("assets", simple_assets())
-def test__task_final(assets):
-    for a in iotaa._flatten(assets):
-        assert getattr(a, "taskname", None) is None
-    assets = iotaa._task_final(False, "task", assets)
-    for a in iotaa._flatten(assets):
-        assert getattr(a, "taskname") == "task"
-
-
-def test__task_inital():
+def test__task_common():
     def f(taskname, n):
         yield taskname
         yield n
 
-    with patch.object(iotaa, "_state", iotaa._State()):
-        tn = "task"
-        taskname, top, g = iotaa._task_initial(f, tn, n=88)
-        assert taskname == tn
-        assert top is True
-        assert next(g) == 88
+    tn = "task"
+    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=88)
+    assert dry_run is False
+    assert log is iotaa.logging.getLogger()
+    assert taskname == tn
+    assert next(g) == 88
+
+
+def test__task_common_extras():
+    def f(taskname, n):
+        yield taskname
+        yield n
+        iotaa.log.info("testing")
+
+    tn = "task"
+    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=88, dry_run=True)
+    assert dry_run is True
+    assert log is iotaa.logging.getLogger()
+    assert taskname == tn
+    assert next(g) == 88
+
+
+# Node tests
+
+
+def test_Node___repr__(task_bar_scalar, tmp_path):
+    node = task_bar_scalar(tmp_path)
+    assert re.match(rf"^task bar {tmp_path}/bar <\d+>$", str(node))
+
+
+def test_Node___call___dry_run(caplog, task_bar_scalar, tmp_path):
+    (tmp_path / "foo").touch()
+    node = task_bar_scalar(tmp_path, dry_run=True)
+    assert logged("%s: SKIPPING (DRY RUN)" % node.taskname, caplog)
 
 
 # _Graph tests
 
 
-def test__Graph___repr__(capsys):
-    assets = {"foo": lambda: True, "bar": lambda: False}  # foo ready, bar not ready
-    edges = {("qux", "baz"), ("baz", "foo"), ("baz", "bar")}
-    tasks = {"qux", "baz"}
-    with patch.object(iotaa, "_graph", iotaa._Graph()) as graph:
-        graph.assets = assets
-        graph.edges = edges
-        graph.tasks = tasks
-        print(iotaa._graph)
-    out = capsys.readouterr().out.strip().split("\n")
-    # How many asset nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.asset in x])
-    # How many task nodes were graphed?
-    assert 2 == len([x for x in out if "shape=%s," % iotaa._graph.shape.task in x])
-    # How many edges were graphed?
-    assert 3 == len([x for x in out if " -> " in x])
-    # How many assets were ready?
-    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[True] in x])
-    # How many assets were not ready?
-    assert 1 == len([x for x in out if "fillcolor=%s," % iotaa._graph.color[False] in x])
+def test__Graph(graphkit):
+    expected, graph, _ = graphkit
+    assert str(graph).strip() == expected
 
 
-def test__Graph_color():
-    assert isinstance(iotaa._graph.color, dict)
+# _LoggerProxy tests
 
 
-def test__Graph_name():
-    name = "foo"
-    assert iotaa._graph.name(name) == "_%s" % md5(name.encode("utf-8")).hexdigest()
-
-
-def test__Graph_shape():
-    assert iotaa._graph.shape.asset == "box"
-    assert iotaa._graph.shape.task == "ellipse"
-
-
-def test__Graph_reset():
-    with patch.object(iotaa, "_graph", iotaa._Graph()) as _graph:
-        _graph.assets["some"] = "asset"
-        _graph.edges.add("some-edge")
-        _graph.tasks.add("some-task")
-        assert _graph.assets
-        assert _graph.edges
-        assert _graph.tasks
-        _graph.reset()
-        assert not _graph.assets
-        assert not _graph.edges
-        assert not _graph.tasks
-
-
-@mark.parametrize("assets", simple_assets())
-def test__Graph_update_from_requirements(assets, empty_graph):
-    taskname_req = "req"
-    taskname_this = "task"
-    alist = iotaa._flatten(assets)
-    edges = {
-        0: set(),
-        1: {(taskname_this, taskname_req), (taskname_req, "foo")},
-        2: {(taskname_this, taskname_req), (taskname_req, "foo"), (taskname_req, "bar")},
-    }[len(alist)]
-    for a in alist:
-        setattr(a, "taskname", taskname_req)
-    with patch.object(iotaa, "_graph", empty_graph):
-        iotaa._graph.update_from_requirements(taskname_this, alist)
-        assert all(a() for a in iotaa._graph.assets.values())
-        assert iotaa._graph.tasks == ({taskname_req, taskname_this} if assets else {taskname_this})
-        assert iotaa._graph.edges == edges
-
-
-@mark.parametrize("assets", simple_assets())
-def test__Graph_update_from_task(assets, empty_graph):
-    taskname = "task"
-    with patch.object(iotaa, "_graph", empty_graph):
-        iotaa._graph.update_from_task(taskname, assets)
-        assert all(a() for a in iotaa._graph.assets.values())
-        assert iotaa._graph.tasks == {taskname}
-        assert iotaa._graph.edges == {(taskname, x.ref) for x in iotaa._flatten(assets)}
-
-
-# _State tests
-
-
-def test__State():
-    with patch.object(iotaa, "_state", iotaa._State()) as _state:
-        assert not _state.dry_run
-        assert not _state.initialized
-
-
-def test__State_initialize():
-    with patch.object(iotaa, "_state", iotaa._State()) as _state:
-        _state.initialize()
-        assert _state.initialized
-
-
-def test__State_reset():
-    with patch.object(iotaa, "_state", iotaa._State()) as _state:
-        _state.initialize()
-        assert _state.initialized
-        _state.reset()
-        assert not _state.initialized
-
-
-# Misc tests
-
-
-def test_state_reset_via_task():
-
-    @iotaa.external
-    def noop():
-        yield "noop"
-        yield iotaa.asset("noop", lambda: True)
-
-    with patch.object(iotaa._graph, "reset") as reset_graph:
-        with patch.object(iotaa._state, "reset") as reset_state:
-            reset_graph.assert_not_called()
-            reset_state.assert_not_called()
-            noop()
-            reset_graph.assert_called_once_with()
-            reset_state.assert_called_once_with()
+def test__LoggerProxy():
+    lp = iotaa._LoggerProxy()
+    with raises(iotaa.IotaaError) as e:
+        lp.info("fail")
+    expected = "No logger found: Ensure this call originated in an iotaa task function."
+    assert str(e.value) == expected

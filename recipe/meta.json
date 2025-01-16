@@ -1,21 +1,22 @@
 {
   "build": "py_0",
-  "buildnum": "0",
+  "buildnum": 0,
   "name": "iotaa",
   "packages": {
     "dev": [
-      "black",
-      "coverage",
-      "docformatter",
-      "isort",
-      "mypy",
+      "black =24.10.*",
+      "coverage =7.6.*",
+      "docformatter =1.7.*",
+      "isort =5.13.*",
+      "mypy =1.13.*",
       "pip",
-      "pylint",
-      "pytest",
+      "pylint =3.3.*",
+      "pytest =8.3.*",
       "python",
+      "python =3.9",
       "setuptools"
     ],
     "run": []
   },
-  "version": "0.8.3"
+  "version": "1.0.0"
 }

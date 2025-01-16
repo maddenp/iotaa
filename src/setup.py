@@ -5,7 +5,7 @@ Basic setuptools configuration.
 import json
 import os
 
-from setuptools import find_packages, setup  # type: ignore
+from setuptools import find_packages, setup
 
 if os.environ.get("CONDA_BUILD"):
     meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")}
