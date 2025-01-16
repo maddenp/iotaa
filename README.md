@@ -83,7 +83,7 @@ Integration into another package:
 
 ```
 $ iotaa --help
-usage: iotaa [-d] [-h] [-g] [-t] [-v] [--version] module [function] [args ...]
+usage: iotaa [-d] [-h] [-g] [-s] [-v] [--version] module [function] [args ...]
 
 positional arguments:
   module
@@ -100,7 +100,7 @@ optional arguments:
     show help and exit
   -g, --graph
     emit Graphviz dot to stdout
-  -t, --tasks
+  -s, --show
     show available tasks
   -v, --verbose
     enable verbose logging
@@ -114,7 +114,7 @@ It is assumed that `m` is importable by Python by customary means. As a convenie
 
 Given a task graph comprising any number of nodes defined in module `m`, an arbitrary subgraph may be executed by specifying the desired root function `f`: Only `f` and its children will be processed, resulting in partial execution of the potentially larger workflow graph.
 
-The `function` argument is optional (and ignored if supplied) if the `-t` / `--tasks` option, which lists the names of task functions in `module`, is specified.
+The `function` argument is optional (and ignored if supplied) if the `-s` / `--show` option, which shows the names of available task functions in `module`, is specified.
 
 ### Programmatic Use
 
@@ -137,7 +137,7 @@ A number of public helper functions are available in the `iotaa` module:
 | `ready()`        | Given the value returned by a task-function call, returns the ready status of the task. |
 | `refs()`         | Given the value returned by a task-function call, returns `ref` values of the assets in the same shape (e.g. `dict`, `list`) as returned by the task. |
 | `requirements()` | Given the value returned by a task-function call, returns any other such values yielded by that value as its requirements. |
-| `tasknames()`    | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-t` / `--tasks` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
+| `tasknames()`    | Accepts an object (e.g. a module) and returns a list of names of  `iotaa` task members. This function is called when the `-s` / `--show` argument is provided to the CLI, which then prints each task name followed by, when available, the first line of its docstring.
 
 ## Development
 

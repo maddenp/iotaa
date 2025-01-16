@@ -201,7 +201,7 @@ def task_class():
 # Helpers
 
 
-def args(path, tasks):
+def args(path, show):
     m = path / "a.py"
     m.touch()
     strs = ["foo", "88", "3.14", "true"]
@@ -211,7 +211,7 @@ def args(path, tasks):
         function="a_function",
         graph=True,
         module=m,
-        tasks=tasks,
+        show=show,
         verbose=True,
     )
 
@@ -325,7 +325,7 @@ def test_main_live_syspath(capsys, module_for_main):
 def test_main_mocked_up(capsys, g, tmp_path):
     with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
         with patch.object(iotaa, "graph", return_value="DOT code") as graph:
-            mocks["_parse_args"].return_value = args(path=tmp_path, tasks=False)
+            mocks["_parse_args"].return_value = args(path=tmp_path, show=False)
             f = Mock(__code__=g.__code__)
             with patch.object(iotaa, "getattr", create=True, return_value=f) as getattr_:
                 iotaa.main()
@@ -343,7 +343,7 @@ def test_main_mocked_up(capsys, g, tmp_path):
 def test_main_mocked_up_tasknames(tmp_path):
     with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
         with patch.object(iotaa, "graph", return_value="DOT code") as graph:
-            mocks["_parse_args"].return_value = args(path=tmp_path, tasks=True)
+            mocks["_parse_args"].return_value = args(path=tmp_path, show=True)
             with patch.object(iotaa, "getattr", create=True) as getattr_:
                 with raises(SystemExit) as e:
                     iotaa.main()
@@ -567,14 +567,14 @@ def test__next():
 
 
 @mark.parametrize("graph", [None, "-g", "--graph"])
-@mark.parametrize("tasks", [None, "-t", "--tasks"])
+@mark.parametrize("show", [None, "-s", "--show"])
 @mark.parametrize("verbose", [None, "-v", "--verbose"])
-def test__parse_args(graph, tasks, verbose):
+def test__parse_args(graph, show, verbose):
     raw = ["a_module", "a_function", "arg1", "arg2"]
     if graph:
         raw.append(graph)
-    if tasks:
-        raw.append(tasks)
+    if show:
+        raw.append(show)
     if verbose:
         raw.append(verbose)
     args = iotaa._parse_args(raw=raw)
@@ -582,7 +582,7 @@ def test__parse_args(graph, tasks, verbose):
     assert args.function == "a_function"
     assert args.args == ["arg1", "arg2"]
     assert args.graph is bool(graph)
-    assert args.tasks is bool(tasks)
+    assert args.show is bool(show)
     assert args.verbose is bool(verbose)
 
 
@@ -592,11 +592,11 @@ def test__parse_args_missing_task_no():
     assert e.value.code == 1
 
 
-@mark.parametrize("switch", ["-t", "--tasks"])
+@mark.parametrize("switch", ["-s", "--show"])
 def test__parse_args_missing_task_ok(switch):
     args = iotaa._parse_args(raw=["a_module", switch])
     assert args.module == "a_module"
-    assert args.tasks is True
+    assert args.show is True
 
 
 def test__reify():

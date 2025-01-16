@@ -351,7 +351,7 @@ def main() -> None:
     args = _parse_args(sys.argv[1:])
     logcfg(verbose=args.verbose)
     modobj = _modobj(args.module)
-    if args.tasks:
+    if args.show:
         _show_tasks_and_exit(args.module, modobj)
     task_func = getattr(modobj, args.function)
     task_args = [_reify(arg) for arg in args.args]
@@ -696,7 +696,7 @@ def _parse_args(raw: list[str]) -> Namespace:
     optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
-    optional.add_argument("-t", "--tasks", action="store_true", help="show available tasks")
+    optional.add_argument("-s", "--show", action="store_true", help="show available tasks")
     optional.add_argument("-v", "--verbose", action="store_true", help="enable verbose logging")
     optional.add_argument(
         "--version",
@@ -705,8 +705,8 @@ def _parse_args(raw: list[str]) -> Namespace:
         version=f"{Path(sys.argv[0]).name} {_version()}",
     )
     args = parser.parse_args(raw)
-    if not args.function and not args.tasks:
-        print("Request --tasks or specify task name")
+    if not args.function and not args.show:
+        print("Request --show or specify task name")
         sys.exit(1)
     return args
 
