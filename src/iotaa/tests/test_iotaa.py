@@ -586,10 +586,11 @@ def test__parse_args(graph, show, verbose):
     assert args.verbose is bool(verbose)
 
 
-def test__parse_args_missing_task_no():
+def test__parse_args_missing_task_no(capsys):
     with raises(SystemExit) as e:
         iotaa._parse_args(raw=["a_module"])
     assert e.value.code == 1
+    assert capsys.readouterr().out.strip() == "Request -s/--show or specify task name"
 
 
 @mark.parametrize("switch", ["-s", "--show"])
@@ -597,6 +598,15 @@ def test__parse_args_missing_task_ok(switch):
     args = iotaa._parse_args(raw=["a_module", switch])
     assert args.module == "a_module"
     assert args.show is True
+
+
+@mark.parametrize("p", ["-p", "--procs"])
+@mark.parametrize("t", ["-t", "--threads"])
+def test__parse_args_mutually_exclusive_procs_threads(capsys, p, t):
+    with raises(SystemExit) as e:
+        iotaa._parse_args(raw=["a_module", "a_function", p, "1", t, "1"])
+    assert e.value.code == 1
+    assert capsys.readouterr().out.strip() == "Specify at most one of -p/--procs or -t/--threads"
 
 
 def test__reify():

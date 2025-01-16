@@ -699,7 +699,9 @@ def _parse_args(raw: list[str]) -> Namespace:
     optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
     optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
+    optional.add_argument("-p", "--procs", help="use N process workers", metavar="N", type=int)
     optional.add_argument("-s", "--show", action="store_true", help="show available tasks")
+    optional.add_argument("-t", "--threads", help="use N thread workers", metavar="N", type=int)
     optional.add_argument("-v", "--verbose", action="store_true", help="enable verbose logging")
     optional.add_argument(
         "--version",
@@ -709,7 +711,10 @@ def _parse_args(raw: list[str]) -> Namespace:
     )
     args = parser.parse_args(raw)
     if not args.function and not args.show:
-        print("Request --show or specify task name")
+        print("Request -s/--show or specify task name")
+        sys.exit(1)
+    if args.procs and args.threads:
+        print("Specify at most one of -p/--procs or -t/--threads")
         sys.exit(1)
     return args
 
