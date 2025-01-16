@@ -104,8 +104,11 @@ class Node(ABC):
         self._add_node_and_predecessors(self)
         self._debug_header("Execution")
         self._first_visit = False
-        for node in self._graph.static_order():
-            node(dry_run)
+        self._graph.prepare()
+        while self._graph.is_active():
+            for node in self._graph.get_ready():
+                node(dry_run)
+                self._graph.done(node)
 
     def _debug_header(self, msg: str) -> None:
         """
