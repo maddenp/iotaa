@@ -378,13 +378,13 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Node) -> _AssetOrAssets:
+def assets(node: Optional[Node]) -> _AssetOrAssets:
     """
     Return the node's assets.
 
     :param node: A node.
     """
-    return node._assets  # pylint: disable=protected-access
+    return node._assets if node else None  # pylint: disable=protected-access
 
 
 def graph(node: Node) -> str:
