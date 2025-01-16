@@ -421,7 +421,7 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def refs(node: Node) -> Any:
+def refs(node: Optional[Node]) -> Any:
     """
     Extract and return asset references.
 
