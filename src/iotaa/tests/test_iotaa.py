@@ -71,7 +71,7 @@ def graphkit():
 
 
 @fixture
-def iotaa_log():
+def iotaa_logger():
     logger = logging.getLogger("iotaa-test")
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
@@ -382,7 +382,7 @@ def test_docstrings(docstring, request, task):
 
 
 def test_external_not_ready(
-    external_foo_scalar, iotaa_log, tmp_path
+    external_foo_scalar, iotaa_logger, tmp_path
 ):  # pylint: disable=unused-argument
     f = tmp_path / "foo"
     assert not f.is_file()
@@ -393,7 +393,7 @@ def test_external_not_ready(
 
 
 def test_external_ready(
-    external_foo_scalar, iotaa_log, tmp_path
+    external_foo_scalar, iotaa_logger, tmp_path
 ):  # pylint: disable=unused-argument
     f = tmp_path / "foo"
     f.touch()
@@ -412,11 +412,11 @@ def test_external_ready(
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_not_ready(caplog, iotaa_log, request, task, tmp_path, val):
+def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     func = request.getfixturevalue(task)
-    node = func(tmp_path, log=iotaa_log)
+    node = func(tmp_path, log=iotaa_logger)
     node()
     assert val(iotaa.refs(node)) == f_bar
     assert not val(node._assets).ready()
@@ -433,13 +433,13 @@ def test_task_not_ready(caplog, iotaa_log, request, task, tmp_path, val):
         ("task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_ready(caplog, iotaa_log, request, task, tmp_path, val):
+def test_task_ready(caplog, iotaa_logger, request, task, tmp_path, val):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
     func = request.getfixturevalue(task)
-    node = func(tmp_path, log=iotaa_log)
+    node = func(tmp_path, log=iotaa_logger)
     assert val(iotaa.refs(node)) == f_bar
     assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
@@ -498,12 +498,12 @@ def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
         assert logged(f"tasks baz: {msg}", caplog)
 
 
-def test_tasks_ready(caplog, iotaa_log, tasks_baz, tmp_path):
+def test_tasks_ready(caplog, iotaa_logger, tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = tasks_baz(tmp_path, log=iotaa_log)
+    node = tasks_baz(tmp_path, log=iotaa_logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -538,7 +538,7 @@ def test__cacheable():
     assert hash(b) is not None
 
 
-def test__exec_task_body_later(caplog, iotaa_log, rungen):  # pylint: disable=unused-argument
+def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # pylint: disable=unused-argument
     exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
     exec_task_body()
     assert logged("task: Executing", caplog)

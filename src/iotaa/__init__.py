@@ -370,13 +370,13 @@ class _LoggerProxy:
     @staticmethod
     def logger() -> Logger:
         """
-        Search the stack for a specially-named and iotaa-marked local log variable, which will exist
-        for calls made from iotaa task functions.
+        Search the stack for a specially-named and iotaa-marked local logger variable, which will
+        exist for calls made from iotaa task functions.
 
         :raises: IotaaError is no logger is found.
         """
         for frameinfo in inspect.stack():
-            if the_log := frameinfo.frame.f_locals.get("iotaa_log"):
+            if the_log := frameinfo.frame.f_locals.get("iotaa_logger"):
                 if _MARKER in dir(the_log):  # getattr() => stack overflow
                     return cast(Logger, the_log)
         msg = "No logger found: Ensure this call originated in an iotaa task function."
@@ -516,8 +516,8 @@ def tasknames(obj: object) -> list[str]:
 # Public task-graph decorator functions:
 
 # NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-marked
-# log local variable in each wrapper function below and will use it when logging via iotaa.log. The
-# associated assertionts suppress linter complaints about unused variables.
+# logger local variable in each wrapper function below and will use it when logging via iotaa.log().
+# The associated assertionts suppress linter complaints about unused variables.
 
 
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
@@ -530,8 +530,8 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
-        taskname, exectype, workers, dry_run, iotaa_log, g = _task_common(f, *args, **kwargs)
-        assert isinstance(iotaa_log, Logger)
+        taskname, exectype, workers, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -555,8 +555,8 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
-        taskname, exectype, workers, dry_run, iotaa_log, g = _task_common(f, *args, **kwargs)
-        assert isinstance(iotaa_log, Logger)
+        taskname, exectype, workers, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_if_root_call(
@@ -583,8 +583,8 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
-        taskname, exectype, workers, dry_run, iotaa_log, g = _task_common(f, *args, **kwargs)
-        assert isinstance(iotaa_log, Logger)
+        taskname, exectype, workers, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_logger, Logger)
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_if_root_call(
             node_class=NodeTasks,
