@@ -206,8 +206,8 @@ class Node(ABC):
         self._reset_ready()
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
-        logf, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
-        logf("%s: %s%s", self.taskname, readymsg, extmsg)
+        logfunc, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
+        logfunc("%s: %s%s", self.taskname, readymsg, extmsg)
         if self.ready:
             return
         reqs = {req: req.ready for req in _flatten(self._reqs)}
