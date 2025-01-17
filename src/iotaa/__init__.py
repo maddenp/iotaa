@@ -247,6 +247,7 @@ class NodeExternal(Node):
         self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # pylint: disable=unused-variable
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -275,6 +276,7 @@ class NodeTask(Node):
         self._exec_task_body = exec_task_body
 
     def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # pylint: disable=unused-variable
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -307,6 +309,7 @@ class NodeTasks(Node):
         )
 
     def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # pylint: disable=unused-variable
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -318,9 +321,6 @@ class IotaaError(Exception):
     """
     A custom exception type for iotaa-specific errors.
     """
-
-
-# Types
 
 
 T = TypeVar("T")
