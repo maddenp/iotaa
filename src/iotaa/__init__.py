@@ -63,10 +63,9 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str, executor: Executor, dry_run: bool) -> None:
+    def __init__(self, taskname: str, executor: Executor) -> None:
         self.taskname = taskname
         self._executor = executor
-        self._dry_run = dry_run
         self._assets: Optional[_AssetOrAssets] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
@@ -235,10 +234,8 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(
-        self, taskname: str, executor: Executor, dry_run: bool, assets_: _AssetOrAssets
-    ) -> None:
-        super().__init__(taskname=taskname, executor=executor, dry_run=dry_run)
+    def __init__(self, taskname: str, executor: Executor, assets_: _AssetOrAssets) -> None:
+        super().__init__(taskname=taskname, executor=executor)
         self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -258,12 +255,11 @@ class NodeTask(Node):
         self,
         taskname: str,
         executor: Executor,
-        dry_run: bool,
         assets_: _AssetOrAssets,
         reqs: _Reqs,
         exec_task_body: Callable,
     ) -> None:
-        super().__init__(taskname=taskname, executor=executor, dry_run=dry_run)
+        super().__init__(taskname=taskname, executor=executor)
         self._assets = assets_
         self._reqs = reqs
         self._exec_task_body = exec_task_body
@@ -273,7 +269,7 @@ class NodeTask(Node):
             self._assemble_and_exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self._reqs)):
-                if dry_run or self._dry_run:
+                if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self._exec_task_body()
@@ -286,10 +282,8 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(
-        self, taskname: str, executor: Executor, dry_run: bool, reqs: Optional[_Reqs] = None
-    ) -> None:
-        super().__init__(taskname=taskname, executor=executor, dry_run=dry_run)
+    def __init__(self, taskname: str, executor: Executor, reqs: Optional[_Reqs] = None) -> None:
+        super().__init__(taskname=taskname, executor=executor)
         self._reqs = reqs
         self._assets = list(
             chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
@@ -631,7 +625,7 @@ def _construct_and_if_root_call(
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
-    node = node_class(taskname=taskname, executor=executor, dry_run=dry_run, **kwargs)
+    node = node_class(taskname=taskname, executor=executor, **kwargs)
     if node._root:  # pylint: disable=protected-access
         node(dry_run)
     return node

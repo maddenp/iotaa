@@ -45,12 +45,10 @@ def external_foo_scalar():
 @fixture
 def graphkit(executor):
     a = iotaa.NodeExternal(
-        taskname="a", executor=executor, dry_run=False, assets_=iotaa.asset(None, lambda: False)
+        taskname="a", executor=executor, assets_=iotaa.asset(None, lambda: False)
     )
-    b = iotaa.NodeExternal(
-        taskname="b", executor=executor, dry_run=False, assets_=iotaa.asset(None, lambda: True)
-    )
-    root = iotaa.NodeTasks(taskname="root", executor=executor, dry_run=False, reqs=[a, b])
+    b = iotaa.NodeExternal(taskname="b", executor=executor, assets_=iotaa.asset(None, lambda: True))
+    root = iotaa.NodeTasks(taskname="root", executor=executor, reqs=[a, b])
     name = lambda x: md5(x.encode("utf-8")).hexdigest()
     graph = iotaa._Graph(root=root)
     assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
@@ -289,7 +287,7 @@ def test_ready(external_foo_scalar, tmp_path):
 def test_refs(executor):
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", executor=executor, dry_run=False, assets_=None)
+    node = iotaa.NodeExternal(taskname="test", executor=executor, assets_=None)
     assert iotaa.refs(node=node) is None
     node._assets = {"foo": asset}
     assert iotaa.refs(node=node)["foo"] == expected
