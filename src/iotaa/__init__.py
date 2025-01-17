@@ -376,9 +376,9 @@ class _LoggerProxy:
         :raises: IotaaError is no logger is found.
         """
         for frameinfo in inspect.stack():
-            if the_log := frameinfo.frame.f_locals.get("iotaa_logger"):
-                if _MARKER in dir(the_log):  # getattr() => stack overflow
-                    return cast(Logger, the_log)
+            if logger := frameinfo.frame.f_locals.get("iotaa_logger"):
+                if _MARKER in dir(logger):  # getattr() => stack overflow
+                    return cast(Logger, logger)
         msg = "No logger found: Ensure this call originated in an iotaa task function."
         raise IotaaError(msg)
 
@@ -828,12 +828,12 @@ def _task_common(
         exectype = ThreadPoolExecutor
         workers = threads or 1
     dry_run = kwargs.get("dry_run", False)
-    the_log = _mark(kwargs.get("log", getLogger()))
+    logger = _mark(kwargs.get("log", getLogger()))
     filter_keys = ("dry_run", "log", "procs", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return taskname, exectype, workers, dry_run, the_log, g
+    return taskname, exectype, workers, dry_run, logger, g
 
 
 def _version() -> str:
