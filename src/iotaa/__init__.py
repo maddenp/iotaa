@@ -2,8 +2,6 @@
 iotaa.
 """
 
-# PM really need dry_run in node(dry_run) call?
-
 from __future__ import annotations
 
 import inspect
@@ -114,8 +112,6 @@ class Node(ABC):
         Assemble and then execute the task graph.
 
         :param dry_run: Avoid executing state-affecting code?
-        :param procs: Concurrent processes to use.
-        :param threads: Concurrent threads to use.
         """
         # Assemble:
         self._graph = TopologicalSorter()
