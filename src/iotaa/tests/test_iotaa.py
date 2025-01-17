@@ -7,6 +7,7 @@ Tests for module iotaa.
 import logging
 import re
 from abc import abstractmethod
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from hashlib import md5
 from itertools import chain
 from textwrap import dedent
@@ -20,6 +21,11 @@ from pytest import fixture, mark, raises
 import iotaa
 
 # Fixtures
+
+
+@fixture
+def executor():
+    return ThreadPoolExecutor(max_workers=1)
 
 
 @fixture
@@ -37,10 +43,14 @@ def external_foo_scalar():
 
 
 @fixture
-def graphkit():
-    a = iotaa.NodeExternal(taskname="a", dry_run=False, assets_=iotaa.asset(None, lambda: False))
-    b = iotaa.NodeExternal(taskname="b", dry_run=False, assets_=iotaa.asset(None, lambda: True))
-    root = iotaa.NodeTasks(taskname="root", dry_run=False, reqs=[a, b])
+def graphkit(executor):
+    a = iotaa.NodeExternal(
+        taskname="a", executor=executor, dry_run=False, assets_=iotaa.asset(None, lambda: False)
+    )
+    b = iotaa.NodeExternal(
+        taskname="b", executor=executor, dry_run=False, assets_=iotaa.asset(None, lambda: True)
+    )
+    root = iotaa.NodeTasks(taskname="root", executor=executor, dry_run=False, reqs=[a, b])
     name = lambda x: md5(x.encode("utf-8")).hexdigest()
     graph = iotaa._Graph(root=root)
     assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
@@ -211,7 +221,9 @@ def args(path, show):
         function="a_function",
         graph=True,
         module=m,
+        procs=None,
         show=show,
+        threads=None,
         verbose=True,
     )
 
@@ -274,10 +286,10 @@ def test_ready(external_foo_scalar, tmp_path):
     assert iotaa.ready(node_after)
 
 
-def test_refs():
+def test_refs(executor):
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", dry_run=False, assets_=None)
+    node = iotaa.NodeExternal(taskname="test", executor=executor, dry_run=False, assets_=None)
     assert iotaa.refs(node=node) is None
     node._assets = {"foo": asset}
     assert iotaa.refs(node=node)["foo"] == expected
@@ -314,7 +326,7 @@ def test_main_live_abspath(capsys, module_for_main):
 def test_main_live_syspath(capsys, module_for_main):
     m = str(module_for_main.name).replace(".py", "")  # i.e. not a path to an actual file
     with patch.object(iotaa.sys, "argv", new=["prog", m, "hi", "world"]):
-        syspath = list(iotaa.sys.path) + [module_for_main.parent]
+        syspath = list(iotaa.sys.path) + [str(module_for_main.parent)]
         with patch.object(iotaa.sys, "path", new=syspath):
             with patch.object(iotaa.Path, "is_file", return_value=False):
                 iotaa.main()
@@ -332,6 +344,7 @@ def test_main_mocked_up(capsys, g, tmp_path):
                 mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_any_call(mocks["import_module"](), "a_function")
                 task_args = ["foo", 42, 3.14, True]
+                task_kwargs = {"dry_run": True, "procs": None, "threads": None}
                 getattr_().assert_called_once_with(*task_args, **task_kwargs)
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
@@ -636,10 +649,11 @@ def test__task_common():
         yield n
 
     tn = "task"
-    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=42)
+    taskname, executor, dry_run, log, g = iotaa._task_common(f, tn, n=42, threads=1)
+    assert taskname == tn
+    assert isinstance(executor, ThreadPoolExecutor)
     assert dry_run is False
     assert log is iotaa.logging.getLogger()
-    assert taskname == tn
     assert next(g) == 42
 
 
@@ -650,10 +664,11 @@ def test__task_common_extras():
         iotaa.log.info("testing")
 
     tn = "task"
-    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=42, dry_run=True)
+    taskname, executor, dry_run, log, g = iotaa._task_common(f, tn, n=42, dry_run=True, procs=1)
+    assert taskname == tn
+    assert isinstance(executor, ProcessPoolExecutor)
     assert dry_run is True
     assert log is iotaa.logging.getLogger()
-    assert taskname == tn
     assert next(g) == 42
 
 
