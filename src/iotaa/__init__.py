@@ -124,29 +124,17 @@ class Node(ABC):
         self._debug_header("Execution")
         self._first_visit = False
         # Exec:
-        self._graph.prepare()
-        while self._graph.is_active():
-            for node in self._graph.get_ready():
-                node(dry_run)
-                self._graph.done(node)
-        # futures = []
-        # g = self._graph
-        # g.prepare()
-
-        # def foo(f):
-        #     breakpoint()
-        #     node = f.result()
-        #     g.done(node)
-
-        # executor = self._exectype(max_workers=self._workers)
-        # while g.is_active():
-        #     for node in g.get_ready():
-        #         future = executor.submit(node, dry_run)
-        #         # future.add_done_callback(lambda f: g.done(f.result()))
-        #         future.add_done_callback(foo)
-        #         futures.append(future)
-        #     time.sleep(0)
-        # wait(futures)
+        futures = []
+        g = self._graph
+        g.prepare()
+        executor = self._exectype(max_workers=self._workers)
+        while g.is_active():
+            for node in g.get_ready():
+                future = executor.submit(node, dry_run)
+                future.add_done_callback(lambda f: g.done(f.result()))
+                futures.append(future)
+            time.sleep(0)
+        wait(futures)
 
     def _debug_header(self, msg: str) -> None:
         """
