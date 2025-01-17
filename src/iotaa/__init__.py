@@ -55,7 +55,7 @@ class Asset:
     ready: Callable[..., bool]
 
 
-_AssetOrAssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 _ExecutorT = Type[Union[ProcessPoolExecutor, ThreadPoolExecutor]]
 
 
@@ -68,7 +68,7 @@ class Node(ABC):
         self.taskname = taskname
         self._exectype = exectype
         self._workers = workers
-        self._assets: Optional[_AssetOrAssetsT] = None
+        self._assets: Optional[_AssetsT] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
         self._reqs: Optional[_Reqs] = None
@@ -237,7 +237,7 @@ class NodeExternal(Node):
     """
 
     def __init__(
-        self, taskname: str, exectype: _ExecutorT, workers: int, assets_: _AssetOrAssetsT
+        self, taskname: str, exectype: _ExecutorT, workers: int, assets_: _AssetsT
     ) -> None:
         super().__init__(taskname=taskname, exectype=exectype, workers=workers)
         self._assets = assets_
@@ -260,7 +260,7 @@ class NodeTask(Node):
         taskname: str,
         exectype: _ExecutorT,
         workers: int,
-        assets_: _AssetOrAssetsT,
+        assets_: _AssetsT,
         reqs: _Reqs,
         exec_task_body: Callable,
     ) -> None:
@@ -423,7 +423,7 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Optional[Node]) -> _AssetOrAssetsT:
+def assets(node: Optional[Node]) -> _AssetsT:
     """
     Return the node's assets.
 
