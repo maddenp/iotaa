@@ -37,7 +37,9 @@ from typing import (
 )
 
 _ERR_MSG_THREADS = "Specify either procs or threads"
+_ExecutorT = Type[Union[ProcessPoolExecutor, ThreadPoolExecutor]]
 _MARKER = "__IOTAA__"
+_T = TypeVar("_T")
 
 # Public return-value classes:
 
@@ -56,7 +58,6 @@ class Asset:
 
 
 _AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
-_ExecutorT = Type[Union[ProcessPoolExecutor, ThreadPoolExecutor]]
 
 
 class Node(ABC):
@@ -235,6 +236,10 @@ class Node(ABC):
         return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
 
 
+_NodeT = TypeVar("_NodeT", bound=Node)
+_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
+
+
 class NodeExternal(Node):
     """
     A node encapsulating an @external-decorated function/method.
@@ -322,10 +327,6 @@ class IotaaError(Exception):
     A custom exception type for iotaa-specific errors.
     """
 
-
-T = TypeVar("T")
-_NodeT = TypeVar("_NodeT", bound=Node)
-_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 # Private helper classes and their instances:
 
@@ -677,11 +678,11 @@ def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
 
 
 @overload
-def _flatten(o: dict[str, T]) -> list[T]: ...
+def _flatten(o: dict[str, _T]) -> list[_T]: ...
 
 
 @overload
-def _flatten(o: list[T]) -> list[T]: ...
+def _flatten(o: list[_T]) -> list[_T]: ...
 
 
 @overload
@@ -689,7 +690,7 @@ def _flatten(o: None) -> list: ...
 
 
 @overload
-def _flatten(o: T) -> list[T]: ...
+def _flatten(o: _T) -> list[_T]: ...
 
 
 def _flatten(o):
@@ -718,7 +719,7 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _mark(f: T) -> T:
+def _mark(f: _T) -> _T:
     """
     Returns a function, marked as an iotaa task.
 
