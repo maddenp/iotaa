@@ -11,7 +11,7 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
-from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
