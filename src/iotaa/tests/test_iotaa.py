@@ -589,7 +589,7 @@ def test__parse_args_missing_task_no(capsys):
     with raises(SystemExit) as e:
         iotaa._parse_args(raw=["a_module"])
     assert e.value.code == 1
-    assert capsys.readouterr().out.strip() == "Request -s/--show or specify task name"
+    assert capsys.readouterr().out.strip() == "Specify task name"
 
 
 @mark.parametrize("switch", ["-s", "--show"])

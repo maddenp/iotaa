@@ -21,8 +21,8 @@ from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union, overload
 
+_ERR_MSG_THREADS = "Specify either procs or threads"
 _MARKER = "__IOTAA__"
 
 # Public return-value classes:
@@ -711,10 +711,10 @@ def _parse_args(raw: list[str]) -> Namespace:
     )
     args = parser.parse_args(raw)
     if not args.function and not args.show:
-        print("Request -s/--show or specify task name")
+        print("Specify task name")
         sys.exit(1)
     if args.procs and args.threads:
-        print("Specify at most one of -p/--procs or -t/--threads")
+        print(_ERR_MSG_THREADS)
         sys.exit(1)
     return args
 
