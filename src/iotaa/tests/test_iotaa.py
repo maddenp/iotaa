@@ -204,7 +204,7 @@ def task_class():
 def args(path, show):
     m = path / "a.py"
     m.touch()
-    strs = ["foo", "88", "3.14", "true"]
+    strs = ["foo", "42", "3.14", "true"]
     return iotaa.Namespace(
         args=strs,
         dry_run=True,
@@ -331,8 +331,7 @@ def test_main_mocked_up(capsys, g, tmp_path):
                 iotaa.main()
                 mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_any_call(mocks["import_module"](), "a_function")
-                task_args = ["foo", 88, 3.14, True]
-                task_kwargs = {"dry_run": True}
+                task_args = ["foo", 42, 3.14, True]
                 getattr_().assert_called_once_with(*task_args, **task_kwargs)
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
@@ -505,7 +504,7 @@ def test__cacheable():
         "bool": True,
         "dict": {"dict": {1: 2}, "list": [1, 2]},
         "float": 3.14,
-        "int": 88,
+        "int": 42,
         "list": [{1: 2}, [1, 2]],
         "str": "hello",
     }
@@ -514,7 +513,7 @@ def test__cacheable():
         "bool": True,
         "dict": {"dict": {1: 2}, "list": (1, 2)},
         "float": 3.14,
-        "int": 88,
+        "int": 42,
         "list": ({1: 2}, (1, 2)),
         "str": "hello",
     }
@@ -606,12 +605,12 @@ def test__parse_args_mutually_exclusive_procs_threads(capsys, p, t):
     with raises(SystemExit) as e:
         iotaa._parse_args(raw=["a_module", "a_function", p, "1", t, "1"])
     assert e.value.code == 1
-    assert capsys.readouterr().out.strip() == "Specify at most one of -p/--procs or -t/--threads"
+    assert capsys.readouterr().out.strip() == "Specify either procs or threads"
 
 
 def test__reify():
-    strs = ["foo", "88", "3.14", "true"]
-    assert [iotaa._reify(s) for s in strs] == ["foo", 88, 3.14, True]
+    strs = ["foo", "42", "3.14", "true"]
+    assert [iotaa._reify(s) for s in strs] == ["foo", 42, 3.14, True]
     assert iotaa._reify("[1, 2]") == (1, 2)
     o = iotaa._reify('{"b": 2, "a": 1}')
     assert o == {"a": 1, "b": 2}
@@ -637,11 +636,11 @@ def test__task_common():
         yield n
 
     tn = "task"
-    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=88)
+    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=42)
     assert dry_run is False
     assert log is iotaa.logging.getLogger()
     assert taskname == tn
-    assert next(g) == 88
+    assert next(g) == 42
 
 
 def test__task_common_extras():
@@ -651,11 +650,11 @@ def test__task_common_extras():
         iotaa.log.info("testing")
 
     tn = "task"
-    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=88, dry_run=True)
+    dry_run, log, taskname, g = iotaa._task_common(f, tn, n=42, dry_run=True)
     assert dry_run is True
     assert log is iotaa.logging.getLogger()
     assert taskname == tn
-    assert next(g) == 88
+    assert next(g) == 42
 
 
 # Node tests
