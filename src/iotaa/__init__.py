@@ -55,7 +55,8 @@ class Asset:
     ready: Callable[..., bool]
 
 
-_AssetOrAssets = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_AssetOrAssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_ExecutorT = Type[Union[ProcessPoolExecutor, ThreadPoolExecutor]]
 
 
 class Node(ABC):
@@ -63,11 +64,11 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str, exectype: Type[Executor], workers: int) -> None:
+    def __init__(self, taskname: str, exectype: _ExecutorT, workers: int) -> None:
         self.taskname = taskname
         self._exectype = exectype
         self._workers = workers
-        self._assets: Optional[_AssetOrAssets] = None
+        self._assets: Optional[_AssetOrAssetsT] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
         self._reqs: Optional[_Reqs] = None
@@ -236,7 +237,7 @@ class NodeExternal(Node):
     """
 
     def __init__(
-        self, taskname: str, exectype: Type[Executor], workers: int, assets_: _AssetOrAssets
+        self, taskname: str, exectype: _ExecutorT, workers: int, assets_: _AssetOrAssetsT
     ) -> None:
         super().__init__(taskname=taskname, exectype=exectype, workers=workers)
         self._assets = assets_
@@ -257,9 +258,9 @@ class NodeTask(Node):
     def __init__(
         self,
         taskname: str,
-        exectype: Type[Executor],
+        exectype: _ExecutorT,
         workers: int,
-        assets_: _AssetOrAssets,
+        assets_: _AssetOrAssetsT,
         reqs: _Reqs,
         exec_task_body: Callable,
     ) -> None:
@@ -287,7 +288,7 @@ class NodeTasks(Node):
     """
 
     def __init__(
-        self, taskname: str, exectype: Type[Executor], workers: int, reqs: Optional[_Reqs] = None
+        self, taskname: str, exectype: _ExecutorT, workers: int, reqs: Optional[_Reqs] = None
     ) -> None:
         super().__init__(taskname=taskname, exectype=exectype, workers=workers)
         self._reqs = reqs
@@ -422,7 +423,7 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Optional[Node]) -> _AssetOrAssets:
+def assets(node: Optional[Node]) -> _AssetOrAssetsT:
     """
     Return the node's assets.
 
@@ -625,7 +626,7 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
 def _construct_and_if_root_call(
     node_class: Type[_Node],
     taskname: str,
-    exectype: Type[Executor],
+    exectype: _ExecutorT,
     workers: int,
     dry_run: bool,
     **kwargs,
@@ -806,7 +807,7 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
 
 def _task_common(
     f: Callable, *args, **kwargs
-) -> tuple[str, Type[Executor], int, bool, _LoggerProxy, Generator]:
+) -> tuple[str, _ExecutorT, int, bool, _LoggerProxy, Generator]:
     """
     Collect and return info about the task.
 
@@ -816,7 +817,7 @@ def _task_common(
     procs, threads = [kwargs.get(x, None) for x in ("procs", "threads")]
     if procs and threads:
         raise RuntimeError(_ERR_MSG_THREADS)
-    exectype: Type[Executor]
+    exectype: _ExecutorT
     if procs:
         exectype = ProcessPoolExecutor
         workers = procs
