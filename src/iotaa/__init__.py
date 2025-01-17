@@ -72,7 +72,7 @@ class Node(ABC):
         self._assets: Optional[_AssetsT] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
-        self._reqs: Optional[_Reqs] = None
+        self._reqs: Optional[_ReqsT] = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -267,7 +267,7 @@ class NodeTask(Node):
         workers: int,
         logger: Logger,
         assets_: _AssetsT,
-        reqs: _Reqs,
+        reqs: _ReqsT,
         exec_task_body: Callable,
     ) -> None:
         super().__init__(taskname=taskname, exectype=exectype, workers=workers, logger=logger)
@@ -300,7 +300,7 @@ class NodeTasks(Node):
         exectype: _ExecutorT,
         workers: int,
         logger: Logger,
-        reqs: Optional[_Reqs] = None,
+        reqs: Optional[_ReqsT] = None,
     ) -> None:
         super().__init__(taskname=taskname, exectype=exectype, workers=workers, logger=logger)
         self._reqs = reqs
@@ -324,8 +324,8 @@ class IotaaError(Exception):
 
 
 T = TypeVar("T")
-_Node = TypeVar("_Node", bound=Node)
-_Reqs = Optional[Union[Node, dict[str, Node], list[Node]]]
+_NodeT = TypeVar("_NodeT", bound=Node)
+_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 # Private helper classes and their instances:
 
@@ -493,7 +493,7 @@ def refs(node: Optional[Node]) -> Any:
     return None
 
 
-def requirements(node: Node) -> _Reqs:
+def requirements(node: Node) -> _ReqsT:
     """
     Return the node's requirements.
 
@@ -564,7 +564,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
         taskname, exectype, workers, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
-        reqs: _Reqs = _next(g, "requirements")
+        reqs: _ReqsT = _next(g, "requirements")
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
@@ -592,7 +592,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
         taskname, exectype, workers, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
-        reqs: _Reqs = _next(g, "requirements")
+        reqs: _ReqsT = _next(g, "requirements")
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
@@ -635,13 +635,13 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
 
 
 def _construct_and_if_root_call(
-    node_class: Type[_Node],
+    node_class: Type[_NodeT],
     taskname: str,
     exectype: _ExecutorT,
     workers: int,
     dry_run: bool,
     **kwargs,
-) -> _Node:
+) -> _NodeT:
     """
     Construct a Node object and, if it is a root node, call it.
 
