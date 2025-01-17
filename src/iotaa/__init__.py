@@ -130,13 +130,16 @@ class Node(ABC):
         # futures = []
         # g = self._graph
         # g.prepare()
+
         # def foo(f):
         #     breakpoint()
         #     node = f.result()
         #     g.done(node)
+
+        # executor = self._exectype(max_workers=self._workers)
         # while g.is_active():
         #     for node in g.get_ready():
-        #         future = self._executor.submit(node, dry_run)
+        #         future = executor.submit(node, dry_run)
         #         # future.add_done_callback(lambda f: g.done(f.result()))
         #         future.add_done_callback(foo)
         #         futures.append(future)
@@ -367,15 +370,15 @@ class _LoggerProxy:
     @staticmethod
     def logger() -> Logger:
         """
-        Search the stack for an iotaa-marked "log_" local variable, which will exist for calls made
-        from iotaa task functions.
+        Search the stack for an iotaa-marked "iotaa_log" local variable, which will exist for calls
+        made from iotaa task functions.
 
         :raises: IotaaError is no logger is found.
         """
         for frameinfo in inspect.stack():
-            if log_ := frameinfo.frame.f_locals.get("log_"):
-                if _MARKER in dir(log_):  # getattr() => stack overflow
-                    return cast(Logger, log_)
+            if iotaa_log := frameinfo.frame.f_locals.get("iotaa_log"):
+                if _MARKER in dir(iotaa_log):  # getattr() => stack overflow
+                    return cast(Logger, iotaa_log)
         msg = "No logger found: Ensure this call originated in an iotaa task function."
         raise IotaaError(msg)
 
@@ -512,9 +515,9 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-# NB: When inspecting the call stack, _LoggerProxy will find the log_ local variable in each wrapper
-# function below and will use it when logging via iotaa.log. The associated assertionts suppress
-# linter complaints about unused variables.
+# NB: When inspecting the call stack, _LoggerProxy will find the iotaa_log local variable in each
+# wrapper function below and will use it when logging via iotaa.log. The associated assertionts
+# suppress linter complaints about unused variables.
 
 
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
@@ -527,8 +530,8 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
-        taskname, exectype, workers, dry_run, log_, g = _task_common(f, *args, **kwargs)
-        assert isinstance(log_, Logger)
+        taskname, exectype, workers, dry_run, iotaa_log, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_log, Logger)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -552,8 +555,8 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
-        taskname, exectype, workers, dry_run, log_, g = _task_common(f, *args, **kwargs)
-        assert isinstance(log_, Logger)
+        taskname, exectype, workers, dry_run, iotaa_log, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_log, Logger)
         assets_ = _next(g, "assets")
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_if_root_call(
@@ -580,8 +583,8 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
-        taskname, exectype, workers, dry_run, log_, g = _task_common(f, *args, **kwargs)
-        assert isinstance(log_, Logger)
+        taskname, exectype, workers, dry_run, iotaa_log, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_log, Logger)
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_if_root_call(
             node_class=NodeTasks,
@@ -825,12 +828,12 @@ def _task_common(
         exectype = ThreadPoolExecutor
         workers = threads or 1
     dry_run = kwargs.get("dry_run", False)
-    log_ = _mark(kwargs.get("log", getLogger()))
+    iotaa_log = _mark(kwargs.get("log", getLogger()))
     filter_keys = ("dry_run", "log", "procs", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return taskname, exectype, workers, dry_run, log_, g
+    return taskname, exectype, workers, dry_run, iotaa_log, g
 
 
 def _version() -> str:
