@@ -64,10 +64,11 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str, exectype: _ExecutorT, workers: int) -> None:
+    def __init__(self, taskname: str, exectype: _ExecutorT, workers: int, logger: Logger) -> None:
         self.taskname = taskname
         self._exectype = exectype
         self._workers = workers
+        self._logger = logger
         self._assets: Optional[_AssetsT] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
@@ -240,9 +241,9 @@ class NodeExternal(Node):
     """
 
     def __init__(
-        self, taskname: str, exectype: _ExecutorT, workers: int, assets_: _AssetsT
+        self, taskname: str, exectype: _ExecutorT, workers: int, logger: Logger, assets_: _AssetsT
     ) -> None:
-        super().__init__(taskname=taskname, exectype=exectype, workers=workers)
+        super().__init__(taskname=taskname, exectype=exectype, workers=workers, logger=logger)
         self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -263,11 +264,12 @@ class NodeTask(Node):
         taskname: str,
         exectype: _ExecutorT,
         workers: int,
+        logger: Logger,
         assets_: _AssetsT,
         reqs: _Reqs,
         exec_task_body: Callable,
     ) -> None:
-        super().__init__(taskname=taskname, exectype=exectype, workers=workers)
+        super().__init__(taskname=taskname, exectype=exectype, workers=workers, logger=logger)
         self._assets = assets_
         self._reqs = reqs
         self._exec_task_body = exec_task_body
@@ -291,9 +293,14 @@ class NodeTasks(Node):
     """
 
     def __init__(
-        self, taskname: str, exectype: _ExecutorT, workers: int, reqs: Optional[_Reqs] = None
+        self,
+        taskname: str,
+        exectype: _ExecutorT,
+        workers: int,
+        logger: Logger,
+        reqs: Optional[_Reqs] = None,
     ) -> None:
-        super().__init__(taskname=taskname, exectype=exectype, workers=workers)
+        super().__init__(taskname=taskname, exectype=exectype, workers=workers, logger=logger)
         self._reqs = reqs
         self._assets = list(
             chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
@@ -517,7 +524,6 @@ def tasknames(obj: object) -> list[str]:
 
 # NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-marked
 # logger local variable in each wrapper function below and will use it when logging via iotaa.log().
-# The associated assertionts suppress linter complaints about unused variables.
 
 
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
@@ -531,13 +537,13 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
         taskname, exectype, workers, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
-        assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
             exectype=exectype,
             workers=workers,
+            logger=iotaa_logger,
             dry_run=dry_run,
             assets_=assets_,
         )
@@ -564,6 +570,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             taskname=taskname,
             exectype=exectype,
             workers=workers,
+            logger=iotaa_logger,
             dry_run=dry_run,
             assets_=assets_,
             reqs=reqs,
@@ -591,6 +598,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
             taskname=taskname,
             exectype=exectype,
             workers=workers,
+            logger=iotaa_logger,
             dry_run=dry_run,
             reqs=reqs,
         )

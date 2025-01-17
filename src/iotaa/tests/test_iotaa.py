@@ -43,15 +43,23 @@ def graphkit():
         taskname="a",
         exectype=ThreadPoolExecutor,
         workers=1,
+        logger=logging.getLogger(),
         assets_=iotaa.asset(None, lambda: False),
     )
     b = iotaa.NodeExternal(
         taskname="b",
         exectype=ThreadPoolExecutor,
         workers=1,
+        logger=logging.getLogger(),
         assets_=iotaa.asset(None, lambda: True),
     )
-    root = iotaa.NodeTasks(taskname="root", exectype=ThreadPoolExecutor, workers=1, reqs=[a, b])
+    root = iotaa.NodeTasks(
+        taskname="root",
+        exectype=ThreadPoolExecutor,
+        workers=1,
+        logger=logging.getLogger(),
+        reqs=[a, b],
+    )
     name = lambda x: md5(x.encode("utf-8")).hexdigest()
     graph = iotaa._Graph(root=root)
     assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
@@ -290,7 +298,13 @@ def test_ready(external_foo_scalar, tmp_path):
 def test_refs():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", exectype=ThreadPoolExecutor, workers=1, assets_=None)
+    node = iotaa.NodeExternal(
+        taskname="test",
+        exectype=ThreadPoolExecutor,
+        workers=1,
+        logger=logging.getLogger(),
+        assets_=None,
+    )
     assert iotaa.refs(node=node) is None
     node._assets = {"foo": asset}
     assert iotaa.refs(node=node)["foo"] == expected
