@@ -672,6 +672,15 @@ def test__task_common_extras():
     assert next(g) == 42
 
 
+def test__task_common_procs_and_threads():
+    def f():
+        yield "taskname"
+
+    with raises(RuntimeError) as e:
+        iotaa._task_common(f, procs=1, threads=1)
+    assert str(e.value) == "Specify either procs or threads"
+
+
 # Node tests
 
 

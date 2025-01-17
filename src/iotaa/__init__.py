@@ -818,9 +818,8 @@ def _task_common(
     )
     dry_run = kwargs.get("dry_run", False)
     log_ = _mark(kwargs.get("log", getLogger()))
-    task_kwargs = {
-        k: v for k, v in kwargs.items() if k not in ("dry_run", "log", "procs", "threads")
-    }
+    filter_keys = ("dry_run", "log", "procs", "threads")
+    task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
     return taskname, executor, dry_run, log_, g
