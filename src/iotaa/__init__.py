@@ -370,15 +370,15 @@ class _LoggerProxy:
     @staticmethod
     def logger() -> Logger:
         """
-        Search the stack for an iotaa-marked "iotaa_log" local variable, which will exist for calls
-        made from iotaa task functions.
+        Search the stack for a specially-named and iotaa-marked local log variable, which will exist
+        for calls made from iotaa task functions.
 
         :raises: IotaaError is no logger is found.
         """
         for frameinfo in inspect.stack():
-            if iotaa_log := frameinfo.frame.f_locals.get("iotaa_log"):
-                if _MARKER in dir(iotaa_log):  # getattr() => stack overflow
-                    return cast(Logger, iotaa_log)
+            if the_log := frameinfo.frame.f_locals.get("iotaa_log"):
+                if _MARKER in dir(the_log):  # getattr() => stack overflow
+                    return cast(Logger, the_log)
         msg = "No logger found: Ensure this call originated in an iotaa task function."
         raise IotaaError(msg)
 
@@ -515,9 +515,9 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-# NB: When inspecting the call stack, _LoggerProxy will find the iotaa_log local variable in each
-# wrapper function below and will use it when logging via iotaa.log. The associated assertionts
-# suppress linter complaints about unused variables.
+# NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-marked
+# log local variable in each wrapper function below and will use it when logging via iotaa.log. The
+# associated assertionts suppress linter complaints about unused variables.
 
 
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
@@ -828,12 +828,12 @@ def _task_common(
         exectype = ThreadPoolExecutor
         workers = threads or 1
     dry_run = kwargs.get("dry_run", False)
-    iotaa_log = _mark(kwargs.get("log", getLogger()))
+    the_log = _mark(kwargs.get("log", getLogger()))
     filter_keys = ("dry_run", "log", "procs", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return taskname, exectype, workers, dry_run, iotaa_log, g
+    return taskname, exectype, workers, dry_run, the_log, g
 
 
 def _version() -> str:
