@@ -63,9 +63,10 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str, executor: Executor) -> None:
+    def __init__(self, taskname: str, exectype: Type[Executor], workers: int) -> None:
         self.taskname = taskname
-        self._executor = executor
+        self._exectype = exectype
+        self._workers = workers
         self._assets: Optional[_AssetOrAssets] = None
         self._first_visit = True
         self._graph: Optional[TopologicalSorter] = None
@@ -234,8 +235,10 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(self, taskname: str, executor: Executor, assets_: _AssetOrAssets) -> None:
-        super().__init__(taskname=taskname, executor=executor)
+    def __init__(
+        self, taskname: str, exectype: Type[Executor], workers: int, assets_: _AssetOrAssets
+    ) -> None:
+        super().__init__(taskname=taskname, exectype=exectype, workers=workers)
         self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -254,12 +257,13 @@ class NodeTask(Node):
     def __init__(
         self,
         taskname: str,
-        executor: Executor,
+        exectype: Type[Executor],
+        workers: int,
         assets_: _AssetOrAssets,
         reqs: _Reqs,
         exec_task_body: Callable,
     ) -> None:
-        super().__init__(taskname=taskname, executor=executor)
+        super().__init__(taskname=taskname, exectype=exectype, workers=workers)
         self._assets = assets_
         self._reqs = reqs
         self._exec_task_body = exec_task_body
@@ -282,8 +286,10 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(self, taskname: str, executor: Executor, reqs: Optional[_Reqs] = None) -> None:
-        super().__init__(taskname=taskname, executor=executor)
+    def __init__(
+        self, taskname: str, exectype: Type[Executor], workers: int, reqs: Optional[_Reqs] = None
+    ) -> None:
+        super().__init__(taskname=taskname, exectype=exectype, workers=workers)
         self._reqs = reqs
         self._assets = list(
             chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
@@ -520,13 +526,14 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
-        taskname, executor, dry_run, log_, g = _task_common(f, *args, **kwargs)
+        taskname, exectype, workers, dry_run, log_, g = _task_common(f, *args, **kwargs)
         assert isinstance(log_, Logger)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
-            executor=executor,
+            exectype=exectype,
+            workers=workers,
             dry_run=dry_run,
             assets_=assets_,
         )
@@ -544,14 +551,15 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
-        taskname, executor, dry_run, log_, g = _task_common(f, *args, **kwargs)
+        taskname, exectype, workers, dry_run, log_, g = _task_common(f, *args, **kwargs)
         assert isinstance(log_, Logger)
         assets_ = _next(g, "assets")
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
-            executor=executor,
+            exectype=exectype,
+            workers=workers,
             dry_run=dry_run,
             assets_=assets_,
             reqs=reqs,
@@ -571,13 +579,14 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
-        taskname, executor, dry_run, log_, g = _task_common(f, *args, **kwargs)
+        taskname, exectype, workers, dry_run, log_, g = _task_common(f, *args, **kwargs)
         assert isinstance(log_, Logger)
         reqs: _Reqs = _next(g, "requirements")
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
-            executor=executor,
+            exectype=exectype,
+            workers=workers,
             dry_run=dry_run,
             reqs=reqs,
         )
@@ -614,18 +623,24 @@ def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cachea
 
 
 def _construct_and_if_root_call(
-    node_class: Type[_Node], taskname: str, executor: Executor, dry_run: bool, **kwargs
+    node_class: Type[_Node],
+    taskname: str,
+    exectype: Type[Executor],
+    workers: int,
+    dry_run: bool,
+    **kwargs,
 ) -> _Node:
     """
     Construct a Node object and, if it is a root node, call it.
 
     :param node_class: The type of Node to construct.
     :param taskname: The current task's name.
-    :param executor: Concurrent executor to use.
+    :param exectype: Concurrent executor class.
+    :param workers: Number of concurrent workers.
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
-    node = node_class(taskname=taskname, executor=executor, **kwargs)
+    node = node_class(taskname=taskname, exectype=exectype, workers=workers, **kwargs)
     if node._root:  # pylint: disable=protected-access
         node(dry_run)
     return node
@@ -791,28 +806,30 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
 
 def _task_common(
     f: Callable, *args, **kwargs
-) -> tuple[str, Executor, bool, _LoggerProxy, Generator]:
+) -> tuple[str, Type[Executor], int, bool, _LoggerProxy, Generator]:
     """
     Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The taskname, executor, dry-run setting, logger, and work generator.
+    :return: Information needed for task execution.
     """
     procs, threads = [kwargs.get(x, None) for x in ("procs", "threads")]
     if procs and threads:
         raise RuntimeError(_ERR_MSG_THREADS)
-    executor = (
-        ProcessPoolExecutor(max_workers=procs)
-        if procs
-        else ThreadPoolExecutor(max_workers=threads or 1)
-    )
+    exectype: Type[Executor]
+    if procs:
+        exectype = ProcessPoolExecutor
+        workers = procs
+    else:
+        exectype = ThreadPoolExecutor
+        workers = threads or 1
     dry_run = kwargs.get("dry_run", False)
     log_ = _mark(kwargs.get("log", getLogger()))
     filter_keys = ("dry_run", "log", "procs", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = _next(g, "task name")
-    return taskname, executor, dry_run, log_, g
+    return taskname, exectype, workers, dry_run, log_, g
 
 
 def _version() -> str:

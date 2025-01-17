@@ -24,11 +24,6 @@ import iotaa
 
 
 @fixture
-def executor():
-    return ThreadPoolExecutor(max_workers=1)
-
-
-@fixture
 def external_foo_scalar():
     @iotaa.external
     def foo(path):
@@ -43,12 +38,20 @@ def external_foo_scalar():
 
 
 @fixture
-def graphkit(executor):
+def graphkit():
     a = iotaa.NodeExternal(
-        taskname="a", executor=executor, assets_=iotaa.asset(None, lambda: False)
+        taskname="a",
+        exectype=ThreadPoolExecutor,
+        workers=1,
+        assets_=iotaa.asset(None, lambda: False),
     )
-    b = iotaa.NodeExternal(taskname="b", executor=executor, assets_=iotaa.asset(None, lambda: True))
-    root = iotaa.NodeTasks(taskname="root", executor=executor, reqs=[a, b])
+    b = iotaa.NodeExternal(
+        taskname="b",
+        exectype=ThreadPoolExecutor,
+        workers=1,
+        assets_=iotaa.asset(None, lambda: True),
+    )
+    root = iotaa.NodeTasks(taskname="root", exectype=ThreadPoolExecutor, workers=1, reqs=[a, b])
     name = lambda x: md5(x.encode("utf-8")).hexdigest()
     graph = iotaa._Graph(root=root)
     assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
@@ -284,10 +287,10 @@ def test_ready(external_foo_scalar, tmp_path):
     assert iotaa.ready(node_after)
 
 
-def test_refs(executor):
+def test_refs():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", executor=executor, assets_=None)
+    node = iotaa.NodeExternal(taskname="test", exectype=ThreadPoolExecutor, workers=1, assets_=None)
     assert iotaa.refs(node=node) is None
     node._assets = {"foo": asset}
     assert iotaa.refs(node=node)["foo"] == expected
@@ -647,9 +650,10 @@ def test__task_common():
         yield n
 
     tn = "task"
-    taskname, executor, dry_run, log, g = iotaa._task_common(f, tn, n=42, threads=1)
+    taskname, exectype, workers, dry_run, log, g = iotaa._task_common(f, tn, n=42, threads=1)
     assert taskname == tn
-    assert isinstance(executor, ThreadPoolExecutor)
+    assert exectype is ThreadPoolExecutor
+    assert workers == 1
     assert dry_run is False
     assert log is iotaa.logging.getLogger()
     assert next(g) == 42
@@ -662,9 +666,12 @@ def test__task_common_extras():
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, executor, dry_run, log, g = iotaa._task_common(f, tn, n=42, dry_run=True, procs=1)
+    taskname, exectype, workers, dry_run, log, g = iotaa._task_common(
+        f, tn, n=42, dry_run=True, procs=1
+    )
     assert taskname == tn
-    assert isinstance(executor, ProcessPoolExecutor)
+    assert exectype is ProcessPoolExecutor
+    assert workers == 1
     assert dry_run is True
     assert log is iotaa.logging.getLogger()
     assert next(g) == 42
