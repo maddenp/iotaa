@@ -28,19 +28,19 @@ import iotaa
 def graphkit():
     a = iotaa.NodeExternal(
         taskname="a",
-        threads=1,
+        threads=0,
         logger=logging.getLogger(),
         assets_=iotaa.asset(None, lambda: False),
     )
     b = iotaa.NodeExternal(
         taskname="b",
-        threads=1,
+        threads=0,
         logger=logging.getLogger(),
         assets_=iotaa.asset(None, lambda: True),
     )
     root = iotaa.NodeTasks(
         taskname="root",
-        threads=1,
+        threads=0,
         logger=logging.getLogger(),
         reqs=[a, b],
     )
@@ -309,12 +309,7 @@ def test_ready(t_external_foo_scalar, tmp_path):
 def test_refs():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(
-        taskname="test",
-        threads=1,
-        logger=logging.getLogger(),
-        assets_=None,
-    )
+    node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
     assert iotaa.refs(node=node) is None
     node._assets = {"foo": asset}
     assert iotaa.refs(node=node)["foo"] == expected
@@ -668,11 +663,11 @@ def test__task_common():
         yield n
 
     tn = "task"
-    taskname, threads, dry_run, log, g = iotaa._task_common(f, tn, n=42, threads=1)
+    taskname, threads, dry_run, logger, g = iotaa._task_common(f, tn, n=42, threads=1)
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
-    assert log is iotaa.logging.getLogger()
+    assert logger is iotaa.logging.getLogger()
     assert next(g) == 42
 
 
@@ -683,11 +678,11 @@ def test__task_common_extras():
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, threads, dry_run, log, g = iotaa._task_common(f, tn, n=42, dry_run=True)
+    taskname, threads, dry_run, logger, g = iotaa._task_common(f, tn, n=42, dry_run=True)
     assert taskname == tn
-    assert threads == 1
+    assert threads == 0
     assert dry_run is True
-    assert log is iotaa.logging.getLogger()
+    assert logger is iotaa.logging.getLogger()
     assert next(g) == 42
 
 

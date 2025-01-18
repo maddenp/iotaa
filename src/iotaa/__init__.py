@@ -127,26 +127,8 @@ class Node(ABC):
 
         :param dry_run: Avoid executing state-affecting code?
         """
-        g = self._assemble()
-        g.prepare()
-        executor = ThreadPoolExecutor(max_workers=self._threads)
-        futures = {}
-        while g.is_active():
-            futures.update({executor.submit(x, dry_run): x for x in g.get_ready()})
-            future = next(as_completed(futures))
-            node = futures[future]
-            try:
-                future.result()
-            except Exception as e:
-                msg = f"{node.taskname}: Thread failed: %s"
-                log.error(msg, str(getattr(e, "value", e)))
-                for line in traceback.format_exc().strip().split("\n"):
-                    log.debug(msg, line)
-            else:
-                log.debug("%s: Thread completed", node.taskname)
-            g.done(node)
-            del futures[future]
-            time.sleep(0)
+        m = self._exec_synchronous if self._threads == 0 else self._exec_concurrent
+        m(g=self._assemble(), dry_run=dry_run)
 
     def _debug_header(self, msg: str) -> None:
         """
@@ -200,6 +182,43 @@ class Node(ABC):
             deduped = None
         self._reqs = deduped
         return known
+
+    def _exec_concurrent(self, g: TopologicalSorter, dry_run: bool) -> None:
+        """
+        Execute the task graph concurrently.
+
+        :param g: The graph.
+        :param dry_run: Avoid executing state-affecting code?
+        """
+        g.prepare()
+        executor = ThreadPoolExecutor(max_workers=self._threads)
+        futures = {}
+        while g.is_active():
+            futures.update({executor.submit(node, dry_run): node for node in g.get_ready()})
+            future = next(as_completed(futures))
+            node = futures[future]
+            try:
+                future.result()
+            except Exception as e:
+                msg = f"{node.taskname}: Thread failed: %s"
+                log.error(msg, str(getattr(e, "value", e)))
+                for line in traceback.format_exc().strip().split("\n"):
+                    log.debug(msg, line)
+            else:
+                log.debug("%s: Thread completed", node.taskname)
+            g.done(node)
+            del futures[future]
+            time.sleep(0)
+
+    def _exec_synchronous(self, g: TopologicalSorter, dry_run: bool) -> None:
+        """
+        Execute the task graph synchonously.
+
+        :param g: The graph.
+        :param dry_run: Avoid executing state-affecting code?
+        """
+        for node in g.static_order():
+            node(dry_run)
 
     def _report_readiness(self) -> None:
         """
@@ -386,6 +405,8 @@ class _LoggerProxy:
         msg = "No logger found: Ensure this call originated in an iotaa task function."
         raise IotaaError(msg)
 
+
+_LoggerT = Union[Logger, _LoggerProxy]
 
 # Main entry-point function:
 
@@ -804,20 +825,20 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_common(f: Callable, *args, **kwargs) -> tuple[str, int, bool, _LoggerProxy, Generator]:
+def _task_common(f: Callable, *args, **kwargs) -> tuple[str, int, bool, _LoggerT, Generator]:
     """
     Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
     :return: Information needed for task execution.
     """
-    dry_run = kwargs.get("dry_run", False)
-    logger = _mark(kwargs.get("log", getLogger()))
-    threads = kwargs.get("threads", 1)
+    dry_run = bool(kwargs.get("dry_run"))
+    logger = cast(_LoggerT, _mark(kwargs.get("log") or getLogger()))
+    threads = int(kwargs.get("threads") or 0)
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
-    taskname = _next(g, "task name")
+    taskname = str(_next(g, "task name"))
     return taskname, threads, dry_run, logger, g
 
 
