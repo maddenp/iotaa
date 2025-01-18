@@ -779,20 +779,35 @@ def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint:
 
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
-def test_Node__assemble_and_exec(caplog, iotaa_logger, memval, n, threads):  # pylint: disable=W0613
+def test_Node__exec_concurrent(caplog, iotaa_logger, memval, n, threads):  # pylint: disable=W0613
     node = memval(n, threads=threads)
-    assert logged(caplog, "b 1: Thread completed")
-    assert logged(caplog, "b %s: Thread completed" % n)
+    success = "Task completed in thread"
+    assert logged(caplog, f"b 1: {success}")
+    assert logged(caplog, f"b {n}: {success}")
     if n == -1:
         for msg in (
             "zero result",
             "Traceback (most recent call last):",
             "RuntimeError: zero result",
         ):
-            assert logged(caplog, f"a: Thread failed: {msg}")
+            assert logged(caplog, f"a: Task failed in thread: {msg}")
     else:
         assert iotaa.refs(node)[0] == 3
-        assert logged(caplog, "a: Thread completed")
+        assert logged(caplog, f"a: {success}")
+
+
+@mark.parametrize("n", [2, -1])
+def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # pylint: disable=W0613
+    node = memval(n)
+    if n == -1:
+        for msg in (
+            "zero result",
+            "Traceback (most recent call last):",
+            "RuntimeError: zero result",
+        ):
+            assert logged(caplog, f"a: Task failed: {msg}")
+    else:
+        assert iotaa.refs(node)[0] == 3
 
 
 def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613

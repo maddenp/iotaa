@@ -200,12 +200,12 @@ class Node(ABC):
             try:
                 future.result()
             except Exception as e:
-                msg = f"{node.taskname}: Thread failed: %s"
+                msg = f"{node.taskname}: Task failed in thread: %s"
                 log.error(msg, str(getattr(e, "value", e)))
                 for line in traceback.format_exc().strip().split("\n"):
                     log.debug(msg, line)
             else:
-                log.debug("%s: Thread completed", node.taskname)
+                log.debug("%s: Task completed in thread", node.taskname)
             g.done(node)
             del futures[future]
             time.sleep(0)
@@ -218,7 +218,13 @@ class Node(ABC):
         :param dry_run: Avoid executing state-affecting code?
         """
         for node in g.static_order():
-            node(dry_run)
+            try:
+                node(dry_run)
+            except Exception as e:
+                msg = f"{node.taskname}: Task failed: %s"
+                log.error(msg, str(getattr(e, "value", e)))
+                for line in traceback.format_exc().strip().split("\n"):
+                    log.debug(msg, line)
 
     def _report_readiness(self) -> None:
         """
