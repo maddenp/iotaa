@@ -124,7 +124,7 @@ def t_task_bar_dict(t_external_foo_scalar):
     @iotaa.task
     def bar(path):
         f = path / "bar"
-        yield f"task bar {f}"
+        yield f"task bar dict {f}"
         yield {"path": iotaa.asset(f, f.is_file)}
         yield t_external_foo_scalar(path)
         f.touch()
@@ -137,7 +137,7 @@ def t_task_bar_list(t_external_foo_scalar):
     @iotaa.task
     def bar(path):
         f = path / "bar"
-        yield f"task bar {f}"
+        yield f"task bar list {f}"
         yield [iotaa.asset(f, f.is_file)]
         yield t_external_foo_scalar(path)
         f.touch()
@@ -153,7 +153,7 @@ def t_task_bar_scalar(t_external_foo_scalar):
         TASK!
         """
         f = path / "bar"
-        yield f"task bar {f}"
+        yield f"task bar scalar {f}"
         yield iotaa.asset(f, f.is_file)
         yield t_external_foo_scalar(path)
         f.touch()
@@ -437,7 +437,7 @@ def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
     assert not val(node._assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
-        assert logged(caplog, f"task bar {f_bar}: {msg}")
+        assert logged(caplog, f"task bar {task.split('_')[-1]} {f_bar}: {msg}")
 
 
 @mark.parametrize(
@@ -459,7 +459,7 @@ def test_task_ready(caplog, iotaa_logger, request, task, tmp_path, val):
     assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
-        assert logged(caplog, f"task bar {f_bar}: {msg}")
+        assert logged(caplog, f"task bar {task.split('_')[-1]} {f_bar}: {msg}")
 
 
 def test_tasks_structured():
@@ -508,7 +508,7 @@ def test_tasks_not_ready(caplog, t_tasks_baz, tmp_path):
         "Not ready",
         "Requires:",
         "✖ external foo %s/foo" % tmp_path,
-        "✖ task bar %s/bar" % tmp_path,
+        "✖ task bar dict %s/bar" % tmp_path,
     ]:
         assert logged(caplog, f"tasks baz: {msg}")
 
@@ -714,24 +714,24 @@ def test_Node___call___dry_run(caplog, t_task_bar_scalar, tmp_path):
     assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
 
 
-def test_Node__eq__(t_external_foo_scalar, t_task_bar_dict, t_task_bar_list, tmp_path):
-    # These two have the same taskname: "task bar {tmp_path}":
-    node_dict = t_task_bar_dict(tmp_path)
-    node_list = t_task_bar_list(tmp_path)
-    assert node_dict == node_list
+def test_Node__eq__(t_external_foo_scalar, t_task_bar_dict, tmp_path):
+    # These two have the same taskname:
+    node_dict1 = t_task_bar_dict(tmp_path)
+    node_dict2 = t_task_bar_dict(tmp_path)
+    assert node_dict1 == node_dict2
     # But this one has a different taskname:
     node_scalar = t_external_foo_scalar(tmp_path)
-    assert node_dict != node_scalar
+    assert node_dict1 != node_scalar
 
 
 def test_Node__hash__(t_task_bar_dict, tmp_path):
     node_dict = t_task_bar_dict(tmp_path)
-    assert hash(node_dict) == hash(f"task bar {tmp_path}/bar")
+    assert hash(node_dict) == hash(f"task bar dict {tmp_path}/bar")
 
 
 def test_Node___repr__(t_task_bar_scalar, tmp_path):
     node = t_task_bar_scalar(tmp_path)
-    assert re.match(rf"^task bar {tmp_path}/bar <\d+>$", str(node))
+    assert re.match(rf"^task bar scalar {tmp_path}/bar <\d+>$", str(node))
 
 
 def test_Node_ready(t_external_foo_scalar, tmp_path):
@@ -746,11 +746,11 @@ def test_Node__add_node_and_predecessors(
     g: TopologicalSorter = TopologicalSorter()
     node = t_tasks_baz(tmp_path)
     node._add_node_and_predecessors(g=g, node=node)
-    tasknames = [f"external foo {tmp_path}/foo", f"task bar {tmp_path}/bar", "tasks baz"]
+    tasknames = [f"external foo {tmp_path}/foo", f"task bar dict {tmp_path}/bar", "tasks baz"]
     assert [x.taskname for x in g.static_order()] == tasknames
     assert logged(caplog, "tasks baz")
     assert logged(caplog, f"  external foo {tmp_path}/foo")
-    assert logged(caplog, f"  task bar {tmp_path}/bar")
+    assert logged(caplog, f"  task bar dict {tmp_path}/bar")
 
 
 def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint: disable=W0613
@@ -788,8 +788,18 @@ def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pyl
 def test_Node__dedupe(): ...
 
 
-# def test_Node__report_readiness(caplog, iotaa_logger, t_tasks_baz, tmp_path):
+# @mark.parametrize("touch", [False, True])
+# def test_Node__report_readiness_tasks(caplog, iotaa_logger, t_tasks_baz, tmp_path, touch):
+#     if touch:
+#         path = tmp_path / "foo"
+#         path.touch()
 #     node = t_tasks_baz(tmp_path)
+#     node._report_readiness()
+#     assert logged(caplog, "tasks baz: %s" % ("Ready" if touch else "Not ready"))
+#     if not touch:
+#         assert logged(caplog, "tasks baz: Requires:")
+#         assert logged(caplog, "tasks baz: %s external foo %s" % (path, "✔" if touch else "✖"))
+# assert logged(caplog, "tasks baz: %s task bar dict %s/bar" % (tmp_path, "✔" if touch else "✖"))
 
 
 def test_Node__reset_ready(t_external_foo_scalar, tmp_path):
