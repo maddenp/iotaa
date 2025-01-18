@@ -134,21 +134,21 @@ class Node(ABC):
         futures = []
         g.prepare()
         while g.is_active():
-            for node_ready in g.get_ready():
-                future = executor.submit(node_ready, dry_run)
-                setattr(future, "node", node_ready)
+            for ready_node in g.get_ready():
+                future = executor.submit(ready_node, dry_run)
+                setattr(future, "node", ready_node)
                 futures.append(future)
-            completed = next(as_completed(futures))
-            node_complete = getattr(completed, "node")
+            completed_future = next(as_completed(futures))
+            completed_node = getattr(completed_future, "node")
             try:
-                assert completed.result()
+                assert completed_future.result()
             except Exception as e:
                 reason = str(getattr(e, "value", e))
-                log.error("%s: Thread failed: %s", node_complete.taskname, reason)
+                log.error("%s: Thread failed: %s", completed_node.taskname, reason)
             else:
-                log.debug("%s: Thread completed", node_complete.taskname)
-            g.done(node_complete)
-            futures.remove(completed)
+                log.debug("%s: Thread completed", completed_node.taskname)
+            g.done(completed_node)
+            futures.remove(completed_future)
             time.sleep(0)
 
     def _debug_header(self, msg: str) -> None:
