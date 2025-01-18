@@ -131,28 +131,25 @@ class Node(ABC):
         :param dry_run: Avoid executing state-affecting code?
         """
         g = self._assemble()
-        executor = self._exectype(max_workers=self._workers)
-        futures = []
         g.prepare()
+        executor = self._exectype(max_workers=self._workers)
+        futures = {}
         while g.is_active():
             for ready_node in g.get_ready():
-                future = executor.submit(ready_node, dry_run)
-                setattr(future, "node", ready_node)
-                futures.append(future)
-            completed_future = next(as_completed(futures))
-            completed_node = getattr(completed_future, "node")
+                futures[executor.submit(ready_node, dry_run)] = ready_node
+            future = next(as_completed(futures))
+            node = futures[future]
             try:
-                assert completed_future.result()
+                future.result()
             except Exception as e:
-                prefix = "Thread failed:"
-                reason = str(getattr(e, "value", e))
-                log.error("%s: %s %s", completed_node.taskname, prefix, reason)
+                msg = f"{node.taskname}: Thread failed: %s"
+                log.error(msg, str(getattr(e, "value", e)))
                 for line in traceback.format_exc().strip().split("\n"):
-                    log.debug("%s: %s %s", completed_node.taskname, prefix, line)
+                    log.debug(msg, line)
             else:
-                log.debug("%s: Thread completed", completed_node.taskname)
-            g.done(completed_node)
-            futures.remove(completed_future)
+                log.debug("%s: Thread completed", node.taskname)
+            g.done(node)
+            del futures[future]
             time.sleep(0)
 
     def _debug_header(self, msg: str) -> None:
