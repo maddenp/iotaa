@@ -396,9 +396,7 @@ def test_docstrings(docstring, request, task):
     assert func.__doc__.strip() == docstring
 
 
-def test_external_not_ready(
-    external_foo_scalar, iotaa_logger, tmp_path
-):  # pylint: disable=unused-argument
+def test_external_not_ready(external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
     f = tmp_path / "foo"
     assert not f.is_file()
     node = external_foo_scalar(tmp_path)
@@ -407,9 +405,7 @@ def test_external_not_ready(
     assert not node._assets.ready()
 
 
-def test_external_ready(
-    external_foo_scalar, iotaa_logger, tmp_path
-):  # pylint: disable=unused-argument
+def test_external_ready(external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
@@ -553,7 +549,7 @@ def test__cacheable():
     assert hash(b) is not None
 
 
-def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # pylint: disable=unused-argument
+def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # pylint: disable=W0613
     exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
     exec_task_body()
     assert logged(caplog, "task: Executing")
@@ -742,7 +738,7 @@ def test_Node_ready(external_foo_scalar, tmp_path):
 
 def test_Node__add_node_and_predecessors(
     caplog, iotaa_logger, tasks_baz, tmp_path
-):  # pylint: disable=unused-argument
+):  # pylint: disable=W0613
     g: TopologicalSorter = TopologicalSorter()
     node = tasks_baz(tmp_path)
     node._add_node_and_predecessors(g=g, node=node)
@@ -753,9 +749,7 @@ def test_Node__add_node_and_predecessors(
     assert logged(caplog, f"  task bar {tmp_path}/bar")
 
 
-def test_Node__assemble(
-    caplog, iotaa_logger, tasks_baz, tmp_path
-):  # pylint: disable=unused-argument
+def test_Node__assemble(caplog, iotaa_logger, tasks_baz, tmp_path):  # pylint: disable=W0613
     node = tasks_baz(tmp_path)
     with (
         patch.object(node, "_dedupe") as _dedupe,
@@ -768,6 +762,38 @@ def test_Node__assemble(
     assert logged(caplog, "Execution")
     assert node._first_visit is False
     assert isinstance(g, TopologicalSorter)
+
+
+@mark.skip()
+def test_Node__assemble_and_exec(): ...
+
+
+def test_Node__debug_header(caplog, iotaa_logger, tmp_path, tasks_baz):  # pylint: disable=W0613
+    node = tasks_baz(tmp_path)
+    node._debug_header("foo")
+    expected = """
+    ───
+    foo
+    ───
+    """
+    actual = "\n".join(caplog.messages[-3:])
+    assert actual.strip() == dedent(expected).strip()
+
+
+@mark.skip()
+def test_Node__dedupe(): ...
+
+
+@mark.skip()
+def test_Node__report_readiness(): ...
+
+
+@mark.skip()
+def test_Node__reset_ready(): ...
+
+
+@mark.skip()
+def test_Node__root(): ...
 
 
 # _Graph tests
