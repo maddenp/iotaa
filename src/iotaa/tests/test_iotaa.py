@@ -106,7 +106,7 @@ def rungen():
 
 
 @fixture
-def task_external_foo_scalar():
+def t_external_foo_scalar():
     @iotaa.external
     def foo(path):
         """
@@ -120,33 +120,33 @@ def task_external_foo_scalar():
 
 
 @fixture
-def task_task_bar_dict(task_external_foo_scalar):
+def t_task_bar_dict(t_external_foo_scalar):
     @iotaa.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield {"path": iotaa.asset(f, f.is_file)}
-        yield task_external_foo_scalar(path)
+        yield t_external_foo_scalar(path)
         f.touch()
 
     return bar
 
 
 @fixture
-def task_task_bar_list(task_external_foo_scalar):
+def t_task_bar_list(t_external_foo_scalar):
     @iotaa.task
     def bar(path):
         f = path / "bar"
         yield f"task bar {f}"
         yield [iotaa.asset(f, f.is_file)]
-        yield task_external_foo_scalar(path)
+        yield t_external_foo_scalar(path)
         f.touch()
 
     return bar
 
 
 @fixture
-def task_task_bar_scalar(task_external_foo_scalar):
+def t_task_bar_scalar(t_external_foo_scalar):
     @iotaa.task
     def bar(path):
         """
@@ -155,21 +155,21 @@ def task_task_bar_scalar(task_external_foo_scalar):
         f = path / "bar"
         yield f"task bar {f}"
         yield iotaa.asset(f, f.is_file)
-        yield task_external_foo_scalar(path)
+        yield t_external_foo_scalar(path)
         f.touch()
 
     return bar
 
 
 @fixture
-def task_tasks_baz(task_external_foo_scalar, task_task_bar_dict):
+def t_tasks_baz(t_external_foo_scalar, t_task_bar_dict):
     @iotaa.tasks
     def baz(path):
         """
         TASKS!
         """
         yield "tasks baz"
-        yield [task_external_foo_scalar(path), task_task_bar_dict(path)]
+        yield [t_external_foo_scalar(path), t_task_bar_dict(path)]
 
     return baz
 
@@ -269,8 +269,8 @@ def test_Asset(asset):
     assert asset.ready()
 
 
-def test_assets(task_external_foo_scalar, tmp_path):
-    node = task_external_foo_scalar(tmp_path)
+def test_assets(t_external_foo_scalar, tmp_path):
+    node = t_external_foo_scalar(tmp_path)
     asset = cast(iotaa.Asset, iotaa.assets(node))
     assert asset.ref == tmp_path / "foo"
 
@@ -288,11 +288,11 @@ def test_logcfg(vals):
     basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_ready(task_external_foo_scalar, tmp_path):
-    node_before = task_external_foo_scalar(tmp_path)
+def test_ready(t_external_foo_scalar, tmp_path):
+    node_before = t_external_foo_scalar(tmp_path)
     assert not iotaa.ready(node_before)
     iotaa.refs(node_before).touch()
-    node_after = task_external_foo_scalar(tmp_path)
+    node_after = t_external_foo_scalar(tmp_path)
     assert iotaa.ready(node_after)
 
 
@@ -315,8 +315,8 @@ def test_refs():
     assert iotaa.refs(node=node) == expected
 
 
-def test_requirements(task_external_foo_scalar, task_task_bar_dict, tmp_path):
-    assert iotaa.requirements(task_task_bar_dict(tmp_path)) == task_external_foo_scalar(tmp_path)
+def test_requirements(t_external_foo_scalar, t_task_bar_dict, tmp_path):
+    assert iotaa.requirements(t_task_bar_dict(tmp_path)) == t_external_foo_scalar(tmp_path)
 
 
 def test_tasknames(task_class):
@@ -390,9 +390,9 @@ def test_main_mocked_up_tasknames(tmp_path):
 @mark.parametrize(
     "docstring,task",
     [
-        ("EXTERNAL!", "task_external_foo_scalar"),
-        ("TASK!", "task_task_bar_scalar"),
-        ("TASKS!", "task_tasks_baz"),
+        ("EXTERNAL!", "t_external_foo_scalar"),
+        ("TASK!", "t_task_bar_scalar"),
+        ("TASKS!", "t_tasks_baz"),
     ],
 )
 def test_docstrings(docstring, request, task):
@@ -400,22 +400,20 @@ def test_docstrings(docstring, request, task):
     assert func.__doc__.strip() == docstring
 
 
-def test_external_not_ready(
-    task_external_foo_scalar, iotaa_logger, tmp_path
-):  # pylint: disable=W0613
+def test_external_not_ready(t_external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
     f = tmp_path / "foo"
     assert not f.is_file()
-    node = task_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(tmp_path)
     node()
     assert iotaa.refs(node) == f
     assert not node._assets.ready()
 
 
-def test_external_ready(task_external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
+def test_external_ready(t_external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
     f = tmp_path / "foo"
     f.touch()
     assert f.is_file()
-    node = task_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(tmp_path)
     node()
     assert iotaa.refs(node) == f
     assert node._assets.ready()
@@ -424,9 +422,9 @@ def test_external_ready(task_external_foo_scalar, iotaa_logger, tmp_path):  # py
 @mark.parametrize(
     "task,val",
     [
-        ("task_task_bar_dict", lambda x: x["path"]),
-        ("task_task_bar_list", lambda x: x[0]),
-        ("task_task_bar_scalar", lambda x: x),
+        ("t_task_bar_dict", lambda x: x["path"]),
+        ("t_task_bar_list", lambda x: x[0]),
+        ("t_task_bar_scalar", lambda x: x),
     ],
 )
 def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
@@ -445,9 +443,9 @@ def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
 @mark.parametrize(
     "task,val",
     [
-        ("task_task_bar_dict", lambda x: x["path"]),
-        ("task_task_bar_list", lambda x: x[0]),
-        ("task_task_bar_scalar", lambda x: x),
+        ("t_task_bar_dict", lambda x: x["path"]),
+        ("t_task_bar_list", lambda x: x[0]),
+        ("t_task_bar_scalar", lambda x: x),
     ],
 )
 def test_task_ready(caplog, iotaa_logger, request, task, tmp_path, val):
@@ -495,10 +493,10 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-def test_tasks_not_ready(caplog, task_tasks_baz, tmp_path):
+def test_tasks_not_ready(caplog, t_tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    node = task_tasks_baz(tmp_path)
+    node = t_tasks_baz(tmp_path)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -515,12 +513,12 @@ def test_tasks_not_ready(caplog, task_tasks_baz, tmp_path):
         assert logged(caplog, f"tasks baz: {msg}")
 
 
-def test_tasks_ready(caplog, iotaa_logger, task_tasks_baz, tmp_path):
+def test_tasks_ready(caplog, iotaa_logger, t_tasks_baz, tmp_path):
     f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = task_tasks_baz(tmp_path, log=iotaa_logger)
+    node = t_tasks_baz(tmp_path, log=iotaa_logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -710,43 +708,43 @@ def test__task_common_procs_and_threads():
 # Node tests
 
 
-def test_Node___call___dry_run(caplog, task_task_bar_scalar, tmp_path):
+def test_Node___call___dry_run(caplog, t_task_bar_scalar, tmp_path):
     (tmp_path / "foo").touch()
-    node = task_task_bar_scalar(tmp_path, dry_run=True)
+    node = t_task_bar_scalar(tmp_path, dry_run=True)
     assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
 
 
-def test_Node__eq__(task_external_foo_scalar, task_task_bar_dict, task_task_bar_list, tmp_path):
+def test_Node__eq__(t_external_foo_scalar, t_task_bar_dict, t_task_bar_list, tmp_path):
     # These two have the same taskname: "task bar {tmp_path}":
-    node_dict = task_task_bar_dict(tmp_path)
-    node_list = task_task_bar_list(tmp_path)
+    node_dict = t_task_bar_dict(tmp_path)
+    node_list = t_task_bar_list(tmp_path)
     assert node_dict == node_list
     # But this one has a different taskname:
-    node_scalar = task_external_foo_scalar(tmp_path)
+    node_scalar = t_external_foo_scalar(tmp_path)
     assert node_dict != node_scalar
 
 
-def test_Node__hash__(task_task_bar_dict, tmp_path):
-    node_dict = task_task_bar_dict(tmp_path)
+def test_Node__hash__(t_task_bar_dict, tmp_path):
+    node_dict = t_task_bar_dict(tmp_path)
     assert hash(node_dict) == hash(f"task bar {tmp_path}/bar")
 
 
-def test_Node___repr__(task_task_bar_scalar, tmp_path):
-    node = task_task_bar_scalar(tmp_path)
+def test_Node___repr__(t_task_bar_scalar, tmp_path):
+    node = t_task_bar_scalar(tmp_path)
     assert re.match(rf"^task bar {tmp_path}/bar <\d+>$", str(node))
 
 
-def test_Node_ready(task_external_foo_scalar, tmp_path):
-    assert not task_external_foo_scalar(tmp_path).ready
+def test_Node_ready(t_external_foo_scalar, tmp_path):
+    assert not t_external_foo_scalar(tmp_path).ready
     (tmp_path / "foo").touch()
-    assert task_external_foo_scalar(tmp_path).ready
+    assert t_external_foo_scalar(tmp_path).ready
 
 
 def test_Node__add_node_and_predecessors(
-    caplog, iotaa_logger, task_tasks_baz, tmp_path
+    caplog, iotaa_logger, t_tasks_baz, tmp_path
 ):  # pylint: disable=W0613
     g: TopologicalSorter = TopologicalSorter()
-    node = task_tasks_baz(tmp_path)
+    node = t_tasks_baz(tmp_path)
     node._add_node_and_predecessors(g=g, node=node)
     tasknames = [f"external foo {tmp_path}/foo", f"task bar {tmp_path}/bar", "tasks baz"]
     assert [x.taskname for x in g.static_order()] == tasknames
@@ -755,8 +753,8 @@ def test_Node__add_node_and_predecessors(
     assert logged(caplog, f"  task bar {tmp_path}/bar")
 
 
-def test_Node__assemble(caplog, iotaa_logger, task_tasks_baz, tmp_path):  # pylint: disable=W0613
-    node = task_tasks_baz(tmp_path)
+def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint: disable=W0613
+    node = t_tasks_baz(tmp_path)
     with (
         patch.object(node, "_dedupe") as _dedupe,
         patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors,
@@ -774,10 +772,8 @@ def test_Node__assemble(caplog, iotaa_logger, task_tasks_baz, tmp_path):  # pyli
 def test_Node__assemble_and_exec(): ...
 
 
-def test_Node__debug_header(
-    caplog, iotaa_logger, tmp_path, task_tasks_baz
-):  # pylint: disable=W0613
-    node = task_tasks_baz(tmp_path)
+def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613
+    node = t_tasks_baz(tmp_path)
     node._debug_header("foo")
     expected = """
     ───
@@ -792,18 +788,18 @@ def test_Node__debug_header(
 def test_Node__dedupe(): ...
 
 
-# def test_Node__report_readiness(caplog, iotaa_logger, task_tasks_baz, tmp_path):
-#     node = task_tasks_baz(tmp_path)
+# def test_Node__report_readiness(caplog, iotaa_logger, t_tasks_baz, tmp_path):
+#     node = t_tasks_baz(tmp_path)
 
 
-def test_Node__reset_ready(task_external_foo_scalar, tmp_path):
+def test_Node__reset_ready(t_external_foo_scalar, tmp_path):
     path = tmp_path / "foo"
-    node = task_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(tmp_path)
     # File doesn't exist so:
     assert not node.ready
     path.touch()
     # Now file exists:
-    node = task_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(tmp_path)
     assert node.ready
     # Rmove file:
     path.unlink()
@@ -814,8 +810,8 @@ def test_Node__reset_ready(task_external_foo_scalar, tmp_path):
     assert not node.ready
 
 
-def test_Node__root(task_tasks_baz, tmp_path):
-    node = task_tasks_baz(tmp_path)
+def test_Node__root(t_tasks_baz, tmp_path):
+    node = t_tasks_baz(tmp_path)
     assert node._root
     assert not any(child._root for child in node._reqs)
 
