@@ -135,8 +135,7 @@ class Node(ABC):
         executor = self._exectype(max_workers=self._workers)
         futures = {}
         while g.is_active():
-            for ready_node in g.get_ready():
-                futures[executor.submit(ready_node, dry_run)] = ready_node
+            futures.update({executor.submit(x, dry_run): x for x in g.get_ready()})
             future = next(as_completed(futures))
             node = futures[future]
             try:
