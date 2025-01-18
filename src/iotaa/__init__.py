@@ -124,18 +124,11 @@ class Node(ABC):
         self._debug_header("Execution")
         self._first_visit = False
         # Exec:
-        futures = []
-        g = self._graph
-        g.prepare()
         executor = self._exectype(max_workers=self._workers)
-        # while g.is_active():
-        #     for node in g.get_ready():
-        #         future = executor.submit(node, dry_run)
-        #         setattr(future, "node", node)
-        #         futures.append(future)
-        #     time.sleep(0)
-        while g.is_active():
-            for node_ready in g.get_ready():
+        futures = []
+        self._graph.prepare()
+        while self._graph.is_active():
+            for node_ready in self._graph.get_ready():
                 future = executor.submit(node_ready, dry_run)
                 setattr(future, "node", node_ready)
                 futures.append(future)
@@ -148,7 +141,7 @@ class Node(ABC):
                 log.error("%s: Thread failed: %s", node_complete.taskname, reason)
             else:
                 log.debug("%s: Thread completed", node_complete.taskname)
-            g.done(node_complete)
+            self._graph.done(node_complete)
             futures.remove(completed)
             time.sleep(0)
 
