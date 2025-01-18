@@ -11,7 +11,7 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
+from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
@@ -128,13 +128,29 @@ class Node(ABC):
         g = self._graph
         g.prepare()
         executor = self._exectype(max_workers=self._workers)
+        # while g.is_active():
+        #     for node in g.get_ready():
+        #         future = executor.submit(node, dry_run)
+        #         setattr(future, "node", node)
+        #         futures.append(future)
+        #     time.sleep(0)
         while g.is_active():
-            for node in g.get_ready():
-                future = executor.submit(node, dry_run)
-                future.add_done_callback(lambda f: g.done(f.result()))
+            for node_ready in g.get_ready():
+                future = executor.submit(node_ready, dry_run)
+                setattr(future, "node", node_ready)
                 futures.append(future)
+            completed = next(as_completed(futures))
+            node_complete = getattr(completed, "node")
+            try:
+                assert completed.result()
+            except Exception as e:
+                reason = str(getattr(e, "value", e))
+                log.error("%s: Thread failed: %s", node_complete.taskname, reason)
+            else:
+                log.debug("%s: Thread completed", node_complete.taskname)
+            g.done(node_complete)
+            futures.remove(completed)
             time.sleep(0)
-        wait(futures)
 
     def _debug_header(self, msg: str) -> None:
         """
