@@ -783,8 +783,9 @@ def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint:
     assert isinstance(g, TopologicalSorter)
 
 
+@mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
-def test_Node__assemble_and_exec(caplog, iotaa_logger, threads):  # pylint: disable=W0613
+def test_Node__assemble_and_exec(caplog, iotaa_logger, n, threads):  # pylint: disable=W0613
     @iotaa.task
     def a(n):
         val: list[int] = []
@@ -801,13 +802,19 @@ def test_Node__assemble_and_exec(caplog, iotaa_logger, threads):  # pylint: disa
         yield iotaa.asset(val, lambda: bool(val))
         reqs = [a(1), a(n)]
         yield reqs
-        val.append(add(*[iotaa.refs(req)[0] for req in reqs]))
+        m = add(*[iotaa.refs(req)[0] for req in reqs])
+        if m == 0:
+            raise RuntimeError("zero result")
+        val.append(m)
 
-    node = b(n=2, threads=threads)
-    assert iotaa.refs(node)[0] == 3
+    node = b(n, threads=threads)
     assert logged(caplog, "a 1: Thread completed")
-    assert logged(caplog, "a 2: Thread completed")
-    assert logged(caplog, "b: Thread completed")
+    assert logged(caplog, "a %s: Thread completed" % n)
+    if n == -1:
+        assert logged(caplog, "b: Thread failed: zero result")
+    else:
+        assert iotaa.refs(node)[0] == 3
+        assert logged(caplog, "b: Thread completed")
 
 
 def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613
