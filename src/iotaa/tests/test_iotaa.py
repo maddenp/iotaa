@@ -777,6 +777,20 @@ def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint:
     assert isinstance(g, TopologicalSorter)
 
 
+@mark.parametrize("concurrent", [False, True])
+def test_Node__assemble_and_exec(concurrent, t_tasks_baz, tmp_path):
+    kwargs = {"threads": 2} if concurrent else {}
+    with (
+        patch.object(iotaa.Node, "_exec_concurrent") as _exec_concurrent,
+        patch.object(iotaa.Node, "_exec_synchronous") as _exec_synchronous,
+    ):
+        t_tasks_baz(tmp_path, **kwargs)
+    expected = _exec_concurrent if concurrent else _exec_synchronous
+    expected.assert_called_once_with(g=ANY, dry_run=False)
+    unexpected = _exec_synchronous if concurrent else _exec_concurrent
+    unexpected.assert_not_called()
+
+
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
 def test_Node__exec_concurrent(caplog, iotaa_logger, memval, n, threads):  # pylint: disable=W0613
