@@ -9,6 +9,7 @@ import json
 import logging
 import sys
 import time
+import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -143,8 +144,11 @@ class Node(ABC):
             try:
                 assert completed_future.result()
             except Exception as e:
+                prefix = "Thread failed:"
                 reason = str(getattr(e, "value", e))
-                log.error("%s: Thread failed: %s", completed_node.taskname, reason)
+                log.error("%s: %s %s", completed_node.taskname, prefix, reason)
+                for line in traceback.format_exc().strip().split("\n"):
+                    log.debug("%s: %s %s", completed_node.taskname, prefix, line)
             else:
                 log.debug("%s: Thread completed", completed_node.taskname)
             g.done(completed_node)
