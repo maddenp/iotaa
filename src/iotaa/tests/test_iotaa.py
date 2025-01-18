@@ -8,6 +8,7 @@ import logging
 import re
 from abc import abstractmethod
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from graphlib import TopologicalSorter
 from hashlib import md5
 from itertools import chain
 from textwrap import dedent
@@ -81,7 +82,7 @@ def graphkit():
 @fixture
 def iotaa_logger():
     logger = logging.getLogger("iotaa-test")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter("%(message)s"))
@@ -242,7 +243,7 @@ def badtask():
     yield "Bad task yields no asset"
 
 
-def logged(msg, caplog):
+def logged(caplog, msg):
     return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
 
 
@@ -329,7 +330,7 @@ def test_main_error(caplog):
     with patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]):
         with raises(SystemExit):
             iotaa.main()
-    assert logged("Failed to get assets: Check yield statements.", caplog)
+    assert logged(caplog, "Failed to get assets: Check yield statements.")
 
 
 def test_main_live_abspath(capsys, module_for_main):
@@ -436,7 +437,7 @@ def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
     assert not val(node._assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
-        assert logged(f"task bar {f_bar}: {msg}", caplog)
+        assert logged(caplog, f"task bar {f_bar}: {msg}")
 
 
 @mark.parametrize(
@@ -458,7 +459,7 @@ def test_task_ready(caplog, iotaa_logger, request, task, tmp_path, val):
     assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
-        assert logged(f"task bar {f_bar}: {msg}", caplog)
+        assert logged(caplog, f"task bar {f_bar}: {msg}")
 
 
 def test_tasks_structured():
@@ -509,7 +510,7 @@ def test_tasks_not_ready(caplog, tasks_baz, tmp_path):
         "✖ external foo %s/foo" % tmp_path,
         "✖ task bar %s/bar" % tmp_path,
     ]:
-        assert logged(f"tasks baz: {msg}", caplog)
+        assert logged(caplog, f"tasks baz: {msg}")
 
 
 def test_tasks_ready(caplog, iotaa_logger, tasks_baz, tmp_path):
@@ -525,7 +526,7 @@ def test_tasks_ready(caplog, iotaa_logger, tasks_baz, tmp_path):
         a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
     )
     assert all(x.is_file() for x in [f_foo, f_bar])
-    assert logged("tasks baz: Ready", caplog)
+    assert logged(caplog, "tasks baz: Ready")
 
 
 # Private function tests
@@ -555,7 +556,7 @@ def test__cacheable():
 def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # pylint: disable=unused-argument
     exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
     exec_task_body()
-    assert logged("task: Executing", caplog)
+    assert logged(caplog, "task: Executing")
 
 
 def test__flatten():
@@ -710,7 +711,7 @@ def test__task_common_procs_and_threads():
 def test_Node___call___dry_run(caplog, task_bar_scalar, tmp_path):
     (tmp_path / "foo").touch()
     node = task_bar_scalar(tmp_path, dry_run=True)
-    assert logged("%s: SKIPPING (DRY RUN)" % node.taskname, caplog)
+    assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
 
 
 def test_Node__eq__(external_foo_scalar, task_bar_dict, task_bar_list, tmp_path):
@@ -740,16 +741,33 @@ def test_Node_ready(external_foo_scalar, tmp_path):
 
 
 def test_Node__add_node_and_predecessors(
-    iotaa_logger, tasks_baz, tmp_path
+    caplog, iotaa_logger, tasks_baz, tmp_path
 ):  # pylint: disable=unused-argument
-    g: iotaa.TopologicalSorter = iotaa.TopologicalSorter()
+    g: TopologicalSorter = TopologicalSorter()
     node = tasks_baz(tmp_path)
     node._add_node_and_predecessors(g=g, node=node)
-    assert [x.taskname for x in g.static_order()] == [
-        f"external foo {tmp_path}/foo",
-        f"task bar {tmp_path}/bar",
-        "tasks baz",
-    ]
+    tasknames = [f"external foo {tmp_path}/foo", f"task bar {tmp_path}/bar", "tasks baz"]
+    assert [x.taskname for x in g.static_order()] == tasknames
+    assert logged(caplog, "tasks baz")
+    assert logged(caplog, f"  external foo {tmp_path}/foo")
+    assert logged(caplog, f"  task bar {tmp_path}/bar")
+
+
+def test_Node__assemble(
+    caplog, iotaa_logger, tasks_baz, tmp_path
+):  # pylint: disable=unused-argument
+    node = tasks_baz(tmp_path)
+    with (
+        patch.object(node, "_dedupe") as _dedupe,
+        patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors,
+    ):
+        g = node._assemble()
+    assert logged(caplog, "Task Graph")
+    _dedupe.assert_called_once_with()
+    _add_node_and_predecessors.assert_called_once_with(ANY, node)
+    assert logged(caplog, "Execution")
+    assert node._first_visit is False
+    assert isinstance(g, TopologicalSorter)
 
 
 # _Graph tests
