@@ -72,7 +72,6 @@ class Node(ABC):
         self._logger = logger
         self._assets: Optional[_AssetsT] = None
         self._first_visit = True
-        self._graph: Optional[TopologicalSorter] = None
         self._reqs: Optional[_ReqsT] = None
 
     @abstractmethod
@@ -94,21 +93,21 @@ class Node(ABC):
         """
         return all(x.ready() for x in _flatten(self._assets))
 
-    def _add_node_and_predecessors(self, node: Node, level: int = 0) -> None:
+    def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
         Assemble the task graph based on this node and its children.
 
+        :param g: The graph.
         :param node: The current task-graph node.
         :param level: The distance from the task-graph root node.
         """
         log.debug("  " * level + str(node.taskname))
-        assert self._graph is not None
-        self._graph.add(node)
+        g.add(node)
         if not node.ready:
             predecessor: Node
             for predecessor in _flatten(requirements(node)):
-                self._graph.add(node, predecessor)
-                self._add_node_and_predecessors(predecessor, level + 1)
+                g.add(node, predecessor)
+                self._add_node_and_predecessors(g, predecessor, level + 1)
 
     def _assemble_and_exec(self, dry_run: bool) -> None:
         """
@@ -116,19 +115,13 @@ class Node(ABC):
 
         :param dry_run: Avoid executing state-affecting code?
         """
-        # Assemble:
-        self._graph = TopologicalSorter()
-        self._debug_header("Task Graph")
-        self._dedupe()
-        self._add_node_and_predecessors(self)
-        self._debug_header("Execution")
-        self._first_visit = False
+        g = self._assemble()
         # Exec:
         executor = self._exectype(max_workers=self._workers)
         futures = []
-        self._graph.prepare()
-        while self._graph.is_active():
-            for node_ready in self._graph.get_ready():
+        g.prepare()
+        while g.is_active():
+            for node_ready in g.get_ready():
                 future = executor.submit(node_ready, dry_run)
                 setattr(future, "node", node_ready)
                 futures.append(future)
@@ -141,9 +134,23 @@ class Node(ABC):
                 log.error("%s: Thread failed: %s", node_complete.taskname, reason)
             else:
                 log.debug("%s: Thread completed", node_complete.taskname)
-            self._graph.done(node_complete)
+            g.done(node_complete)
             futures.remove(completed)
             time.sleep(0)
+
+    def _assemble(self) -> TopologicalSorter:
+        """
+        Assemble the task graph.
+
+        :return: The graph.
+        """
+        g: TopologicalSorter = TopologicalSorter()
+        self._debug_header("Task Graph")
+        self._dedupe()
+        self._add_node_and_predecessors(g, self)
+        self._debug_header("Execution")
+        self._first_visit = False
+        return g
 
     def _debug_header(self, msg: str) -> None:
         """
