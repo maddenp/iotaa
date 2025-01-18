@@ -83,7 +83,7 @@ Integration into another package:
 
 ```
 $ iotaa --help
-usage: iotaa [-d] [-h] [-g] [-s] [-v] [--version] module [function] [args ...]
+usage: iotaa [-d] [-g] [-h] [-s] [-t N] [-v] [--version] module [function] [args ...]
 
 positional arguments:
   module
@@ -96,12 +96,14 @@ positional arguments:
 optional arguments:
   -d, --dry-run
     run in dry-run mode
-  -h, --help
-    show help and exit
   -g, --graph
     emit Graphviz dot to stdout
+  -h, --help
+    show help and exit
   -s, --show
     show available tasks
+  -t N, --threads N
+    use N threads
   -v, --verbose
     enable verbose logging
   --version

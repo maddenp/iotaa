@@ -7,7 +7,6 @@ Tests for module iotaa.
 import logging
 import re
 from abc import abstractmethod
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from graphlib import TopologicalSorter
 from hashlib import md5
 from itertools import chain, combinations
@@ -29,22 +28,19 @@ import iotaa
 def graphkit():
     a = iotaa.NodeExternal(
         taskname="a",
-        exectype=ThreadPoolExecutor,
-        workers=1,
+        threads=1,
         logger=logging.getLogger(),
         assets_=iotaa.asset(None, lambda: False),
     )
     b = iotaa.NodeExternal(
         taskname="b",
-        exectype=ThreadPoolExecutor,
-        workers=1,
+        threads=1,
         logger=logging.getLogger(),
         assets_=iotaa.asset(None, lambda: True),
     )
     root = iotaa.NodeTasks(
         taskname="root",
-        exectype=ThreadPoolExecutor,
-        workers=1,
+        threads=1,
         logger=logging.getLogger(),
         reqs=[a, b],
     )
@@ -246,7 +242,6 @@ def args(path, show):
         function="a_function",
         graph=True,
         module=m,
-        procs=None,
         show=show,
         threads=None,
         verbose=True,
@@ -316,8 +311,7 @@ def test_refs():
     asset = iotaa.asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(
         taskname="test",
-        exectype=ThreadPoolExecutor,
-        workers=1,
+        threads=1,
         logger=logging.getLogger(),
         assets_=None,
     )
@@ -375,7 +369,7 @@ def test_main_mocked_up(capsys, g, tmp_path):
                 mocks["import_module"].assert_called_once_with("a")
                 getattr_.assert_any_call(mocks["import_module"](), "a_function")
                 task_args = ["foo", 42, 3.14, True]
-                task_kwargs = {"dry_run": True, "procs": None, "threads": None}
+                task_kwargs = {"dry_run": True, "threads": None}
                 getattr_().assert_called_once_with(*task_args, **task_kwargs)
             mocks["_parse_args"].assert_called_once()
             mocks["logcfg"].assert_called_once_with(verbose=True)
@@ -646,15 +640,6 @@ def test__parse_args_missing_task_ok(switch):
     assert args.show is True
 
 
-@mark.parametrize("p", ["-p", "--procs"])
-@mark.parametrize("t", ["-t", "--threads"])
-def test__parse_args_mutually_exclusive_procs_threads(capsys, p, t):
-    with raises(SystemExit) as e:
-        iotaa._parse_args(raw=["a_module", "a_function", p, "1", t, "1"])
-    assert e.value.code == 1
-    assert capsys.readouterr().out.strip() == "Specify either procs or threads"
-
-
 def test__reify():
     strs = ["foo", "42", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 42, 3.14, True]
@@ -683,10 +668,9 @@ def test__task_common():
         yield n
 
     tn = "task"
-    taskname, exectype, workers, dry_run, log, g = iotaa._task_common(f, tn, n=42, threads=1)
+    taskname, threads, dry_run, log, g = iotaa._task_common(f, tn, n=42, threads=1)
     assert taskname == tn
-    assert exectype is ThreadPoolExecutor
-    assert workers == 1
+    assert threads == 1
     assert dry_run is False
     assert log is iotaa.logging.getLogger()
     assert next(g) == 42
@@ -699,24 +683,12 @@ def test__task_common_extras():
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, exectype, workers, dry_run, log, g = iotaa._task_common(
-        f, tn, n=42, dry_run=True, procs=1
-    )
+    taskname, threads, dry_run, log, g = iotaa._task_common(f, tn, n=42, dry_run=True)
     assert taskname == tn
-    assert exectype is ProcessPoolExecutor
-    assert workers == 1
+    assert threads == 1
     assert dry_run is True
     assert log is iotaa.logging.getLogger()
     assert next(g) == 42
-
-
-def test__task_common_procs_and_threads():
-    def f():
-        yield "taskname"
-
-    with raises(RuntimeError) as e:
-        iotaa._task_common(f, procs=1, threads=1)
-    assert str(e.value) == "Specify either procs or threads"
 
 
 # Node tests
