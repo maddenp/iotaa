@@ -11,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from graphlib import TopologicalSorter
 from hashlib import md5
 from itertools import chain, combinations
+from operator import add
 from textwrap import dedent
 from typing import cast
 from unittest.mock import ANY
@@ -66,7 +67,8 @@ def graphkit():
 
 
 @fixture
-def iotaa_logger():
+def iotaa_logger(caplog):
+    caplog.set_level(logging.DEBUG)
     logger = logging.getLogger("iotaa-test")
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
@@ -721,6 +723,7 @@ def test__task_common_procs_and_threads():
 
 
 def test_Node___call___dry_run(caplog, t_task_bar_scalar, tmp_path):
+    caplog.set_level(logging.INFO)
     (tmp_path / "foo").touch()
     node = t_task_bar_scalar(tmp_path, dry_run=True)
     assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
@@ -780,8 +783,31 @@ def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint:
     assert isinstance(g, TopologicalSorter)
 
 
-@mark.skip()
-def test_Node__assemble_and_exec(): ...
+@mark.parametrize("threads", [1, 2])
+def test_Node__assemble_and_exec(caplog, iotaa_logger, threads):  # pylint: disable=W0613
+    @iotaa.task
+    def a(n):
+        val: list[int] = []
+        yield "a %s" % n
+        yield iotaa.asset(val, lambda: bool(val))
+        yield None
+        val.append(n)
+
+    @iotaa.task
+    def b(n):
+        assert n != 1
+        val: list[int] = []
+        yield "b"
+        yield iotaa.asset(val, lambda: bool(val))
+        reqs = [a(1), a(n)]
+        yield reqs
+        val.append(add(*[iotaa.refs(req)[0] for req in reqs]))
+
+    node = b(n=2, threads=threads)
+    assert iotaa.refs(node)[0] == 3
+    assert logged(caplog, "a 1: Thread completed")
+    assert logged(caplog, "a 2: Thread completed")
+    assert logged(caplog, "b: Thread completed")
 
 
 def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613
