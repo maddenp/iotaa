@@ -109,6 +109,20 @@ class Node(ABC):
                 g.add(node, predecessor)
                 self._add_node_and_predecessors(g, predecessor, level + 1)
 
+    def _assemble(self) -> TopologicalSorter:
+        """
+        Assemble the task graph.
+
+        :return: The graph.
+        """
+        g: TopologicalSorter = TopologicalSorter()
+        self._debug_header("Task Graph")
+        self._dedupe()
+        self._add_node_and_predecessors(g, self)
+        self._debug_header("Execution")
+        self._first_visit = False
+        return g
+
     def _assemble_and_exec(self, dry_run: bool) -> None:
         """
         Assemble and then execute the task graph.
@@ -116,7 +130,6 @@ class Node(ABC):
         :param dry_run: Avoid executing state-affecting code?
         """
         g = self._assemble()
-        # Exec:
         executor = self._exectype(max_workers=self._workers)
         futures = []
         g.prepare()
@@ -137,20 +150,6 @@ class Node(ABC):
             g.done(node_complete)
             futures.remove(completed)
             time.sleep(0)
-
-    def _assemble(self) -> TopologicalSorter:
-        """
-        Assemble the task graph.
-
-        :return: The graph.
-        """
-        g: TopologicalSorter = TopologicalSorter()
-        self._debug_header("Task Graph")
-        self._dedupe()
-        self._add_node_and_predecessors(g, self)
-        self._debug_header("Execution")
-        self._first_visit = False
-        return g
 
     def _debug_header(self, msg: str) -> None:
         """
