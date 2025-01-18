@@ -146,7 +146,7 @@ def t_task_bar_list(t_external_foo_scalar):
 
 
 @fixture
-def t_task_bar_scalar(t_external_foo_scalar):
+def t_task_bar_scalar():
     @iotaa.task
     def bar(path):
         """
@@ -155,7 +155,7 @@ def t_task_bar_scalar(t_external_foo_scalar):
         f = path / "bar"
         yield f"task bar scalar {f}"
         yield iotaa.asset(f, f.is_file)
-        yield t_external_foo_scalar(path)
+        yield None
         f.touch()
 
     return bar
@@ -172,6 +172,19 @@ def t_tasks_baz(t_external_foo_scalar, t_task_bar_dict):
         yield [t_external_foo_scalar(path), t_task_bar_dict(path)]
 
     return baz
+
+
+@fixture
+def t_tasks_qux(t_external_foo_scalar, t_task_bar_scalar):
+    @iotaa.tasks
+    def qux(path):
+        """
+        TASKS!
+        """
+        yield "tasks qux"
+        yield [t_external_foo_scalar(path), t_task_bar_scalar(path)]
+
+    return qux
 
 
 @fixture
@@ -424,7 +437,6 @@ def test_external_ready(t_external_foo_scalar, iotaa_logger, tmp_path):  # pylin
     [
         ("t_task_bar_dict", lambda x: x["path"]),
         ("t_task_bar_list", lambda x: x[0]),
-        ("t_task_bar_scalar", lambda x: x),
     ],
 )
 def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
@@ -788,18 +800,20 @@ def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pyl
 def test_Node__dedupe(): ...
 
 
-# @mark.parametrize("touch", [False, True])
-# def test_Node__report_readiness_tasks(caplog, iotaa_logger, t_tasks_baz, tmp_path, touch):
-#     if touch:
-#         path = tmp_path / "foo"
-#         path.touch()
-#     node = t_tasks_baz(tmp_path)
-#     node._report_readiness()
-#     assert logged(caplog, "tasks baz: %s" % ("Ready" if touch else "Not ready"))
-#     if not touch:
-#         assert logged(caplog, "tasks baz: Requires:")
-#         assert logged(caplog, "tasks baz: %s external foo %s" % (path, "✔" if touch else "✖"))
-# assert logged(caplog, "tasks baz: %s task bar dict %s/bar" % (tmp_path, "✔" if touch else "✖"))
+@mark.parametrize("touch", [False, True])
+def test_Node__report_readiness_tasks(
+    caplog, iotaa_logger, t_tasks_qux, tmp_path, touch
+):  # pylint: disable=W0613
+    path = tmp_path / "foo"
+    if touch:
+        path.touch()
+    node = t_tasks_qux(tmp_path)
+    node._report_readiness()
+    assert logged(caplog, "tasks qux: %s" % ("Ready" if touch else "Not ready"))
+    if not touch:
+        assert logged(caplog, "tasks qux: Requires:")
+        assert logged(caplog, "tasks qux: ✖ external foo %s" % path)
+        assert logged(caplog, "tasks qux: ✔ task bar scalar %s/bar" % tmp_path)
 
 
 def test_Node__reset_ready(t_external_foo_scalar, tmp_path):
