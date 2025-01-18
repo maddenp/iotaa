@@ -75,6 +75,33 @@ def iotaa_logger(caplog):
 
 
 @fixture
+def memval():
+
+    @iotaa.task
+    def a(n):
+        assert n != 1
+        val: list[int] = []
+        yield "a"
+        yield iotaa.asset(val, lambda: bool(val))
+        reqs = [b(1), b(n)]
+        yield reqs
+        m = add(*[iotaa.refs(req)[0] for req in reqs])
+        if m == 0:
+            raise RuntimeError("zero result")
+        val.append(m)
+
+    @iotaa.task
+    def b(n):
+        val: list[int] = []
+        yield "b %s" % n
+        yield iotaa.asset(val, lambda: bool(val))
+        yield None
+        val.append(n)
+
+    return a
+
+
+@fixture
 def module_for_main(tmp_path):
     func = """
     from iotaa import asset, task
@@ -752,36 +779,20 @@ def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint:
 
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
-def test_Node__assemble_and_exec(caplog, iotaa_logger, n, threads):  # pylint: disable=W0613
-    @iotaa.task
-    def a(n):
-        val: list[int] = []
-        yield "a %s" % n
-        yield iotaa.asset(val, lambda: bool(val))
-        yield None
-        val.append(n)
-
-    @iotaa.task
-    def b(n):
-        assert n != 1
-        val: list[int] = []
-        yield "b"
-        yield iotaa.asset(val, lambda: bool(val))
-        reqs = [a(1), a(n)]
-        yield reqs
-        m = add(*[iotaa.refs(req)[0] for req in reqs])
-        if m == 0:
-            raise RuntimeError("zero result")
-        val.append(m)
-
-    node = b(n, threads=threads)
-    assert logged(caplog, "a 1: Thread completed")
-    assert logged(caplog, "a %s: Thread completed" % n)
+def test_Node__assemble_and_exec(caplog, iotaa_logger, memval, n, threads):  # pylint: disable=W0613
+    node = memval(n, threads=threads)
+    assert logged(caplog, "b 1: Thread completed")
+    assert logged(caplog, "b %s: Thread completed" % n)
     if n == -1:
-        assert logged(caplog, "b: Thread failed: zero result")
+        for msg in (
+            "zero result",
+            "Traceback (most recent call last):",
+            "RuntimeError: zero result",
+        ):
+            assert logged(caplog, f"a: Thread failed: {msg}")
     else:
         assert iotaa.refs(node)[0] == 3
-        assert logged(caplog, "b: Thread completed")
+        assert logged(caplog, "a: Thread completed")
 
 
 def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613
