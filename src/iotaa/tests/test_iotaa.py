@@ -707,15 +707,49 @@ def test__task_common_procs_and_threads():
 # Node tests
 
 
+def test_Node___call___dry_run(caplog, task_bar_scalar, tmp_path):
+    (tmp_path / "foo").touch()
+    node = task_bar_scalar(tmp_path, dry_run=True)
+    assert logged("%s: SKIPPING (DRY RUN)" % node.taskname, caplog)
+
+
+def test_Node__eq__(external_foo_scalar, task_bar_dict, task_bar_list, tmp_path):
+    # These two have the same taskname: "task bar {tmp_path}":
+    node_dict = task_bar_dict(tmp_path)
+    node_list = task_bar_list(tmp_path)
+    assert node_dict == node_list
+    # But this one has a different taskname:
+    node_scalar = external_foo_scalar(tmp_path)
+    assert node_dict != node_scalar
+
+
+def test_Node__hash__(task_bar_dict, tmp_path):
+    node_dict = task_bar_dict(tmp_path)
+    assert hash(node_dict) == hash(f"task bar {tmp_path}/bar")
+
+
 def test_Node___repr__(task_bar_scalar, tmp_path):
     node = task_bar_scalar(tmp_path)
     assert re.match(rf"^task bar {tmp_path}/bar <\d+>$", str(node))
 
 
-def test_Node___call___dry_run(caplog, task_bar_scalar, tmp_path):
+def test_Node_ready(external_foo_scalar, tmp_path):
+    assert not external_foo_scalar(tmp_path).ready
     (tmp_path / "foo").touch()
-    node = task_bar_scalar(tmp_path, dry_run=True)
-    assert logged("%s: SKIPPING (DRY RUN)" % node.taskname, caplog)
+    assert external_foo_scalar(tmp_path).ready
+
+
+def test_Node__add_node_and_predecessors(
+    iotaa_logger, tasks_baz, tmp_path
+):  # pylint: disable=unused-argument
+    g: iotaa.TopologicalSorter = iotaa.TopologicalSorter()
+    node = tasks_baz(tmp_path)
+    node._add_node_and_predecessors(g=g, node=node)
+    assert [x.taskname for x in g.static_order()] == [
+        f"external foo {tmp_path}/foo",
+        f"task bar {tmp_path}/bar",
+        "tasks baz",
+    ]
 
 
 # _Graph tests
