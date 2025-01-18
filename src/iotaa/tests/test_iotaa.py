@@ -10,7 +10,7 @@ from abc import abstractmethod
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from graphlib import TopologicalSorter
 from hashlib import md5
-from itertools import chain
+from itertools import chain, combinations
 from textwrap import dedent
 from typing import cast
 from unittest.mock import ANY
@@ -796,8 +796,22 @@ def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pyl
     assert actual.strip() == dedent(expected).strip()
 
 
-@mark.skip()
-def test_Node__dedupe(): ...
+def test_Node__dedupe(t_external_foo_scalar, tmp_path):
+    n = [t_external_foo_scalar(tmp_path) for _ in range(6)]
+    # All the nodes are distinct objects:
+    assert not any(n1 is n2 for n1, n2 in combinations(n, 2))
+    # But they're equivalent due to their identical tasknames:
+    assert all(n1 == n2 for n1, n2 in combinations(n, 2))
+    # A scalar requirement:
+    n[0]._reqs = n[1]
+    # A list of requirements:
+    n[1]._reqs = [n[2], n[3]]
+    # A dict of requirements:
+    n[2]._reqs = {1: n[4], 2: n[5]}
+    # No requirements:
+    n[3]._reqs = n[4]._reqs = n[5]._reqs = None
+    # These deduplicate to a set with a single node:
+    assert n[0]._dedupe() == {n[0]}
 
 
 @mark.parametrize("touch", [False, True])
