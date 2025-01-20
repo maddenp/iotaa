@@ -166,10 +166,11 @@ class Node(ABC):
         """
 
         def existing(node: Node, known: set[Node]) -> Node:
-            already_had = [n for n in known if n == node][0]
-            if node is not already_had:
-                log.debug("Replacing node '%s' with identical '%s'", node, already_had)
-            return already_had
+            identical = [n for n in known if n == node][0]
+            if node is not identical:
+                log.debug("Replacing node '%s' with identical '%s'", node, identical)
+                node._assets = identical._assets  # pylint: disable=protected-access
+            return identical
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
