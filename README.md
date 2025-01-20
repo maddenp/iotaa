@@ -691,11 +691,12 @@ External state (e.g. files on disk) is probably the most common type of `iotaa` 
 
 ``` python
 import logging
-import sys
 
 import requests
 
 from iotaa import asset, logcfg, ready, refs, task
+
+logcfg()
 
 
 @task
@@ -708,18 +709,30 @@ def json(lat: float, lon: float) -> str:
     val.append(requests.get(url).json())
 
 
-logcfg()
-result = json(*sys.argv[1:3])
-get = lambda x: refs(result)[0]["properties"]["relativeLocation"]["properties"][x]
-if ready(result):
-    logging.info("%s, %s", get("city"), get("state"))
+@task
+def main(lat: float, lon: float):
+    ran = False
+    taskname = "Main"
+    yield taskname
+    yield asset(None, lambda: ran)
+    req = json(lat, lon)
+    yield req
+    if ready(req):
+        city, state = [
+            refs(req)[0]["properties"]["relativeLocation"]["properties"][x]
+            for x in ("city", "state")
+        ]
+        logging.info("%s: Location: %s, %s", taskname, city, state)
+    ran = True
 ```
 
 ```
-$ python location1.py 40.1672 -105.1091
-[2025-01-20T19:55:27] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T19:55:28] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T19:55:28] INFO    Longmont, CO
+$ iotaa location1.py main 40.1672 -105.1091
+[2025-01-20T20:26:17] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T20:26:18] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T20:26:18] INFO    Main: Executing
+[2025-01-20T20:26:18] INFO    Main: Location: Longmont, CO
+[2025-01-20T20:26:18] INFO    Main: Ready
 ```
 
 Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its imperative section (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
@@ -730,14 +743,15 @@ In this simple example, there's no obvious benefit to `json()` being a `@task` i
 
 ``` python
 import logging
-import sys
 
 import requests
 
 from iotaa import asset, logcfg, ready, refs, task
 
+logcfg()
 
-get = lambda result, x: refs(result)[0]["properties"]["relativeLocation"]["properties"][x]
+get = lambda req, x: refs(req)[0]["properties"]["relativeLocation"]["properties"][x]
+
 
 @task
 def json(lat: float, lon: float) -> str:
@@ -770,32 +784,34 @@ def state(lat: float, lon: float) -> str:
 
 
 @task
-def location(lat: float, lon: float) -> str:
-    val = []
-    yield "Location for lat %s lon %s" % (lat, lon)
-    yield asset(val, lambda: bool(val))
+def main(lat: float, lon: float):
+    ran = False
+    taskname = "Main"
+    yield taskname
+    yield asset(None, lambda: ran)
     reqs = {"city": city(lat, lon), "state": state(lat, lon)}
     yield reqs
-    val.append("%s, %s" % (refs(reqs["city"])[0], refs(reqs["state"])[0]))
-
-
-logcfg()
-result = location(*sys.argv[1:3])
-if ready(result):
-    logging.info(refs(result)[0])
+    if all(ready(req) for req in reqs.values()):
+        logging.info(
+            "%s: Location: %s, %s",
+            taskname,
+            refs(reqs["city"])[0],
+            refs(reqs["state"])[0],
+        )
+    ran = True
 ```
 
 ```
-$ python location2.py 40.1672 -105.1091
-[2025-01-20T19:57:52] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T19:57:53] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T19:57:53] INFO    City for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T19:57:53] INFO    City for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T19:57:53] INFO    State for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T19:57:53] INFO    State for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T19:57:53] INFO    Location for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T19:57:53] INFO    Location for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T19:57:53] INFO    Longmont, CO
+$ iotaa location2.py main 40.1672 -105.1091
+[2025-01-20T20:30:24] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T20:30:24] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T20:30:24] INFO    City for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T20:30:24] INFO    City for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T20:30:24] INFO    State for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T20:30:24] INFO    State for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T20:30:24] INFO    Main: Executing
+[2025-01-20T20:30:24] INFO    Main: Location: Longmont, CO
+[2025-01-20T20:30:24] INFO    Main: Ready
 ```
 
 Here, `json(lat, lon)` in `city()` and `state()` refer to an identical invocations of `json()`, so `iotaa` deduplicates and executes the task once, with its results being available to both callers.

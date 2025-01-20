@@ -6,7 +6,6 @@ iotaa.
 # - interrupt?
 # - docs
 #   - cookbook
-#     - memory value
 #     - subprocess
 # - doctest
 # - pytest xdist
