@@ -149,7 +149,7 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 ## Important Notes
 
-- Since tasks `yield`ing the same name are viewed as identical by `iotaa` and collapsed into a single node in the task graph, be sure that distinct tasks `yield` distinct names, and that tasks with the same name `yield` identical assets.
+- Tasks `yield`ing the same name are deemed identical by `iotaa`, which will add just one to the task graph for execution, discarding the rest. Be sure that distinct tasks `yield` distinct names, and sssume that `iotaa` may replace any task with another `yield`ing the same name.
 - The following keyword arguments to task functions are reserved: They are consumed by `iotaa`, not passed on to task functions, and should not appear in task function's argument lists.
     - `dry_run`: Instructs `iotaa` not to run the imperative logic in a `@task` function. Defaults to `False`. This argument is passed automatically by the `iotaa` CLI when the `--dry-run` switch is used. For dry-run mode to work correctly, ensure that any statements affecting external state execute only after the final `yield` statement in a task function's body.
     - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger. Its use may require suppression of a linter warning at the call site. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object.
