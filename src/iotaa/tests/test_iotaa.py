@@ -280,8 +280,9 @@ def badtask():
     yield "Bad task yields no asset"
 
 
-def logged(caplog, msg):
-    return any(re.match(r"^%s$" % re.escape(msg), rec.message) for rec in caplog.records)
+def logged(caplog, msg, escape=True):
+    msg = re.escape(msg) if escape else msg
+    return any(re.match(r"^%s$" % msg, rec.message) for rec in caplog.records)
 
 
 def simple_assets():
@@ -836,7 +837,9 @@ def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pyl
     assert actual.strip() == dedent(expected).strip()
 
 
-def test_Node__dedupe(t_external_foo_scalar, tmp_path):
+def test_Node__dedupe(
+    caplog, iotaa_logger, t_external_foo_scalar, tmp_path
+):  # pylint: disable=W0613
     n = [t_external_foo_scalar(tmp_path) for _ in range(6)]
     # All the nodes are distinct objects:
     assert not any(n1 is n2 for n1, n2 in combinations(n, 2))
@@ -852,6 +855,10 @@ def test_Node__dedupe(t_external_foo_scalar, tmp_path):
     n[3]._reqs = n[4]._reqs = n[5]._reqs = None
     # These deduplicate to a set with a single node:
     assert n[0]._dedupe() == {n[0]}
+    # The replacement was reported in log messages:
+    assert logged(
+        caplog, "Replacing node 'external foo .*' with identical 'external foo .*'", escape=False
+    )
 
 
 @mark.parametrize("touch", [False, True])

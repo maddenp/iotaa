@@ -166,8 +166,10 @@ class Node(ABC):
         """
 
         def existing(node: Node, known: set[Node]) -> Node:
-            duplicate = [n for n in known if n == node][0]
-            return duplicate
+            already_had = [n for n in known if n == node][0]
+            if node is not already_had:
+                log.debug("Replacing node '%s' with identical '%s'", node, already_had)
+            return already_had
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
