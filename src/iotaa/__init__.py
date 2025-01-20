@@ -242,6 +242,9 @@ class Node(ABC):
         for node in g.static_order():
             try:
                 node(dry_run)
+            except KeyboardInterrupt:
+                log.info("Interrupted")
+                break
             except Exception as e:
                 msg = f"{node.taskname}: Task failed: %s"
                 log.error(msg, str(getattr(e, "value", e)))

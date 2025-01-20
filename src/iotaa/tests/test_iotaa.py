@@ -825,6 +825,25 @@ def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # pylint: dis
         assert iotaa.refs(node)[0] == 3
 
 
+def test_Node__exec_synchronous_interrupt(caplog, iotaa_logger):  # pylint: disable=W0613
+
+    def interrupt():
+        raise KeyboardInterrupt()
+
+    @iotaa.task
+    def interrupted():
+        completed = False
+        yield "interrupted"
+        yield iotaa.asset(None, lambda: completed)
+        yield None
+        interrupt()
+        completed = True
+
+    node = interrupted()
+    assert not iotaa.ready(node)
+    assert logged(caplog, "Interrupted")
+
+
 def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613
     node = t_tasks_baz(tmp_path)
     node._debug_header("foo")
