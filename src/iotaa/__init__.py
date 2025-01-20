@@ -2,16 +2,6 @@
 iotaa.
 """
 
-# PM TODO
-# - docs
-#   - cookbook
-#     - subprocess
-# - doctest
-# - pytest xdist
-# - fakefs
-# - ruff
-
-
 from __future__ import annotations
 
 import inspect

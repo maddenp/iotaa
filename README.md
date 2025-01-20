@@ -815,3 +815,157 @@ $ iotaa location2.py main 40.1672 -105.1091
 ```
 
 Here, both `city()` and `state()` `yield` `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` `yield`s the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers.
+
+### CPU-Bound Tasks
+
+Thread-based concurrency as implemented by `iotaa` helps overall execution time for IO-based tasks, but is less helpful (or even detrimental) for CPU-bound tasks. For example, here is a workflow that computes two Fibonacci numbers whose indices are `n1`, and `n2`:
+
+`fibonacci1.py`
+
+``` python
+import logging
+
+from iotaa import asset, logcfg, ready, refs, task
+
+logcfg()
+
+
+def fib(n: int) -> int:
+    return n if n < 2 else fib(n - 2) + fib(n - 1)
+
+
+@task
+def fibonacci(n: int):
+    val: list[int] = []
+    yield "Fibonacci %s" % n
+    yield asset(val, lambda: bool(val))
+    yield None
+    val.append(fib(n))
+
+
+@task
+def main(n1: int, n2: int):
+    ran = False
+    taskname = "Main"
+    yield taskname
+    yield asset(None, lambda: ran)
+    reqs = [fibonacci(n1), fibonacci(n2)]
+    yield reqs
+    if all(ready(req) for req in reqs):
+        logging.info("%s %s", *[refs(req)[0] for req in reqs])
+    ran = True
+```
+
+Here's a synchronous run:
+
+```
+$ time iotaa fibonacci1.py main 36 37
+[2025-01-20T22:30:43] INFO    Fibonacci 36: Executing
+[2025-01-20T22:30:46] INFO    Fibonacci 36: Ready
+[2025-01-20T22:30:46] INFO    Fibonacci 37: Executing
+[2025-01-20T22:30:49] INFO    Fibonacci 37: Ready
+[2025-01-20T22:30:49] INFO    Main: Executing
+[2025-01-20T22:30:49] INFO    14930352 24157817
+[2025-01-20T22:30:49] INFO    Main: Ready
+
+real	0m6.156s
+user	0m6.103s
+sys	0m0.054s
+```
+
+Unsurprisingly, using threads does not decrease the execution time:
+
+```
+$ time iotaa -t 2 fibonacci1.py main 36 37
+[2025-01-20T22:31:11] INFO    Fibonacci 37: Executing
+[2025-01-20T22:31:11] INFO    Fibonacci 36: Executing
+[2025-01-20T22:31:15] INFO    Fibonacci 36: Ready
+[2025-01-20T22:31:17] INFO    Fibonacci 37: Ready
+[2025-01-20T22:31:17] INFO    Main: Executing
+[2025-01-20T22:31:17] INFO    14930352 24157817
+[2025-01-20T22:31:17] INFO    Main: Ready
+
+real	0m6.202s
+user	0m6.127s
+sys	0m0.083s
+```
+
+For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
+
+`fibonacci2.py`
+
+``` python
+import logging
+from multiprocessing import Process, Value
+from multiprocessing.sharedctypes import Synchronized
+from typing import Optional
+
+from iotaa import asset, logcfg, ready, refs, task
+
+logcfg()
+
+
+def fib(n: int, v: Optional[Synchronized] = None) -> int:
+    result = n if n < 2 else fib(n - 2) + fib(n - 1)
+    if v:
+        v.value = result
+    return result
+
+
+@task
+def fibonacci(n: int):
+    val = Value("i", -1)
+    yield "Fibonacci %s" % n
+    yield asset(val, lambda: val.value >= 0)
+    yield None
+    p = Process(target=fib, args=(n, val))
+    p.start()
+    p.join()
+
+
+@task
+def main(n1: int, n2: int):
+    ran = False
+    taskname = "Main"
+    yield taskname
+    yield asset(None, lambda: ran)
+    reqs = [fibonacci(n1), fibonacci(n2)]
+    yield reqs
+    if all(ready(req) for req in reqs):
+        logging.info("%s %s", *[refs(req).value for req in reqs])
+    ran = True
+```
+
+This decreases the execution time:
+
+```
+$ time iotaa -t 2 fibonacci2.py main 36 37
+[2025-01-20T22:32:05] INFO    Fibonacci 36: Executing
+[2025-01-20T22:32:05] INFO    Fibonacci 37: Executing
+[2025-01-20T22:32:08] INFO    Fibonacci 36: Ready
+[2025-01-20T22:32:10] INFO    Fibonacci 37: Ready
+[2025-01-20T22:32:10] INFO    Main: Executing
+[2025-01-20T22:32:10] INFO    14930352 24157817
+[2025-01-20T22:32:10] INFO    Main: Ready
+
+real	0m5.062s
+user	0m8.132s
+sys	0m0.044s
+```
+
+The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
+
+```
+$ time iotaa fibonacci2.py main 0 37
+[2025-01-20T22:35:31] INFO    Fibonacci 0: Executing
+[2025-01-20T22:35:31] INFO    Fibonacci 0: Ready
+[2025-01-20T22:35:31] INFO    Fibonacci 37: Executing
+[2025-01-20T22:35:36] INFO    Fibonacci 37: Ready
+[2025-01-20T22:35:36] INFO    Main: Executing
+[2025-01-20T22:35:36] INFO    0 24157817
+[2025-01-20T22:35:36] INFO    Main: Ready
+
+real	0m5.022s
+user	0m4.985s
+sys	0m0.038s
+```
