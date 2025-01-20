@@ -856,7 +856,7 @@ def test_Node__dedupe(
     # These deduplicate to a set with a single node:
     assert n[0]._dedupe() == {n[0]}
     # The replacement was reported in log messages:
-    msg = "Replacing node 'external foo .*' with identical 'external foo .*'"
+    msg = "Discarding node 'external foo .*' for identical 'external foo .*'"
     assert logged(caplog, msg, escape=False)
 
 

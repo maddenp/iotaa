@@ -159,18 +159,26 @@ class Node(ABC):
 
         Decorated task functions/methods may create Node objects semantically equivalent to those
         created by others. Walk the task graph, deduplicating such nodes. Nodes are equivalent if
-        their tasknames match.
+        their tasknames match. The __eq__ and __hash__ methods on class Node define equivalence
+        semantics.
+
+        In addition to ensuring that a single Node object representing a class of equivalent Node
+        objects is present in the task graph, replace assets on to-be-discarded Node objects with
+        the assets of the retained Node. This is necessary because code in the closure referred to
+        by a discarded Node's .exec_task_body attribute will never run, and it might have updated an
+        in-scope Asset object; that Asset object is now unreliable. However, the retained Node has
+        an equivalent Asset whose close code will run, making it reliable.
 
         :param known: The set of known nodes.
         :return: The (possibly updated) set of known nodes.
         """
 
         def existing(node: Node, known: set[Node]) -> Node:
-            identical = [n for n in known if n == node][0]
-            if node is not identical:
-                log.debug("Replacing node '%s' with identical '%s'", node, identical)
-                node._assets = identical._assets  # pylint: disable=protected-access
-            return identical
+            x = [n for n in known if n == node][0]
+            if node is not x:
+                log.debug("Discarding node '%s' for identical '%s'", node, x)
+                node._assets = x._assets  # pylint: disable=protected-access
+            return x
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
