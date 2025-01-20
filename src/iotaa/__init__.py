@@ -3,7 +3,6 @@ iotaa.
 """
 
 # PM TODO
-# - interrupt?
 # - docs
 #   - cookbook
 #     - subprocess
