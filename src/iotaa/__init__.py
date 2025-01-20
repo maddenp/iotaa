@@ -216,21 +216,28 @@ class Node(ABC):
         executor = ThreadPoolExecutor(max_workers=self._threads)
         futures = {}
         while g.is_active():
-            futures.update({executor.submit(node, dry_run): node for node in g.get_ready()})
-            future = next(as_completed(futures))
-            node = futures[future]
             try:
-                future.result()
-            except Exception as e:
-                msg = f"{node.taskname}: Task failed in thread: %s"
-                log.error(msg, str(getattr(e, "value", e)))
-                for line in traceback.format_exc().strip().split("\n"):
-                    log.debug(msg, line)
-            else:
-                log.debug("%s: Task completed in thread", node.taskname)
-            g.done(node)
-            del futures[future]
-            time.sleep(0)
+                futures.update({executor.submit(node, dry_run): node for node in g.get_ready()})
+                future = next(as_completed(futures))
+                node = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    msg = f"{node.taskname}: Task failed in thread: %s"
+                    log.error(msg, str(getattr(e, "value", e)))
+                    for line in traceback.format_exc().strip().split("\n"):
+                        log.debug(msg, line)
+                else:
+                    log.debug("%s: Task completed in thread", node.taskname)
+                g.done(node)
+                del futures[future]
+                time.sleep(0)
+            except KeyboardInterrupt:
+                log.info("Interrupted")
+                for future, node in futures.items():
+                    log.debug("Cancelling: %s", node.taskname)
+                    future.cancel()
+                break
 
     def _exec_synchronous(self, g: TopologicalSorter, dry_run: bool) -> None:
         """

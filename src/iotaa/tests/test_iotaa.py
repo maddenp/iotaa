@@ -63,6 +63,20 @@ def graphkit():
 
 
 @fixture
+def interrupted():
+    @iotaa.task
+    def f():
+        completed = False
+        yield "Interrupted Task"
+        yield iotaa.asset(None, lambda: completed)
+        yield None
+        interrupt()
+        completed = True
+
+    return f
+
+
+@fixture
 def iotaa_logger(caplog):
     caplog.set_level(logging.DEBUG)
     logger = logging.getLogger("iotaa-test")
@@ -76,7 +90,6 @@ def iotaa_logger(caplog):
 
 @fixture
 def memval():
-
     @iotaa.task
     def a(n):
         assert n != 1
@@ -273,6 +286,10 @@ def args(path, show):
         threads=None,
         verbose=True,
     )
+
+
+def interrupt():
+    raise KeyboardInterrupt()
 
 
 @iotaa.external
@@ -811,6 +828,15 @@ def test_Node__exec_concurrent(caplog, iotaa_logger, memval, n, threads):  # pyl
         assert logged(caplog, f"a: {success}")
 
 
+def test_Node__exec_concurrent_interrupt(
+    caplog, interrupted, iotaa_logger
+):  # pylint: disable=W0613
+    node = interrupted(threads=1)
+    assert not iotaa.ready(node)
+    assert logged(caplog, "Interrupted")
+    assert logged(caplog, "Cancelling: Interrupted Task")
+
+
 @mark.parametrize("n", [2, -1])
 def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # pylint: disable=W0613
     node = memval(n)
@@ -825,20 +851,9 @@ def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # pylint: dis
         assert iotaa.refs(node)[0] == 3
 
 
-def test_Node__exec_synchronous_interrupt(caplog, iotaa_logger):  # pylint: disable=W0613
-
-    def interrupt():
-        raise KeyboardInterrupt()
-
-    @iotaa.task
-    def interrupted():
-        completed = False
-        yield "interrupted"
-        yield iotaa.asset(None, lambda: completed)
-        yield None
-        interrupt()
-        completed = True
-
+def test_Node__exec_synchronous_interrupt(
+    caplog, interrupted, iotaa_logger
+):  # pylint: disable=W0613
     node = interrupted()
     assert not iotaa.ready(node)
     assert logged(caplog, "Interrupted")
