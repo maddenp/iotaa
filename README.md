@@ -680,3 +680,122 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 - After the third invocation, when the tea has steeped and sugar has been added, showing final workflow state:
 
 ![teatime-dry-run-image](img/teatime-3.svg)
+
+## Cookbook
+
+### In-Memory Asset
+
+External state (e.g. files on disk) is probably the most common type of `iotaa` asset. The following mechanism may be useful for representing an in-memory asset:
+
+`location1.py`
+
+``` python
+import logging
+import sys
+
+import requests
+
+from iotaa import asset, logcfg, ready, refs, task
+
+
+@task
+def json(lat: float, lon: float) -> str:
+    val = []
+    yield "JSON for lat %s lon %s" % (lat, lon)
+    yield asset(val, lambda: bool(val))
+    yield None
+    url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
+    val.append(requests.get(url).json())
+
+
+logcfg()
+result = json(*sys.argv[1:3])
+get = lambda x: refs(result)[0]["properties"]["relativeLocation"]["properties"][x]
+if ready(result):
+    logging.info("%s, %s", get("city"), get("state"))
+```
+
+```
+$ python location1.py 40.1672 -105.1091
+[2025-01-20T19:55:27] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T19:55:28] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T19:55:28] INFO    Longmont, CO
+```
+
+Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its imperative section (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
+
+In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, depulication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
+
+`location2.py`
+
+``` python
+import logging
+import sys
+
+import requests
+
+from iotaa import asset, logcfg, ready, refs, task
+
+
+get = lambda result, x: refs(result)[0]["properties"]["relativeLocation"]["properties"][x]
+
+@task
+def json(lat: float, lon: float) -> str:
+    val = []
+    yield "JSON for lat %s lon %s" % (lat, lon)
+    yield asset(val, lambda: bool(val))
+    yield None
+    url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
+    val.append(requests.get(url).json())
+
+
+@task
+def city(lat: float, lon: float) -> str:
+    val = []
+    yield "City for lat %s lon %s" % (lat, lon)
+    yield asset(val, lambda: bool(val))
+    req = json(lat, lon)
+    yield req
+    val.append(get(req, "city"))
+
+
+@task
+def state(lat: float, lon: float) -> str:
+    val = []
+    yield "State for lat %s lon %s" % (lat, lon)
+    yield asset(val, lambda: bool(val))
+    req = json(lat, lon)
+    yield req
+    val.append(get(req, "state"))
+
+
+@task
+def location(lat: float, lon: float) -> str:
+    val = []
+    yield "Location for lat %s lon %s" % (lat, lon)
+    yield asset(val, lambda: bool(val))
+    reqs = {"city": city(lat, lon), "state": state(lat, lon)}
+    yield reqs
+    val.append("%s, %s" % (refs(reqs["city"])[0], refs(reqs["state"])[0]))
+
+
+logcfg()
+result = location(*sys.argv[1:3])
+if ready(result):
+    logging.info(refs(result)[0])
+```
+
+```
+$ python location2.py 40.1672 -105.1091
+[2025-01-20T19:57:52] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T19:57:53] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T19:57:53] INFO    City for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T19:57:53] INFO    City for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T19:57:53] INFO    State for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T19:57:53] INFO    State for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T19:57:53] INFO    Location for lat 40.1672 lon -105.1091: Executing
+[2025-01-20T19:57:53] INFO    Location for lat 40.1672 lon -105.1091: Ready
+[2025-01-20T19:57:53] INFO    Longmont, CO
+```
+
+Here, `json(lat, lon)` in `city()` and `state()` refer to an identical invocations of `json()`, so `iotaa` deduplicates and executes the task once, with its results being available to both callers.
