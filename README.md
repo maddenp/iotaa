@@ -814,4 +814,4 @@ $ iotaa location2.py main 40.1672 -105.1091
 [2025-01-20T20:30:24] INFO    Main: Ready
 ```
 
-Here, `json(lat, lon)` in `city()` and `state()` refer to an identical invocations of `json()`, so `iotaa` deduplicates and executes the task once, with its results being available to both callers.
+Here, both `city()` and `state()` `yield` `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` `yield`s the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers.
