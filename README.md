@@ -180,7 +180,7 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (according to [the official recipe](https://www.google.com/search?q=masters+of+reality+t.u.s.a.+lyrics)).
 
-The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar -- and a spoon for stirring:
+The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar, and a spoon for stirring:
 
 ``` python
 @tasks
@@ -192,7 +192,7 @@ def a_cup_of_tea(basedir):
     yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
 ```
 
-As described above, a `@tasks` function is just a collection of other tasks, and must `yield` its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` connection, no executable statements follow the final `yield.`
+As described above, a `@tasks` function is just a collection of other tasks, and must `yield` its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` collection, no executable statements follow the final `yield`.
 
 The `cup()` and `spoon()` `@task` functions are straightforward:
 
@@ -709,11 +709,9 @@ External state (e.g. files on disk) is probably the most common type of `iotaa` 
 `location1.py`
 
 ``` python
-import logging
-
 import requests
 
-from iotaa import asset, logcfg, ready, refs, task
+from iotaa import asset, log, logcfg, ready, refs, task
 
 logcfg()
 
@@ -741,17 +739,17 @@ def main(lat: float, lon: float):
             refs(req)[0]["properties"]["relativeLocation"]["properties"][x]
             for x in ("city", "state")
         ]
-        logging.info("%s: Location: %s, %s", taskname, city, state)
+        log.info("%s: Location: %s, %s", taskname, city, state)
     ran = True
 ```
 
 ```
 $ iotaa location1.py main 40.1672 -105.1091
-[2025-01-20T20:26:17] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T20:26:18] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T20:26:18] INFO    Main: Executing
-[2025-01-20T20:26:18] INFO    Main: Location: Longmont, CO
-[2025-01-20T20:26:18] INFO    Main: Ready
+[2025-01-21T20:07:43] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2025-01-21T20:07:45] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2025-01-21T20:07:45] INFO    Main: Executing
+[2025-01-21T20:07:45] INFO    Main: Location: Longmont, CO
+[2025-01-21T20:07:45] INFO    Main: Ready
 ```
 
 Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its action section (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
@@ -761,11 +759,9 @@ In this simple example, there's no obvious benefit to `json()` being a `@task` i
 `location2.py`
 
 ``` python
-import logging
-
 import requests
 
-from iotaa import asset, logcfg, ready, refs, task
+from iotaa import asset, log, logcfg, ready, refs, task
 
 logcfg()
 
@@ -811,7 +807,7 @@ def main(lat: float, lon: float):
     reqs = {"city": city(lat, lon), "state": state(lat, lon)}
     yield reqs
     if all(ready(req) for req in reqs.values()):
-        logging.info(
+        log.info(
             "%s: Location: %s, %s",
             taskname,
             refs(reqs["city"])[0],
@@ -822,15 +818,15 @@ def main(lat: float, lon: float):
 
 ```
 $ iotaa location2.py main 40.1672 -105.1091
-[2025-01-20T20:30:24] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T20:30:24] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T20:30:24] INFO    City for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T20:30:24] INFO    City for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T20:30:24] INFO    State for lat 40.1672 lon -105.1091: Executing
-[2025-01-20T20:30:24] INFO    State for lat 40.1672 lon -105.1091: Ready
-[2025-01-20T20:30:24] INFO    Main: Executing
-[2025-01-20T20:30:24] INFO    Main: Location: Longmont, CO
-[2025-01-20T20:30:24] INFO    Main: Ready
+[2025-01-21T20:08:56] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2025-01-21T20:08:56] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2025-01-21T20:08:56] INFO    City for lat 40.1672 lon -105.1091: Executing
+[2025-01-21T20:08:56] INFO    City for lat 40.1672 lon -105.1091: Ready
+[2025-01-21T20:08:56] INFO    State for lat 40.1672 lon -105.1091: Executing
+[2025-01-21T20:08:56] INFO    State for lat 40.1672 lon -105.1091: Ready
+[2025-01-21T20:08:56] INFO    Main: Executing
+[2025-01-21T20:08:56] INFO    Main: Location: Longmont, CO
+[2025-01-21T20:08:56] INFO    Main: Ready
 ```
 
 Here, both `city()` and `state()` `yield` `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers.
@@ -842,9 +838,7 @@ Thread-based concurrency as implemented by `iotaa` helps overall execution time 
 `fibonacci1.py`
 
 ``` python
-import logging
-
-from iotaa import asset, logcfg, ready, refs, task
+from iotaa import asset, log, logcfg, ready, refs, task
 
 logcfg()
 
@@ -871,7 +865,7 @@ def main(n1: int, n2: int):
     reqs = [fibonacci(n1), fibonacci(n2)]
     yield reqs
     if all(ready(req) for req in reqs):
-        logging.info("%s %s", *[refs(req)[0] for req in reqs])
+        log.info("%s %s", *[refs(req)[0] for req in reqs])
     ran = True
 ```
 
@@ -879,34 +873,34 @@ Here's a synchronous run:
 
 ```
 $ time iotaa fibonacci1.py main 36 37
-[2025-01-20T22:30:43] INFO    Fibonacci 36: Executing
-[2025-01-20T22:30:46] INFO    Fibonacci 36: Ready
-[2025-01-20T22:30:46] INFO    Fibonacci 37: Executing
-[2025-01-20T22:30:49] INFO    Fibonacci 37: Ready
-[2025-01-20T22:30:49] INFO    Main: Executing
-[2025-01-20T22:30:49] INFO    14930352 24157817
-[2025-01-20T22:30:49] INFO    Main: Ready
+[2025-01-21T20:10:24] INFO    Fibonacci 36: Executing
+[2025-01-21T20:10:27] INFO    Fibonacci 36: Ready
+[2025-01-21T20:10:27] INFO    Fibonacci 37: Executing
+[2025-01-21T20:10:32] INFO    Fibonacci 37: Ready
+[2025-01-21T20:10:32] INFO    Main: Executing
+[2025-01-21T20:10:32] INFO    14930352 24157817
+[2025-01-21T20:10:32] INFO    Main: Ready
 
-real	0m6.156s
-user	0m6.103s
-sys	0m0.054s
+real	0m7.484s
+user	0m7.447s
+sys	0m0.035s
 ```
 
 Unsurprisingly, using threads does not decrease the execution time:
 
 ```
 $ time iotaa -t 2 fibonacci1.py main 36 37
-[2025-01-20T22:31:11] INFO    Fibonacci 37: Executing
-[2025-01-20T22:31:11] INFO    Fibonacci 36: Executing
-[2025-01-20T22:31:15] INFO    Fibonacci 36: Ready
-[2025-01-20T22:31:17] INFO    Fibonacci 37: Ready
-[2025-01-20T22:31:17] INFO    Main: Executing
-[2025-01-20T22:31:17] INFO    14930352 24157817
-[2025-01-20T22:31:17] INFO    Main: Ready
+[2025-01-21T20:11:01] INFO    Fibonacci 36: Executing
+[2025-01-21T20:11:01] INFO    Fibonacci 37: Executing
+[2025-01-21T20:11:05] INFO    Fibonacci 36: Ready
+[2025-01-21T20:11:07] INFO    Fibonacci 37: Ready
+[2025-01-21T20:11:07] INFO    Main: Executing
+[2025-01-21T20:11:07] INFO    14930352 24157817
+[2025-01-21T20:11:07] INFO    Main: Ready
 
-real	0m6.202s
-user	0m6.127s
-sys	0m0.083s
+real	0m6.136s
+user	0m6.088s
+sys	0m0.052s
 ```
 
 For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
@@ -914,12 +908,11 @@ For CPU-bound tasks, use `multiprocessing` from the Python standard library to o
 `fibonacci2.py`
 
 ``` python
-import logging
 from multiprocessing import Process, Value
 from multiprocessing.sharedctypes import Synchronized
 from typing import Optional
 
-from iotaa import asset, logcfg, ready, refs, task
+from iotaa import asset, log, logcfg, ready, refs, task
 
 logcfg()
 
@@ -951,7 +944,7 @@ def main(n1: int, n2: int):
     reqs = [fibonacci(n1), fibonacci(n2)]
     yield reqs
     if all(ready(req) for req in reqs):
-        logging.info("%s %s", *[refs(req).value for req in reqs])
+        log.info("%s %s", *[refs(req).value for req in reqs])
     ran = True
 ```
 
@@ -959,32 +952,32 @@ This decreases the execution time:
 
 ```
 $ time iotaa -t 2 fibonacci2.py main 36 37
-[2025-01-20T22:32:05] INFO    Fibonacci 36: Executing
-[2025-01-20T22:32:05] INFO    Fibonacci 37: Executing
-[2025-01-20T22:32:08] INFO    Fibonacci 36: Ready
-[2025-01-20T22:32:10] INFO    Fibonacci 37: Ready
-[2025-01-20T22:32:10] INFO    Main: Executing
-[2025-01-20T22:32:10] INFO    14930352 24157817
-[2025-01-20T22:32:10] INFO    Main: Ready
+[2025-01-21T20:11:58] INFO    Fibonacci 37: Executing
+[2025-01-21T20:11:58] INFO    Fibonacci 36: Executing
+[2025-01-21T20:12:01] INFO    Fibonacci 36: Ready
+[2025-01-21T20:12:03] INFO    Fibonacci 37: Ready
+[2025-01-21T20:12:03] INFO    Main: Executing
+[2025-01-21T20:12:03] INFO    14930352 24157817
+[2025-01-21T20:12:03] INFO    Main: Ready
 
-real	0m5.062s
-user	0m8.132s
-sys	0m0.044s
+real	0m5.094s
+user	0m8.147s
+sys	0m0.063s
 ```
 
 The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
 
 ```
-$ time iotaa fibonacci2.py main 0 37
-[2025-01-20T22:35:31] INFO    Fibonacci 0: Executing
-[2025-01-20T22:35:31] INFO    Fibonacci 0: Ready
-[2025-01-20T22:35:31] INFO    Fibonacci 37: Executing
-[2025-01-20T22:35:36] INFO    Fibonacci 37: Ready
-[2025-01-20T22:35:36] INFO    Main: Executing
-[2025-01-20T22:35:36] INFO    0 24157817
-[2025-01-20T22:35:36] INFO    Main: Ready
+$ time iotaa -t 2 fibonacci2.py main 0 37
+[2025-01-21T20:12:22] INFO    Fibonacci 0: Executing
+[2025-01-21T20:12:22] INFO    Fibonacci 37: Executing
+[2025-01-21T20:12:22] INFO    Fibonacci 0: Ready
+[2025-01-21T20:12:27] INFO    Fibonacci 37: Ready
+[2025-01-21T20:12:27] INFO    Main: Executing
+[2025-01-21T20:12:27] INFO    0 24157817
+[2025-01-21T20:12:27] INFO    Main: Ready
 
-real	0m5.022s
-user	0m4.985s
-sys	0m0.038s
+real	0m5.009s
+user	0m4.986s
+sys	0m0.028s
 ```
