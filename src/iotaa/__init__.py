@@ -12,13 +12,13 @@ import time
 import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
-from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
-from importlib import resources as res
+from importlib import resources as _resources
 from itertools import chain
 from json import JSONDecodeError, loads
 from logging import Logger, getLogger
@@ -873,6 +873,6 @@ def _version() -> str:
     """
     Return version information.
     """
-    with res.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
+    with _resources.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
         return "version %s build %s" % (info["version"], info["buildnum"])
