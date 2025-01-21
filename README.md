@@ -146,6 +146,8 @@ Use the `--dry-mode` CLI switch, or supply the `dry_run=True` argument when call
 
 Use the `--threads` CLI switch, or supply the `threads=` argument when calling a task-graph root function, to process the task graph with a specified number of threads. Using threads can speed up workflows by executing IO-bound tasks concurrently. (See the _Cookbook_ section, below, for information on combining threads and processes to speed up CPU-bound tasks.)
 
+When using threads, note that log messages relating to different tasks may be interleaved. Those logged by `iotaa` itself should be prefixed with each task's name, so it should be clear which messages belong to which task. When creating custom log messages via `iotaa.log`, consider prefixing them with the taskname, too, to allow them to be logically grouped together when reading.
+
 ## Helpers
 
 A number of public helper functions are available in the `iotaa` module:
