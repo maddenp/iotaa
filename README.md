@@ -25,11 +25,11 @@ Create assets by calling `iotaa.asset()`.
 
 ## Tasks
 
-A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. Tasks are identified by their names, so two tasks yielding the same name are considered identical and `iotaa` will discard one of them. Following its `yield` statements, a task that readies an asset provides action logic to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
+A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. Tasks are identified by their names, so two tasks yielding the same name are considered identical and `iotaa` will discard one of them. Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
 
 `iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be single items, or a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a task `t`.
 
-For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A common pattern is to assign a requirement's result to a variable, then `yield` that reesult via the variable, then access assets via `refs()`:
+For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A common pattern is to assign a requirement's result to a variable, then yield that result via the variable, then access assets via `refs()`:
 
 ``` python
 @task
@@ -169,9 +169,9 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 ## Important Notes
 
-- Tasks yielding the same name are deemed identical by `iotaa`, which will add just one to the task graph for execution, discarding the rest. Be sure that distinct tasks `yield` distinct names.
+- Tasks yielding the same name are deemed identical by `iotaa`, which will add just one to the task graph for execution, discarding the rest. Be sure that distinct tasks yield distinct names.
 - The following keyword arguments to task functions are reserved. They need only be provided when calling the root function of a task graph from outside `iotaa`, not when calling a task function as a requirement inside a decorated `@task`, `@tasks`, or `@external` function. They are consumed by `iotaa`, not passed on to task functions, and should not appear in task functions' argument lists. Since they do not appear in argument lists, linter complaints may need to be suppressed at some call sites.
-    - `dry_run`: Instructs `iotaa` not to run the action logic in a `@task` function. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting external state execute only after the final `yield` statement.
+    - `dry_run`: Instructs `iotaa` not to run the action code in a `@task` function. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting external state execute only after the final `yield` statement.
     - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object.
     - `threads`: Specifies the number of concurrent threads to use. Defaults to 0 (i.e. execute tasks in the main Python thread).
 - Workflows may be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of external requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never repeated (i.e. tasks are idempotent), unless the asset becomes not-ready via external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
@@ -192,7 +192,7 @@ def a_cup_of_tea(basedir):
     yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
 ```
 
-As described above, a `@tasks` function is just a collection of other tasks, and must `yield` its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` collection, no executable statements follow the final `yield`.
+As described above, a `@tasks` function is just a collection of other tasks, and must yield its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` collection, no executable statements follow the final `yield`.
 
 The `cup()` and `spoon()` `@task` functions are straightforward:
 
@@ -227,7 +227,7 @@ def spoon(basedir):
     path.touch()
 ```
 
-They `yield` their names, then the asset each is responsible for readying, then the tasks they require (`None` in this case, since they have no requirements). Following the final `yield`, they ready their assets: `cup()` creates the `cup` directory that will contain the tea ingredients, and `spoon()` ensures that the base directory exists, then creates the `spoon` file in it. Note that the `cup` and `spoon` assets are filesystem entries (a directory and a file, respectively) in the same parent directory, and their task functions are written so that it does not matter which task executes first and creates that parent directory.
+They yield their names, then the asset each is responsible for readying, then the tasks they require (`None` in this case, since they rely on nothing). Following the final `yield`, they ready their assets: `cup()` creates the `cup` directory that will contain the tea ingredients, and `spoon()` ensures that the base directory exists, then creates the `spoon` file in it. The `cup` and `spoon` assets are filesystem entries (a directory and a file, respectively) in the same parent directory, and their task functions are written so that it does not matter which task executes first and creates that parent directory.
 
 In task function `cup()`, note that, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless the `exist_ok=True` argument is supplied, as it is in task function `spoon()`), the workflow need not explicitly guard against this because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
 
@@ -261,7 +261,7 @@ def ingredient(basedir, fn, name, req=None):
     path.touch()
 ```
 
-This helper is also called by other task functions in the workflow, and simulates adding an ingredient (tea, water, sugar) to the tea cup, yielding values that the caller can re-`yield` to `iotaa`.
+This helper is also called by other task functions in the workflow, and simulates adding an ingredient (tea, water, sugar) to the tea cup, yielding values that the caller can re-yield to `iotaa`.
 
 Second, `steeped_tea_with_sugar()` yields (indirectly, by passing it to `ingredient()`) a requirement: Sugar is added as a last step after the tea is steeped, so `steeped_tea_with_sugar()` requires `steeped_tea()`. Note that it passes the function _name_ rather than a call (i.e. `steeped_tea` instead of `steeped_tea(basedir)`) so that it can be called at the right time by `ingredient()`.
 
@@ -294,7 +294,7 @@ def steeped_tea(basedir):
         log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 ```
 
-Here, the asset being `yield`ed is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
+Here, the asset being yielded is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
 
 Note the statement
 
@@ -337,7 +337,7 @@ def tea_bag(basedir):
     path.touch()
 ```
 
-Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, the `@external` yields, after its name, only the _assets_ it represents. It yields no task requirements, and has no executable statements to ready the asset:
+Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that simply must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, an `@external` task yields, after its name, only the _assets_ it represents. It yields no requirements, and has no action code to ready the asset:
 
 ``` python
 @external
@@ -398,10 +398,12 @@ teatime
 Note the blocker:
 
 ```
-[2024-10-22T00:32:22] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
+[2024-10-22T00:32:22] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
 ```
 
-The external asset (file) `teatime/box-of-tea-bags` cannot be created by the workflow, as it is declared `@external`. Let's create it manually:
+The external asset (file) `teatime/box-of-tea-bags` cannot be created by the workflow, as it is declared `@external`.
+
+Create it manually:
 
 ```
 $ touch teatime/box-of-tea-bags
@@ -414,7 +416,7 @@ teatime
 2 directories, 2 files
 ```
 
-Now let's iterate the workflow:
+Iterate the workflow:
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea ./teatime
@@ -459,10 +461,10 @@ teatime
 Since the box of tea bags became available, the workflow was able to add a tea bag to the cup and pour boiling water over it. Note the message `Tea needs to steep for 10s`. If we iterate the workflow again after a few seconds, we can see the steep time decreasing:
 
 ```
-[2024-10-22T00:32:56] WARNING Steeped tea: Tea needs to steep for 10s
+[2024-10-22T00:33:01] WARNING Steeped tea: Tea needs to steep for 5s
 ```
 
-If we wait a bit longer and iterate:
+Wait a bit and iterate:
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea ./teatime
@@ -496,8 +498,6 @@ One more iteration and we see that the workflow has reached its final state and 
 $ iotaa iotaa.demo a_cup_of_tea ./teatime
 [2024-10-22T00:34:52] INFO    The perfect cup of tea: Ready
 ```
-
-Since `a_cup_of_tea()` is a `@tasks` _collection_, its state is contingent on that of its required tasks, so its readiness check will always involve checking requirements, unlike a non-collection `@task`, which can just check its assets.
 
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
@@ -541,7 +541,7 @@ teatime/
 2 directories, 5 files
 ```
 
-Another useful feature is the ability to enter the workflow's task graph at an arbitrary point to obtain only a subset of the assets. For example, if we'd like a cup of tea _without_ sugar, we can start with the `steeped_tea` task rather than the higher-level `a_cup_of_tea` task.
+Another useful feature is the ability to enter the workflow's task graph at an arbitrary point and process a subgraph to obtain only a subset of the assets. For example, if we'd like a cup of tea _without_ sugar, we can start with the `steeped_tea` task rather than the higher-level `a_cup_of_tea` task.
 
 First, let's empty the cup:
 
@@ -684,7 +684,7 @@ The displayed image:
 
 ![teatime-dry-run-image](img/teatime-0.svg)
 
-Orange nodes indicate tasks with not-ready assets.
+Orange nodes indicate not-ready tasks.
 
 Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of graph images are shown:
 
@@ -704,7 +704,7 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 ### In-Memory Asset
 
-External state (e.g. files on disk) is probably the most common type of `iotaa` asset. The following mechanism may be useful for representing an in-memory asset:
+External state (e.g. files on disk) may be the most common type of `iotaa` asset, but the following technique can be used to represent an in-memory asset (`val`):
 
 `location1.py`
 
@@ -752,7 +752,7 @@ $ iotaa location1.py main 40.1672 -105.1091
 [2025-01-21T20:07:45] INFO    Main: Ready
 ```
 
-Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its action section (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
+Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
 
 In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, depulication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
 
@@ -829,11 +829,11 @@ $ iotaa location2.py main 40.1672 -105.1091
 [2025-01-21T20:08:56] INFO    Main: Ready
 ```
 
-Here, both `city()` and `state()` `yield` `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers.
+Here, both `city()` and `state()` yield `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers. This avoids pointless duplicate network requests.
 
 ### CPU-Bound Tasks
 
-Thread-based concurrency as implemented by `iotaa` helps overall execution time for IO-based tasks, but is less helpful (or even detrimental) for CPU-bound tasks. For example, here is a workflow that computes two Fibonacci numbers whose indices are `n1`, and `n2`:
+Thread-based concurrency as implemented by `iotaa` helps overall execution time for IO-based tasks, but is less helpful (or even detrimental) for CPU-bound tasks. For example, here is a workflow that computes two Fibonacci numbers whose indices are `n1` and `n2`:
 
 `fibonacci1.py`
 
@@ -873,34 +873,34 @@ Here's a synchronous run:
 
 ```
 $ time iotaa fibonacci1.py main 36 37
-[2025-01-21T20:10:24] INFO    Fibonacci 36: Executing
-[2025-01-21T20:10:27] INFO    Fibonacci 36: Ready
-[2025-01-21T20:10:27] INFO    Fibonacci 37: Executing
-[2025-01-21T20:10:32] INFO    Fibonacci 37: Ready
-[2025-01-21T20:10:32] INFO    Main: Executing
-[2025-01-21T20:10:32] INFO    14930352 24157817
-[2025-01-21T20:10:32] INFO    Main: Ready
+[2025-01-21T20:34:11] INFO    Fibonacci 36: Executing
+[2025-01-21T20:34:13] INFO    Fibonacci 36: Ready
+[2025-01-21T20:34:13] INFO    Fibonacci 37: Executing
+[2025-01-21T20:34:17] INFO    Fibonacci 37: Ready
+[2025-01-21T20:34:17] INFO    Main: Executing
+[2025-01-21T20:34:17] INFO    14930352 24157817
+[2025-01-21T20:34:17] INFO    Main: Ready
 
-real	0m7.484s
-user	0m7.447s
-sys	0m0.035s
+real	0m6.202s
+user	0m6.141s
+sys	0m0.059s
 ```
 
-Unsurprisingly, using threads does not decrease the execution time:
+Unsurprisingly, using threads does not decrease the execution time much:
 
 ```
 $ time iotaa -t 2 fibonacci1.py main 36 37
-[2025-01-21T20:11:01] INFO    Fibonacci 36: Executing
-[2025-01-21T20:11:01] INFO    Fibonacci 37: Executing
-[2025-01-21T20:11:05] INFO    Fibonacci 36: Ready
-[2025-01-21T20:11:07] INFO    Fibonacci 37: Ready
-[2025-01-21T20:11:07] INFO    Main: Executing
-[2025-01-21T20:11:07] INFO    14930352 24157817
-[2025-01-21T20:11:07] INFO    Main: Ready
+[2025-01-21T20:34:21] INFO    Fibonacci 37: Executing
+[2025-01-21T20:34:21] INFO    Fibonacci 36: Executing
+[2025-01-21T20:34:26] INFO    Fibonacci 36: Ready
+[2025-01-21T20:34:27] INFO    Fibonacci 37: Ready
+[2025-01-21T20:34:27] INFO    Main: Executing
+[2025-01-21T20:34:27] INFO    14930352 24157817
+[2025-01-21T20:34:27] INFO    Main: Ready
 
-real	0m6.136s
-user	0m6.088s
-sys	0m0.052s
+real	0m6.107s
+user	0m6.073s
+sys	0m0.039s
 ```
 
 For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
@@ -952,32 +952,32 @@ This decreases the execution time:
 
 ```
 $ time iotaa -t 2 fibonacci2.py main 36 37
-[2025-01-21T20:11:58] INFO    Fibonacci 37: Executing
-[2025-01-21T20:11:58] INFO    Fibonacci 36: Executing
-[2025-01-21T20:12:01] INFO    Fibonacci 36: Ready
-[2025-01-21T20:12:03] INFO    Fibonacci 37: Ready
-[2025-01-21T20:12:03] INFO    Main: Executing
-[2025-01-21T20:12:03] INFO    14930352 24157817
-[2025-01-21T20:12:03] INFO    Main: Ready
+[2025-01-21T20:36:20] INFO    Fibonacci 37: Executing
+[2025-01-21T20:36:20] INFO    Fibonacci 36: Executing
+[2025-01-21T20:36:23] INFO    Fibonacci 36: Ready
+[2025-01-21T20:36:25] INFO    Fibonacci 37: Ready
+[2025-01-21T20:36:25] INFO    Main: Executing
+[2025-01-21T20:36:25] INFO    14930352 24157817
+[2025-01-21T20:36:25] INFO    Main: Ready
 
-real	0m5.094s
-user	0m8.147s
-sys	0m0.063s
+real	0m5.080s
+user	0m8.133s
+sys	0m0.038s
 ```
 
 The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
 
 ```
 $ time iotaa -t 2 fibonacci2.py main 0 37
-[2025-01-21T20:12:22] INFO    Fibonacci 0: Executing
-[2025-01-21T20:12:22] INFO    Fibonacci 37: Executing
-[2025-01-21T20:12:22] INFO    Fibonacci 0: Ready
-[2025-01-21T20:12:27] INFO    Fibonacci 37: Ready
-[2025-01-21T20:12:27] INFO    Main: Executing
-[2025-01-21T20:12:27] INFO    0 24157817
-[2025-01-21T20:12:27] INFO    Main: Ready
+[2025-01-21T20:36:28] INFO    Fibonacci 37: Executing
+[2025-01-21T20:36:28] INFO    Fibonacci 0: Executing
+[2025-01-21T20:36:28] INFO    Fibonacci 0: Ready
+[2025-01-21T20:36:33] INFO    Fibonacci 37: Ready
+[2025-01-21T20:36:33] INFO    Main: Executing
+[2025-01-21T20:36:33] INFO    0 24157817
+[2025-01-21T20:36:33] INFO    Main: Ready
 
-real	0m5.009s
-user	0m4.986s
+real	0m5.017s
+user	0m4.989s
 sys	0m0.028s
 ```
