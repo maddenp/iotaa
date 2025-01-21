@@ -580,27 +580,6 @@ def test_tasks_ready(caplog, iotaa_logger, t_tasks_baz, tmp_path):
 # Private function tests
 
 
-def test__cacheable():
-    a = {
-        "bool": True,
-        "dict": {"dict": {1: 2}, "list": [1, 2]},
-        "float": 3.14,
-        "int": 42,
-        "list": [{1: 2}, [1, 2]],
-        "str": "hello",
-    }
-    b = iotaa._cacheable(a)
-    assert b == {
-        "bool": True,
-        "dict": {"dict": {1: 2}, "list": (1, 2)},
-        "float": 3.14,
-        "int": 42,
-        "list": ({1: 2}, (1, 2)),
-        "str": "hello",
-    }
-    assert hash(b) is not None
-
-
 def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # pylint: disable=W0613
     exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
     exec_task_body()
@@ -683,10 +662,9 @@ def test__parse_args_missing_task_ok(switch):
 def test__reify():
     strs = ["foo", "42", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 42, 3.14, True]
-    assert iotaa._reify("[1, 2]") == (1, 2)
+    assert iotaa._reify("[1, 2]") == [1, 2]
     o = iotaa._reify('{"b": 2, "a": 1}')
     assert o == {"a": 1, "b": 2}
-    assert hash(o) == hash((("a", 1), ("b", 2)))
 
 
 def test__show_tasks_and_exit(capsys, task_class):

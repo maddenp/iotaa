@@ -37,6 +37,7 @@ from typing import (
     overload,
 )
 
+_JSONValT = Union[bool, dict, float, int, list, str]
 _MARKER = "__IOTAA__"
 _T = TypeVar("_T")
 
@@ -651,31 +652,6 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 # Private helper functions:
 
 
-_Cacheable = Optional[Union[bool, dict, float, int, tuple, str]]
-
-
-def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cacheable:
-    """
-    Returns a cacheable version of the given value.
-
-    :param o: Some value.
-    """
-
-    class hdict(dict):
-        """
-        A dict with a hash value.
-        """
-
-        def __hash__(self):  # type: ignore
-            return hash(tuple(sorted(self.items())))
-
-    if isinstance(o, dict):
-        return hdict({k: _cacheable(v) for k, v in o.items()})
-    if isinstance(o, list):
-        return tuple(_cacheable(v) for v in o)
-    return o
-
-
 def _construct_and_if_root_call(
     node_class: Type[_NodeT],
     taskname: str,
@@ -824,17 +800,19 @@ def _parse_args(raw: list[str]) -> Namespace:
     return args
 
 
-def _reify(s: str) -> _Cacheable:
+def _reify(s: str) -> _JSONValT:
     """
     Convert strings, when possible, to more specifically typed objects.
 
     :param s: The string to convert.
     :return: A more Pythonic representation of the input string.
     """
+    val: _JSONValT
     try:
-        return _cacheable(loads(s))
+        val = loads(s)
     except JSONDecodeError:
-        return _cacheable(loads(f'"{s}"'))
+        val = loads(f'"{s}"')
+    return val
 
 
 def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
