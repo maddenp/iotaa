@@ -756,6 +756,8 @@ $ iotaa location1.py main 40.1672 -105.1091
 
 Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
 
+Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` `val` is mutated with `.append()`; a `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` `@task` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would be lost.
+
 In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, depulication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
 
 `location2.py`
