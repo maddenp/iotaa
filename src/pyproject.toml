@@ -32,11 +32,13 @@ recursive = true
 
 [tool.pylint."messages control"]
 disable = [
+  "broad-exception-caught",
   "consider-using-f-string",
   "disallowed-name",
   "invalid-name",
   "too-few-public-methods",
   "too-many-arguments",
+  "too-many-instance-attributes",
   "too-many-positional-arguments",
   "unnecessary-lambda-assignment",
 ]

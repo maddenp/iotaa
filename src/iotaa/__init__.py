@@ -8,22 +8,38 @@ import inspect
 import json
 import logging
 import sys
+import time
+import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
 from hashlib import md5
 from importlib import import_module
-from importlib import resources as res
+from importlib import resources as _resources
 from itertools import chain
 from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Generator, Iterator, Optional, Type, TypeVar, Union, overload
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Iterator,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
+_JSONValT = Union[bool, dict, float, int, list, str]
 _MARKER = "__IOTAA__"
+_T = TypeVar("_T")
 
 # Public return-value classes:
 
@@ -41,7 +57,7 @@ class Asset:
     ready: Callable[..., bool]
 
 
-_AssetOrAssets = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 
 
 class Node(ABC):
@@ -49,13 +65,13 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str, dry_run: bool) -> None:
+    def __init__(self, taskname: str, threads: int, logger: Logger) -> None:
         self.taskname = taskname
-        self._dry_run = dry_run
-        self._assets: Optional[_AssetOrAssets] = None
+        self._threads = threads
+        self._logger = logger
+        self._assets: Optional[_AssetsT] = None
         self._first_visit = True
-        self._graph: Optional[TopologicalSorter] = None
-        self._reqs: Optional[_Reqs] = None
+        self._reqs: Optional[_ReqsT] = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -76,21 +92,35 @@ class Node(ABC):
         """
         return all(x.ready() for x in _flatten(self._assets))
 
-    def _add_node_and_predecessors(self, node: Node, level: int = 0) -> None:
+    def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
         Assemble the task graph based on this node and its children.
 
+        :param g: The graph.
         :param node: The current task-graph node.
         :param level: The distance from the task-graph root node.
         """
         log.debug("  " * level + str(node.taskname))
-        assert self._graph is not None
-        self._graph.add(node)
+        g.add(node)
         if not node.ready:
             predecessor: Node
             for predecessor in _flatten(requirements(node)):
-                self._graph.add(node, predecessor)
-                self._add_node_and_predecessors(predecessor, level + 1)
+                g.add(node, predecessor)
+                self._add_node_and_predecessors(g, predecessor, level + 1)
+
+    def _assemble(self) -> TopologicalSorter:
+        """
+        Assemble the task graph.
+
+        :return: The graph.
+        """
+        g: TopologicalSorter = TopologicalSorter()
+        self._debug_header("Task Graph")
+        self._dedupe()
+        self._add_node_and_predecessors(g, self)
+        self._debug_header("Execution")
+        self._first_visit = False
+        return g
 
     def _assemble_and_exec(self, dry_run: bool) -> None:
         """
@@ -98,14 +128,8 @@ class Node(ABC):
 
         :param dry_run: Avoid executing state-affecting code?
         """
-        self._graph = TopologicalSorter()
-        self._debug_header("Task Graph")
-        self._dedupe()
-        self._add_node_and_predecessors(self)
-        self._debug_header("Execution")
-        self._first_visit = False
-        for node in self._graph.static_order():
-            node(dry_run)
+        m = self._exec_synchronous if self._threads == 0 else self._exec_concurrent
+        m(g=self._assemble(), dry_run=dry_run)
 
     def _debug_header(self, msg: str) -> None:
         """
@@ -124,15 +148,26 @@ class Node(ABC):
 
         Decorated task functions/methods may create Node objects semantically equivalent to those
         created by others. Walk the task graph, deduplicating such nodes. Nodes are equivalent if
-        their tasknames match.
+        their tasknames match. The __eq__ and __hash__ methods on class Node define equivalence
+        semantics.
+
+        In addition to ensuring that a single Node object representing a class of equivalent Node
+        objects is present in the task graph, replace assets on to-be-discarded Node objects with
+        the assets of the retained Node. This is necessary because code in the closure referred to
+        by a discarded Node's .exec_task_body attribute will never run, and it might have updated an
+        in-scope Asset object; that Asset object is now unreliable. However, the retained Node has
+        an equivalent Asset whose close code will run, making it reliable.
 
         :param known: The set of known nodes.
         :return: The (possibly updated) set of known nodes.
         """
 
         def existing(node: Node, known: set[Node]) -> Node:
-            duplicates = [n for n in known if n == node]
-            return duplicates[0]
+            x = [n for n in known if n == node][0]
+            if node is not x:
+                log.debug("Discarding node '%s' for identical '%s'", node, x)
+                node._assets = x._assets  # pylint: disable=protected-access
+            return x
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
@@ -160,6 +195,59 @@ class Node(ABC):
         self._reqs = deduped
         return known
 
+    def _exec_concurrent(self, g: TopologicalSorter, dry_run: bool) -> None:
+        """
+        Execute the task graph concurrently.
+
+        :param g: The graph.
+        :param dry_run: Avoid executing state-affecting code?
+        """
+        g.prepare()
+        executor = ThreadPoolExecutor(max_workers=self._threads)
+        futures = {}
+        while g.is_active():
+            try:
+                futures.update({executor.submit(node, dry_run): node for node in g.get_ready()})
+                future = next(as_completed(futures))
+                node = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    msg = f"{node.taskname}: Task failed in thread: %s"
+                    log.error(msg, str(getattr(e, "value", e)))
+                    for line in traceback.format_exc().strip().split("\n"):
+                        log.debug(msg, line)
+                else:
+                    log.debug("%s: Task completed in thread", node.taskname)
+                g.done(node)
+                del futures[future]
+                time.sleep(0)
+            except KeyboardInterrupt:
+                log.info("Interrupted")
+                for future, node in futures.items():
+                    log.debug("Cancelling: %s", node.taskname)
+                    future.cancel()
+                break
+
+    def _exec_synchronous(self, g: TopologicalSorter, dry_run: bool) -> None:
+        """
+        Execute the task graph synchonously.
+
+        :param g: The graph.
+        :param dry_run: Avoid executing state-affecting code?
+        """
+        for node in g.static_order():
+            try:
+                node(dry_run)
+            except KeyboardInterrupt:
+                log.info("Interrupted")
+                break
+            except Exception as e:
+                msg = f"{node.taskname}: Task failed: %s"
+                log.error(msg, str(getattr(e, "value", e)))
+                for line in traceback.format_exc().strip().split("\n"):
+                    log.debug(msg, line)
+
     def _report_readiness(self) -> None:
         """
         Log information about [un]ready requirements of this task-graph node.
@@ -167,8 +255,8 @@ class Node(ABC):
         self._reset_ready()
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
-        logf, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
-        logf("%s: %s%s", self.taskname, readymsg, extmsg)
+        logfunc, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
+        logfunc("%s: %s%s", self.taskname, readymsg, extmsg)
         if self.ready:
             return
         reqs = {req: req.ready for req in _flatten(self._reqs)}
@@ -195,16 +283,21 @@ class Node(ABC):
         return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
 
 
+_NodeT = TypeVar("_NodeT", bound=Node)
+_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
+
+
 class NodeExternal(Node):
     """
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(self, taskname: str, dry_run: bool, assets_: _AssetOrAssets) -> None:
-        super().__init__(taskname, dry_run)
+    def __init__(self, taskname: str, threads: int, logger: Logger, assets_: _AssetsT) -> None:
+        super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # pylint: disable=unused-variable
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -220,22 +313,24 @@ class NodeTask(Node):
     def __init__(
         self,
         taskname: str,
-        dry_run: bool,
-        assets_: _AssetOrAssets,
-        reqs: _Reqs,
+        threads: int,
+        logger: Logger,
+        assets_: _AssetsT,
+        reqs: _ReqsT,
         exec_task_body: Callable,
     ) -> None:
-        super().__init__(taskname, dry_run)
+        super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._assets = assets_
         self._reqs = reqs
         self._exec_task_body = exec_task_body
 
     def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # pylint: disable=unused-variable
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self._reqs)):
-                if dry_run or self._dry_run:
+                if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
                     self._exec_task_body()
@@ -248,14 +343,21 @@ class NodeTasks(Node):
     A node encapsulating a @tasks-decorated function/method.
     """
 
-    def __init__(self, taskname: str, dry_run: bool, reqs: Optional[_Reqs] = None) -> None:
-        super().__init__(taskname, dry_run)
+    def __init__(
+        self,
+        taskname: str,
+        threads: int,
+        logger: Logger,
+        reqs: Optional[_ReqsT] = None,
+    ) -> None:
+        super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._reqs = reqs
         self._assets = list(
             chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
         )
 
     def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # pylint: disable=unused-variable
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -268,13 +370,6 @@ class IotaaError(Exception):
     A custom exception type for iotaa-specific errors.
     """
 
-
-# Types
-
-
-T = TypeVar("T")
-_Node = TypeVar("_Node", bound=Node)
-_Reqs = Optional[Union[Node, dict[str, Node], list[Node]]]
 
 # Private helper classes and their instances:
 
@@ -318,22 +413,28 @@ class _Graph:
 class _LoggerProxy:
     """
     A proxy for the logger currently in use by iotaa.
-
-    Search the stack for an iotaa-marked "log_" local variable, which will exist for calls made from
-    iotaa task functions.
     """
 
     def __getattr__(self, name):
-        log_ = None
-        for frameinfo in inspect.stack():
-            if log_ := frameinfo.frame.f_locals.get("log_"):
-                if _MARKER in dir(log_):  # getattr() => stack overflow
-                    break
-        if log_ is None:
-            msg = "No logger found: Ensure this call originated in an iotaa task function."
-            raise IotaaError(msg)
-        return getattr(log_, name)
+        return getattr(self.logger(), name)
 
+    @staticmethod
+    def logger() -> Logger:
+        """
+        Search the stack for a specially-named and iotaa-marked local logger variable, which will
+        exist for calls made from iotaa task functions.
+
+        :raises: IotaaError is no logger is found.
+        """
+        for frameinfo in inspect.stack():
+            if logger := frameinfo.frame.f_locals.get("iotaa_logger"):
+                if _MARKER in dir(logger):  # getattr() => stack overflow
+                    return cast(Logger, logger)
+        msg = "No logger found: Ensure this call originated in an iotaa task function."
+        raise IotaaError(msg)
+
+
+_LoggerT = Union[Logger, _LoggerProxy]
 
 # Main entry-point function:
 
@@ -351,11 +452,11 @@ def main() -> None:
     args = _parse_args(sys.argv[1:])
     logcfg(verbose=args.verbose)
     modobj = _modobj(args.module)
-    if args.tasks:
+    if args.show:
         _show_tasks_and_exit(args.module, modobj)
     task_func = getattr(modobj, args.function)
     task_args = [_reify(arg) for arg in args.args]
-    task_kwargs = {"dry_run": args.dry_run}
+    task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
     try:
         root = task_func(*task_args, **task_kwargs)
     except IotaaError as e:
@@ -378,7 +479,7 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Optional[Node]) -> _AssetOrAssets:
+def assets(node: Optional[Node]) -> _AssetsT:
     """
     Return the node's assets.
 
@@ -438,7 +539,7 @@ def refs(node: Optional[Node]) -> Any:
     return None
 
 
-def requirements(node: Node) -> _Reqs:
+def requirements(node: Node) -> _ReqsT:
     """
     Return the node's requirements.
 
@@ -467,9 +568,8 @@ def tasknames(obj: object) -> list[str]:
 
 # Public task-graph decorator functions:
 
-# NB: When inspecting the call stack, _LoggerProxy will find the log_ local variable in each wrapper
-# function below and will use it when logging via iotaa.log. The assert statements suppress linter
-# complaints about unused variables.
+# NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-marked
+# logger local variable in each wrapper function below and will use it when logging via iotaa.log().
 
 
 def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
@@ -482,13 +582,14 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
-        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
-        assert isinstance(log_, Logger)
+        taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
-        return _construct_and_call_if_root(
-            NodeExternal,
-            dry_run,
+        return _construct_and_if_root_call(
+            node_class=NodeExternal,
             taskname=taskname,
+            threads=threads,
+            logger=iotaa_logger,
+            dry_run=dry_run,
             assets_=assets_,
         )
 
@@ -505,14 +606,16 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
-        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
-        assert isinstance(log_, Logger)
+        taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
-        reqs: _Reqs = _next(g, "requirements")
-        return _construct_and_call_if_root(
-            NodeTask,
-            dry_run,
+        reqs: _ReqsT = _next(g, "requirements")
+        return _construct_and_if_root_call(
+            node_class=NodeTask,
             taskname=taskname,
+            threads=threads,
+            logger=iotaa_logger,
+            dry_run=dry_run,
             assets_=assets_,
             reqs=reqs,
             exec_task_body=_exec_task_body_later(g, taskname),
@@ -531,13 +634,15 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
-        dry_run, log_, taskname, g = _task_common(f, *args, **kwargs)
-        assert isinstance(log_, Logger)
-        reqs: _Reqs = _next(g, "requirements")
-        return _construct_and_call_if_root(
-            NodeTasks,
-            dry_run,
+        taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
+        assert isinstance(iotaa_logger, Logger)
+        reqs: _ReqsT = _next(g, "requirements")
+        return _construct_and_if_root_call(
+            node_class=NodeTasks,
             taskname=taskname,
+            threads=threads,
+            logger=iotaa_logger,
+            dry_run=dry_run,
             reqs=reqs,
         )
 
@@ -547,40 +652,23 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 # Private helper functions:
 
 
-_Cacheable = Optional[Union[bool, dict, float, int, tuple, str]]
-
-
-def _cacheable(o: Optional[Union[bool, dict, float, int, list, str]]) -> _Cacheable:
-    """
-    Returns a cacheable version of the given value.
-
-    :param o: Some value.
-    """
-
-    class hdict(dict):
-        """
-        A dict with a hash value.
-        """
-
-        def __hash__(self):  # type: ignore
-            return hash(tuple(sorted(self.items())))
-
-    if isinstance(o, dict):
-        return hdict({k: _cacheable(v) for k, v in o.items()})
-    if isinstance(o, list):
-        return tuple(_cacheable(v) for v in o)
-    return o
-
-
-def _construct_and_call_if_root(node_class: Type[_Node], dry_run: bool, *args, **kwargs) -> _Node:
+def _construct_and_if_root_call(
+    node_class: Type[_NodeT],
+    taskname: str,
+    threads: int,
+    dry_run: bool,
+    **kwargs,
+) -> _NodeT:
     """
     Construct a Node object and, if it is a root node, call it.
 
     :param node_class: The type of Node to construct.
+    :param taskname: The current task's name.
+    :param threads: Number of concurrent threads.
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
-    node = node_class(*args, **{**kwargs, "dry_run": dry_run})
+    node = node_class(taskname=taskname, threads=threads, **kwargs)
     if node._root:  # pylint: disable=protected-access
         node(dry_run)
     return node
@@ -605,11 +693,11 @@ def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
 
 
 @overload
-def _flatten(o: dict[str, T]) -> list[T]: ...
+def _flatten(o: dict[str, _T]) -> list[_T]: ...
 
 
 @overload
-def _flatten(o: list[T]) -> list[T]: ...
+def _flatten(o: list[_T]) -> list[_T]: ...
 
 
 @overload
@@ -617,7 +705,7 @@ def _flatten(o: None) -> list: ...
 
 
 @overload
-def _flatten(o: T) -> list[T]: ...
+def _flatten(o: _T) -> list[_T]: ...
 
 
 def _flatten(o):
@@ -646,7 +734,7 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _mark(f: T) -> T:
+def _mark(f: _T) -> _T:
     """
     Returns a function, marked as an iotaa task.
 
@@ -694,9 +782,10 @@ def _parse_args(raw: list[str]) -> Namespace:
     parser.add_argument("args", help="task arguments", type=str, nargs="*")
     optional = parser.add_argument_group("optional arguments")
     optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
-    optional.add_argument("-h", "--help", action="help", help="show help and exit")
     optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
-    optional.add_argument("-t", "--tasks", action="store_true", help="show available tasks")
+    optional.add_argument("-h", "--help", action="help", help="show help and exit")
+    optional.add_argument("-s", "--show", action="store_true", help="show available tasks")
+    optional.add_argument("-t", "--threads", help="use N threads", metavar="N", type=int)
     optional.add_argument("-v", "--verbose", action="store_true", help="enable verbose logging")
     optional.add_argument(
         "--version",
@@ -705,23 +794,25 @@ def _parse_args(raw: list[str]) -> Namespace:
         version=f"{Path(sys.argv[0]).name} {_version()}",
     )
     args = parser.parse_args(raw)
-    if not args.function and not args.tasks:
-        print("Request --tasks or specify task name")
+    if not args.function and not args.show:
+        print("Specify task name")
         sys.exit(1)
     return args
 
 
-def _reify(s: str) -> _Cacheable:
+def _reify(s: str) -> _JSONValT:
     """
     Convert strings, when possible, to more specifically typed objects.
 
     :param s: The string to convert.
     :return: A more Pythonic representation of the input string.
     """
+    val: _JSONValT
     try:
-        return _cacheable(loads(s))
+        val = loads(s)
     except JSONDecodeError:
-        return _cacheable(loads(f'"{s}"'))
+        val = loads(f'"{s}"')
+    return val
 
 
 def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
@@ -739,25 +830,27 @@ def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
     sys.exit(0)
 
 
-def _task_common(f: Callable, *args, **kwargs) -> tuple[bool, _LoggerProxy, str, Generator]:
+def _task_common(f: Callable, *args, **kwargs) -> tuple[str, int, bool, _LoggerT, Generator]:
     """
     Collect and return info about the task.
 
     :param f: A task function (receives the provided args & kwargs).
-    :return: The dry-run setting, the logger, the task's name, the generator returned by the task.
+    :return: Information needed for task execution.
     """
-    dry_run = kwargs.get("dry_run", False)
-    log_ = _mark(kwargs.get("log", getLogger()))
-    task_kwargs = {k: v for k, v in kwargs.items() if k not in ("dry_run", "log")}
+    dry_run = bool(kwargs.get("dry_run"))
+    logger = cast(_LoggerT, _mark(kwargs.get("log") or getLogger()))
+    threads = int(kwargs.get("threads") or 0)
+    filter_keys = ("dry_run", "log", "threads")
+    task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
-    taskname = _next(g, "task name")
-    return dry_run, log_, taskname, g
+    taskname = str(_next(g, "task name"))
+    return taskname, threads, dry_run, logger, g
 
 
 def _version() -> str:
     """
     Return version information.
     """
-    with res.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
+    with _resources.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
         return "version %s build %s" % (info["version"], info["buildnum"])
