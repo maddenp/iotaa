@@ -1,0 +1,15 @@
+#!/bin/bash -eu
+
+echo "=> Formatting code"
+ruff format src
+
+echo "=> Sorting imports"
+ruff check --select I --fix src
+
+echo "=> Formatting docstrings"
+(cd src && docformatter . || test $? -eq 3)
+
+echo "=> Formatting JSON"
+for a in $(find src -not -path "*/.*" -type f -name "*.json*"); do
+  b=$(jq -S . $a) && echo "$b" >$a || (echo "    in $a"; false)
+done

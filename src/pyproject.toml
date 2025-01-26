@@ -1,9 +1,6 @@
-[tool.black]
-line-length = 100
-
 [tool.coverage.report]
 fail_under = 100
-omit = ["*/tests/*"]
+omit = ["*/tests/*", "demo.py", "pylint.py"]
 show_missing = true
 skip_covered = true
 
@@ -16,32 +13,57 @@ recursive = true
 wrap-descriptions = 100
 wrap-summaries = 100
 
-[tool.isort]
-line_length = 100
-profile = "black"
-
 [tool.mypy]
 check_untyped_defs = true
 pretty = true
 warn_return_any = true
 
-[tool.pylint.main]
-extension-pkg-allow-list = []
-jobs = 4
-recursive = true
+[tool.ruff]
+line-length = 100
 
-[tool.pylint."messages control"]
-disable = [
-  "broad-exception-caught",
-  "consider-using-f-string",
-  "disallowed-name",
-  "invalid-name",
-  "too-few-public-methods",
-  "too-many-arguments",
-  "too-many-instance-attributes",
-  "too-many-positional-arguments",
-  "unnecessary-lambda-assignment",
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "ANN001",  # missing-type-function-argument
+  "ANN002",  # missing-type-args
+  "ANN003",  # missing-type-kwargs
+  "ANN201",  # missing-return-type-class-method
+  "ANN202",  # missing-return-type-private-function
+  "ANN204",  # missing-return-type-special-method
+  "ANN401",  # any-type
+  "COM812",  # missing-trailing-comma
+  "D102",    # undocumented-public-method
+  "D103",    # undocumented-public-function
+  "D104",    # undocumented-public-package
+  "D105",    # undocumented-magic-method
+  "D107",    # undocumented-public-init
+  "D200",    # unnecessary-multiline-docstring
+  "D203",    # incorrect-blank-line-before-class
+  "D205",    # missing-blank-line-after-summary
+  "D212",    # multi-line-summary-first-line
+  "D400",    # missing-trailing-period
+  "D401",    # non-imperative-mood
+  "E731",    # lambda-assignment
+  "ERA001",  # commented-out-code
+  "FBT001",  # boolean-type-hint-positional-argument
+  "FBT002",  # boolean-default-value-positional-argument
+  "FBT003",  # boolean-positional-value-in-call
+  "PERF203", # try-except-in-loop
+  "PLR0913", # too-many-arguments
+  "S101",    # assert
+  "T201",    # print
+  "TRY400",  # error-instead-of-exception
+  "UP031",   # printf-string-formatting
 ]
-enable = [
-  "useless-suppression",
+
+[tool.ruff.lint.per-file-ignores]
+"iotaa/demo.py" = [
+  "DTZ005", # call-datetime-now-without-tzinfo
+  "DTZ006", # call-datetime-fromtimestamp
+]
+"iotaa/tests/*" = [
+  "N802",    # invalid-function-name
+  "PLR2004", # magic-value-comparison
+  "PT013",   # pytest-incorrect-pytest-import
+  "SLF001",  # private-member-access
 ]

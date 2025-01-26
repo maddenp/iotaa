@@ -1,19 +1,20 @@
 {
   "build": "py_0",
-  "buildnum": 0,
+  "buildnum": "0",
   "name": "iotaa",
   "packages": {
     "dev": [
-      "black =24.10.*",
-      "coverage =7.6.*",
       "docformatter =1.7.*",
-      "isort =5.13.*",
-      "mypy =1.13.*",
+      "jq =1.7.*",
+      "mypy =1.14.*",
       "pip",
-      "pylint =3.3.*",
+      "pyfakefs =5.7.*",
       "pytest =8.3.*",
-      "python",
-      "python =3.9",
+      "pytest-cov =6.0.*",
+      "pytest-xdist =3.6.*",
+      "python >=3.9",
+      "python >=3.9",
+      "ruff =0.9.*",
       "setuptools"
     ],
     "run": []

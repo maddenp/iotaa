@@ -13,7 +13,7 @@ lint() {
   msg Running linter
   (
     set -eux
-    pylint .
+    ruff check .
   )
   msg OK
 }
@@ -35,14 +35,12 @@ unittest() {
   msg Running unit tests
   (
     set -eux
-    coverage run -m pytest -vv .
-    coverage report
+    pytest --cov=iotaa -n 4 .
   )
   msg OK
 }
 
 test "${CONDEV_SHELL:-}" = 1 && cd $(dirname $0)/../src || cd ../test_files
-msg Running in $PWD
 if [[ -n "${1:-}" ]]; then
   # Run single specified code-quality tool.
   $1

@@ -1,7 +1,7 @@
-CHANNELS    = $(addprefix -c ,$(shell tr '\n' ' ' <$(RECIPE_DIR)/channels)) -c local
-METAJSON    = $(RECIPE_DIR)/meta.json
-RECIPEFILES = $(addprefix $(RECIPE_DIR)/,conda_build_config.yaml meta.yaml)
-TARGETS     = devshell env format lint meta package test typecheck unittest
+CHANNELS = $(addprefix -c ,$(shell tr '\n' ' ' <$(RECIPE_DIR)/channels)) -c local
+METADEPS = $(RECIPE_DIR)/meta.yaml src/*/resources/info.json
+METAJSON = $(RECIPE_DIR)/meta.json
+TARGETS  = devshell env format lint meta package test typecheck unittest
 
 export RECIPE_DIR := $(shell cd ./recipe && pwd)
 
@@ -20,10 +20,7 @@ env: package
 	conda create -y -n $(call spec,buildnum,-) $(CHANNELS) $(call spec,build,=)
 
 format:
-	@echo "=> Running formatters"
-	black src
-	isort src
-	cd src && docformatter . || test $$? -eq 3
+	@./format
 
 lint:
 	recipe/run_test.sh lint
@@ -42,5 +39,5 @@ typecheck:
 unittest:
 	recipe/run_test.sh unittest
 
-$(METAJSON): $(RECIPEFILES) src/iotaa/resources/info.json
+$(METAJSON): $(METADEPS)
 	condev-meta

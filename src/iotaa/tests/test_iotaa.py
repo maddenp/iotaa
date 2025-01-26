@@ -2,26 +2,29 @@
 Tests for module iotaa.
 """
 
-# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
-
 import logging
 import re
 from abc import abstractmethod
 from graphlib import TopologicalSorter
-from hashlib import md5
+from hashlib import sha256
 from itertools import chain, combinations
 from operator import add
+from pathlib import Path
 from textwrap import dedent
 from typing import cast
-from unittest.mock import ANY
+from unittest.mock import ANY, Mock, patch
 from unittest.mock import DEFAULT as D
-from unittest.mock import Mock, patch
 
 from pytest import fixture, mark, raises
 
 import iotaa
 
 # Fixtures
+
+
+@fixture
+def fakefs(fs):
+    return Path(fs.create_dir("/").path)
 
 
 @fixture
@@ -44,21 +47,19 @@ def graphkit():
         logger=logging.getLogger(),
         reqs=[a, b],
     )
-    name = lambda x: md5(x.encode("utf-8")).hexdigest()
+    name = lambda x: sha256(x.encode("utf-8")).hexdigest()
     graph = iotaa._Graph(root=root)
     assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
     assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
     expected = """
     digraph g {{
-      _{a} [fillcolor=orange, label="a", style=filled]
-      _{root} -> _{a}
-      _{root} -> _{b}
-      _{root} [fillcolor=orange, label="root", style=filled]
       _{b} [fillcolor=palegreen, label="b", style=filled]
+      _{root} -> _{b}
+      _{root} -> _{a}
+      _{root} [fillcolor=orange, label="root", style=filled]
+      _{a} [fillcolor=orange, label="a", style=filled]
     }}
-    """.format(
-        a=name("a"), b=name("b"), root=name("root")
-    )
+    """.format(a=name("a"), b=name("b"), root=name("root"))
     return dedent(expected).strip(), graph, root
 
 
@@ -100,7 +101,8 @@ def memval():
         yield reqs
         m = add(*[iotaa.refs(req)[0] for req in reqs])
         if m == 0:
-            raise RuntimeError("zero result")
+            msg = "zero result"
+            raise RuntimeError(msg)
         val.append(m)
 
     @iotaa.task
@@ -114,8 +116,8 @@ def memval():
     return a
 
 
-@fixture
-def module_for_main(tmp_path):
+@fixture(scope="session")
+def module_for_main(tmpdir_factory):
     func = """
     from iotaa import asset, task
     @task
@@ -125,9 +127,8 @@ def module_for_main(tmp_path):
         yield None
         print(f"hello {x}!")
     """
-    module = tmp_path / "a.py"
-    with open(module, "w", encoding="utf-8") as f:
-        print(dedent(func).strip(), file=f)
+    module = Path(tmpdir_factory.mktemp("test").join("a.py"))
+    module.write_text(dedent(func).strip())
     return module
 
 
@@ -289,7 +290,7 @@ def args(path, show):
 
 
 def interrupt():
-    raise KeyboardInterrupt()
+    raise KeyboardInterrupt
 
 
 @iotaa.external
@@ -324,10 +325,10 @@ def test_Asset(asset):
     assert asset.ready()
 
 
-def test_assets(t_external_foo_scalar, tmp_path):
-    node = t_external_foo_scalar(tmp_path)
+def test_assets(fakefs, t_external_foo_scalar):
+    node = t_external_foo_scalar(fakefs)
     asset = cast(iotaa.Asset, iotaa.assets(node))
-    assert asset.ref == tmp_path / "foo"
+    assert asset.ref == fakefs / "foo"
 
 
 def test_graph(graphkit):
@@ -338,16 +339,16 @@ def test_graph(graphkit):
 @mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
 def test_logcfg(vals):
     verbose, level = vals
-    with patch.object(iotaa.logging, "basicConfig") as basicConfig:
+    with patch.object(iotaa.logging, "basicConfig") as bc:
         iotaa.logcfg(verbose=verbose)
-    basicConfig.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
+    bc.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_ready(t_external_foo_scalar, tmp_path):
-    node_before = t_external_foo_scalar(tmp_path)
+def test_ready(fakefs, t_external_foo_scalar):
+    node_before = t_external_foo_scalar(fakefs)
     assert not iotaa.ready(node_before)
     iotaa.refs(node_before).touch()
-    node_after = t_external_foo_scalar(tmp_path)
+    node_after = t_external_foo_scalar(fakefs)
     assert iotaa.ready(node_after)
 
 
@@ -364,8 +365,8 @@ def test_refs():
     assert iotaa.refs(node=node) == expected
 
 
-def test_requirements(t_external_foo_scalar, t_task_bar_dict, tmp_path):
-    assert iotaa.requirements(t_task_bar_dict(tmp_path)) == t_external_foo_scalar(tmp_path)
+def test_requirements(fakefs, t_external_foo_scalar, t_task_bar_dict):
+    assert iotaa.requirements(t_task_bar_dict(fakefs)) == t_external_foo_scalar(fakefs)
 
 
 def test_tasknames(task_class):
@@ -376,9 +377,11 @@ def test_tasknames(task_class):
 
 
 def test_main_error(caplog):
-    with patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]):
-        with raises(SystemExit):
-            iotaa.main()
+    with (
+        patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]),
+        raises(SystemExit),
+    ):
+        iotaa.main()
     assert logged(caplog, "Failed to get assets: Check yield statements.")
 
 
@@ -391,53 +394,59 @@ def test_main_live_abspath(capsys, module_for_main):
 def test_main_live_syspath(capsys, module_for_main):
     m = str(module_for_main.name).replace(".py", "")  # i.e. not a path to an actual file
     with patch.object(iotaa.sys, "argv", new=["prog", m, "hi", "world"]):
-        syspath = list(iotaa.sys.path) + [str(module_for_main.parent)]
-        with patch.object(iotaa.sys, "path", new=syspath):
-            with patch.object(iotaa.Path, "is_file", return_value=False):
-                iotaa.main()
+        syspath = [iotaa.sys.path, str(module_for_main.parent)]
+        with (
+            patch.object(iotaa.sys, "path", new=syspath),
+            patch.object(iotaa.Path, "is_file", return_value=False),
+        ):
+            iotaa.main()
     assert "hello world!" in capsys.readouterr().out
 
 
-@mark.parametrize("g", [lambda s, i, f, b: (None, False), lambda s, i, f, b: (None, True)])
-def test_main_mocked_up(capsys, g, tmp_path):
-    with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
-        with patch.object(iotaa, "graph", return_value="DOT code") as graph:
-            mocks["_parse_args"].return_value = args(path=tmp_path, show=False)
-            f = Mock(__code__=g.__code__)
-            with patch.object(iotaa, "getattr", create=True, return_value=f) as getattr_:
+@mark.parametrize("g", [lambda _s, _i, _f, _b: (None, False), lambda _s, _i, _f, _b: (None, True)])
+def test_main_mocked_up(capsys, fakefs, g):
+    with (
+        patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks,
+        patch.object(iotaa, "graph", return_value="DOT code") as graph,
+    ):
+        mocks["_parse_args"].return_value = args(path=fakefs, show=False)
+        f = Mock(__code__=g.__code__)
+        with patch.object(iotaa, "getattr", create=True, return_value=f) as getattr_:
+            iotaa.main()
+            mocks["import_module"].assert_called_once_with("a")
+            getattr_.assert_any_call(mocks["import_module"](), "a_function")
+            task_args = ["foo", 42, 3.14, True]
+            task_kwargs = {"dry_run": True, "threads": None}
+            getattr_().assert_called_once_with(*task_args, **task_kwargs)
+        mocks["_parse_args"].assert_called_once()
+        mocks["logcfg"].assert_called_once_with(verbose=True)
+        graph.assert_called_once()
+        assert capsys.readouterr().out.strip() == "DOT code"
+
+
+def test_main_mocked_up_tasknames(fakefs):
+    with (
+        patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks,
+        patch.object(iotaa, "graph", return_value="DOT code") as graph,
+    ):
+        mocks["_parse_args"].return_value = args(path=fakefs, show=True)
+        with patch.object(iotaa, "getattr", create=True) as getattr_:
+            with raises(SystemExit) as e:
                 iotaa.main()
-                mocks["import_module"].assert_called_once_with("a")
-                getattr_.assert_any_call(mocks["import_module"](), "a_function")
-                task_args = ["foo", 42, 3.14, True]
-                task_kwargs = {"dry_run": True, "threads": None}
-                getattr_().assert_called_once_with(*task_args, **task_kwargs)
-            mocks["_parse_args"].assert_called_once()
-            mocks["logcfg"].assert_called_once_with(verbose=True)
-            graph.assert_called_once()
-            assert capsys.readouterr().out.strip() == "DOT code"
-
-
-def test_main_mocked_up_tasknames(tmp_path):
-    with patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks:
-        with patch.object(iotaa, "graph", return_value="DOT code") as graph:
-            mocks["_parse_args"].return_value = args(path=tmp_path, show=True)
-            with patch.object(iotaa, "getattr", create=True) as getattr_:
-                with raises(SystemExit) as e:
-                    iotaa.main()
-                    mocks["import_module"].assert_called_once_with("a")
-                    assert e.value.code == 0
-                getattr_.assert_not_called()
-                getattr_().assert_not_called()
-            mocks["_parse_args"].assert_called_once()
-            mocks["logcfg"].assert_called_once_with(verbose=True)
-            graph.assert_not_called()
+            mocks["import_module"].assert_called_once_with("a")
+            assert e.value.code == 0
+            getattr_.assert_not_called()
+            getattr_().assert_not_called()
+        mocks["_parse_args"].assert_called_once()
+        mocks["logcfg"].assert_called_once_with(verbose=True)
+        graph.assert_not_called()
 
 
 # Decorator tests
 
 
 @mark.parametrize(
-    "docstring,task",
+    ("docstring", "task"),
     [
         ("EXTERNAL!", "t_external_foo_scalar"),
         ("TASK!", "t_task_bar_scalar"),
@@ -449,37 +458,37 @@ def test_docstrings(docstring, request, task):
     assert func.__doc__.strip() == docstring
 
 
-def test_external_not_ready(t_external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
-    f = tmp_path / "foo"
+def test_external_not_ready(fakefs, t_external_foo_scalar, iotaa_logger):  # noqa: ARG001
+    f = fakefs / "foo"
     assert not f.is_file()
-    node = t_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(fakefs)
     node()
     assert iotaa.refs(node) == f
     assert not node._assets.ready()
 
 
-def test_external_ready(t_external_foo_scalar, iotaa_logger, tmp_path):  # pylint: disable=W0613
-    f = tmp_path / "foo"
+def test_external_ready(fakefs, iotaa_logger, t_external_foo_scalar):  # noqa: ARG001
+    f = fakefs / "foo"
     f.touch()
     assert f.is_file()
-    node = t_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(fakefs)
     node()
     assert iotaa.refs(node) == f
     assert node._assets.ready()
 
 
 @mark.parametrize(
-    "task,val",
+    ("task", "val"),
     [
         ("t_task_bar_dict", lambda x: x["path"]),
         ("t_task_bar_list", lambda x: x[0]),
     ],
 )
-def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
-    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+def test_task_not_ready(caplog, fakefs, iotaa_logger, request, task, val):
+    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     func = request.getfixturevalue(task)
-    node = func(tmp_path, log=iotaa_logger)
+    node = func(fakefs, log=iotaa_logger)
     node()
     assert val(iotaa.refs(node)) == f_bar
     assert not val(node._assets).ready()
@@ -489,20 +498,20 @@ def test_task_not_ready(caplog, iotaa_logger, request, task, tmp_path, val):
 
 
 @mark.parametrize(
-    "task,val",
+    ("task", "val"),
     [
         ("t_task_bar_dict", lambda x: x["path"]),
         ("t_task_bar_list", lambda x: x[0]),
         ("t_task_bar_scalar", lambda x: x),
     ],
 )
-def test_task_ready(caplog, iotaa_logger, request, task, tmp_path, val):
-    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+def test_task_ready(caplog, fakefs, iotaa_logger, request, task, val):
+    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
     func = request.getfixturevalue(task)
-    node = func(tmp_path, log=iotaa_logger)
+    node = func(fakefs, log=iotaa_logger)
     assert val(iotaa.refs(node)) == f_bar
     assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
@@ -541,10 +550,10 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-def test_tasks_not_ready(caplog, t_tasks_baz, tmp_path):
-    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+def test_tasks_not_ready(caplog, fakefs, t_tasks_baz):
+    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    node = t_tasks_baz(tmp_path)
+    node = t_tasks_baz(fakefs)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -555,18 +564,18 @@ def test_tasks_not_ready(caplog, t_tasks_baz, tmp_path):
     for msg in [
         "Not ready",
         "Requires:",
-        "✖ external foo %s/foo" % tmp_path,
-        "✖ task bar dict %s/bar" % tmp_path,
+        "✖ external foo %s" % Path(fakefs / "foo"),
+        "✖ task bar dict %s" % Path(fakefs / "bar"),
     ]:
         assert logged(caplog, f"tasks baz: {msg}")
 
 
-def test_tasks_ready(caplog, iotaa_logger, t_tasks_baz, tmp_path):
-    f_foo, f_bar = (tmp_path / x for x in ["foo", "bar"])
+def test_tasks_ready(caplog, fakefs, iotaa_logger, t_tasks_baz):
+    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = t_tasks_baz(tmp_path, log=iotaa_logger)
+    node = t_tasks_baz(fakefs, log=iotaa_logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert iotaa.refs(requirements[0]) == f_foo
     assert iotaa.refs(requirements[1])["path"] == f_bar
@@ -580,7 +589,7 @@ def test_tasks_ready(caplog, iotaa_logger, t_tasks_baz, tmp_path):
 # Private function tests
 
 
-def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # pylint: disable=W0613
+def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # noqa: ARG001
     exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
     exec_task_body()
     assert logged(caplog, "task: Executing")
@@ -604,7 +613,6 @@ def test__formatter():
 
 
 def test__mark():
-
     def f():
         pass
 
@@ -712,54 +720,56 @@ def test__task_common_extras():
 # Node tests
 
 
-def test_Node___call___dry_run(caplog, t_task_bar_scalar, tmp_path):
+def test_Node___call___dry_run(caplog, fakefs, t_task_bar_scalar):
     caplog.set_level(logging.INFO)
-    (tmp_path / "foo").touch()
-    node = t_task_bar_scalar(tmp_path, dry_run=True)
+    (fakefs / "foo").touch()
+    node = t_task_bar_scalar(fakefs, dry_run=True)
     assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
 
 
-def test_Node__eq__(t_external_foo_scalar, t_task_bar_dict, tmp_path):
+def test_Node__eq__(fakefs, t_external_foo_scalar, t_task_bar_dict):
     # These two have the same taskname:
-    node_dict1 = t_task_bar_dict(tmp_path)
-    node_dict2 = t_task_bar_dict(tmp_path)
+    node_dict1 = t_task_bar_dict(fakefs)
+    node_dict2 = t_task_bar_dict(fakefs)
     assert node_dict1 == node_dict2
     # But this one has a different taskname:
-    node_scalar = t_external_foo_scalar(tmp_path)
+    node_scalar = t_external_foo_scalar(fakefs)
     assert node_dict1 != node_scalar
 
 
-def test_Node__hash__(t_task_bar_dict, tmp_path):
-    node_dict = t_task_bar_dict(tmp_path)
-    assert hash(node_dict) == hash(f"task bar dict {tmp_path}/bar")
+def test_Node__hash__(fakefs, t_task_bar_dict):
+    node_dict = t_task_bar_dict(fakefs)
+    assert hash(node_dict) == hash("task bar dict %s" % Path(fakefs, "bar"))
 
 
-def test_Node___repr__(t_task_bar_scalar, tmp_path):
-    node = t_task_bar_scalar(tmp_path)
-    assert re.match(rf"^task bar scalar {tmp_path}/bar <\d+>$", str(node))
+def test_Node___repr__(fakefs, t_task_bar_scalar):
+    node = t_task_bar_scalar(fakefs)
+    assert re.match(r"^task bar scalar %s <\d+>$" % Path(fakefs, "bar"), str(node))
 
 
-def test_Node_ready(t_external_foo_scalar, tmp_path):
-    assert not t_external_foo_scalar(tmp_path).ready
-    (tmp_path / "foo").touch()
-    assert t_external_foo_scalar(tmp_path).ready
+def test_Node_ready(fakefs, t_external_foo_scalar):
+    assert not t_external_foo_scalar(fakefs).ready
+    (fakefs / "foo").touch()
+    assert t_external_foo_scalar(fakefs).ready
 
 
-def test_Node__add_node_and_predecessors(
-    caplog, iotaa_logger, t_tasks_baz, tmp_path
-):  # pylint: disable=W0613
+def test_Node__add_node_and_predecessors(caplog, fakefs, iotaa_logger, t_tasks_baz):  # noqa: ARG001
     g: TopologicalSorter = TopologicalSorter()
-    node = t_tasks_baz(tmp_path)
+    node = t_tasks_baz(fakefs)
     node._add_node_and_predecessors(g=g, node=node)
-    tasknames = [f"external foo {tmp_path}/foo", f"task bar dict {tmp_path}/bar", "tasks baz"]
+    tasknames = [
+        "external foo %s" % Path(fakefs, "foo"),
+        "task bar dict %s" % Path(fakefs, "bar"),
+        "tasks baz",
+    ]
     assert [x.taskname for x in g.static_order()] == tasknames
     assert logged(caplog, "tasks baz")
-    assert logged(caplog, f"  external foo {tmp_path}/foo")
-    assert logged(caplog, f"  task bar dict {tmp_path}/bar")
+    assert logged(caplog, "  external foo %s" % Path(fakefs, "foo"))
+    assert logged(caplog, "  task bar dict %s" % Path(fakefs, "bar"))
 
 
-def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint: disable=W0613
-    node = t_tasks_baz(tmp_path)
+def test_Node__assemble(caplog, fakefs, iotaa_logger, t_tasks_baz):  # noqa: ARG001
+    node = t_tasks_baz(fakefs)
     with (
         patch.object(node, "_dedupe") as _dedupe,
         patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors,
@@ -774,13 +784,13 @@ def test_Node__assemble(caplog, iotaa_logger, t_tasks_baz, tmp_path):  # pylint:
 
 
 @mark.parametrize("concurrent", [False, True])
-def test_Node__assemble_and_exec(concurrent, t_tasks_baz, tmp_path):
+def test_Node__assemble_and_exec(concurrent, fakefs, t_tasks_baz):
     kwargs = {"threads": 2} if concurrent else {}
     with (
         patch.object(iotaa.Node, "_exec_concurrent") as _exec_concurrent,
         patch.object(iotaa.Node, "_exec_synchronous") as _exec_synchronous,
     ):
-        t_tasks_baz(tmp_path, **kwargs)
+        t_tasks_baz(fakefs, **kwargs)
     expected = _exec_concurrent if concurrent else _exec_synchronous
     expected.assert_called_once_with(g=ANY, dry_run=False)
     unexpected = _exec_synchronous if concurrent else _exec_concurrent
@@ -789,7 +799,7 @@ def test_Node__assemble_and_exec(concurrent, t_tasks_baz, tmp_path):
 
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
-def test_Node__exec_concurrent(caplog, iotaa_logger, memval, n, threads):  # pylint: disable=W0613
+def test_Node__exec_concurrent(caplog, iotaa_logger, memval, n, threads):  # noqa: ARG001
     node = memval(n, threads=threads)
     success = "Task completed in thread"
     assert logged(caplog, f"b 1: {success}")
@@ -806,9 +816,7 @@ def test_Node__exec_concurrent(caplog, iotaa_logger, memval, n, threads):  # pyl
         assert logged(caplog, f"a: {success}")
 
 
-def test_Node__exec_concurrent_interrupt(
-    caplog, interrupted, iotaa_logger
-):  # pylint: disable=W0613
+def test_Node__exec_concurrent_interrupt(caplog, interrupted, iotaa_logger):  # noqa: ARG001
     node = interrupted(threads=1)
     assert not iotaa.ready(node)
     assert logged(caplog, "Interrupted")
@@ -816,7 +824,7 @@ def test_Node__exec_concurrent_interrupt(
 
 
 @mark.parametrize("n", [2, -1])
-def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # pylint: disable=W0613
+def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # noqa: ARG001
     node = memval(n)
     if n == -1:
         for msg in (
@@ -829,16 +837,14 @@ def test_Node__exec_synchronous(caplog, iotaa_logger, memval, n):  # pylint: dis
         assert iotaa.refs(node)[0] == 3
 
 
-def test_Node__exec_synchronous_interrupt(
-    caplog, interrupted, iotaa_logger
-):  # pylint: disable=W0613
+def test_Node__exec_synchronous_interrupt(caplog, interrupted, iotaa_logger):  # noqa: ARG001
     node = interrupted()
     assert not iotaa.ready(node)
     assert logged(caplog, "Interrupted")
 
 
-def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pylint: disable=W0613
-    node = t_tasks_baz(tmp_path)
+def test_Node__debug_header(caplog, fakefs, iotaa_logger, t_tasks_baz):  # noqa: ARG001
+    node = t_tasks_baz(fakefs)
     node._debug_header("foo")
     expected = """
     ───
@@ -849,10 +855,8 @@ def test_Node__debug_header(caplog, iotaa_logger, tmp_path, t_tasks_baz):  # pyl
     assert actual.strip() == dedent(expected).strip()
 
 
-def test_Node__dedupe(
-    caplog, iotaa_logger, t_external_foo_scalar, tmp_path
-):  # pylint: disable=W0613
-    n = [t_external_foo_scalar(tmp_path) for _ in range(6)]
+def test_Node__dedupe(caplog, fakefs, iotaa_logger, t_external_foo_scalar):  # noqa: ARG001
+    n = [t_external_foo_scalar(fakefs) for _ in range(6)]
     # All the nodes are distinct objects:
     assert not any(n1 is n2 for n1, n2 in combinations(n, 2))
     # But they're equivalent due to their identical tasknames:
@@ -873,29 +877,27 @@ def test_Node__dedupe(
 
 
 @mark.parametrize("touch", [False, True])
-def test_Node__report_readiness_tasks(
-    caplog, iotaa_logger, t_tasks_qux, tmp_path, touch
-):  # pylint: disable=W0613
-    path = tmp_path / "foo"
+def test_Node__report_readiness_tasks(caplog, fakefs, iotaa_logger, t_tasks_qux, touch):  # noqa: ARG001
+    path = fakefs / "foo"
     if touch:
         path.touch()
-    node = t_tasks_qux(tmp_path)
+    node = t_tasks_qux(fakefs)
     node._report_readiness()
     assert logged(caplog, "tasks qux: %s" % ("Ready" if touch else "Not ready"))
     if not touch:
         assert logged(caplog, "tasks qux: Requires:")
         assert logged(caplog, "tasks qux: ✖ external foo %s" % path)
-        assert logged(caplog, "tasks qux: ✔ task bar scalar %s/bar" % tmp_path)
+        assert logged(caplog, "tasks qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
 
 
-def test_Node__reset_ready(t_external_foo_scalar, tmp_path):
-    path = tmp_path / "foo"
-    node = t_external_foo_scalar(tmp_path)
+def test_Node__reset_ready(fakefs, t_external_foo_scalar):
+    path = fakefs / "foo"
+    node = t_external_foo_scalar(fakefs)
     # File doesn't exist so:
     assert not node.ready
     path.touch()
     # Now file exists:
-    node = t_external_foo_scalar(tmp_path)
+    node = t_external_foo_scalar(fakefs)
     assert node.ready
     # Rmove file:
     path.unlink()
@@ -906,8 +908,8 @@ def test_Node__reset_ready(t_external_foo_scalar, tmp_path):
     assert not node.ready
 
 
-def test_Node__root(t_tasks_baz, tmp_path):
-    node = t_tasks_baz(tmp_path)
+def test_Node__root(fakefs, t_tasks_baz):
+    node = t_tasks_baz(fakefs)
     assert node._root
     assert not any(child._root for child in node._reqs)
 

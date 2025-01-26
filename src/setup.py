@@ -4,13 +4,14 @@ Basic setuptools configuration.
 
 import json
 import os
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
 if os.environ.get("CONDA_BUILD"):
     meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")}
 else:
-    with open("../recipe/meta.json", "r", encoding="utf-8") as f:
+    with Path("../recipe/meta.json").open() as f:
         meta = json.load(f)
 
 name_conda = meta["name"]
@@ -27,12 +28,9 @@ setup(
     description="A simple workflow engine",
     entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
     include_package_data=True,
-    long_description=" ".join(
-        [
-            "A simple workflow engine with semantics inspired by Luigi and",
-            "tasks expressed as decorated Python functions",
-        ]
-    ),
+    long_description="A simple workflow engine"
+    " with semantics inspired by Luigi"
+    " and tasks expressed as decorated Python functions",
     name=name_conda,
     packages=find_packages(include=[name_py, "%s.*" % name_py]),
     url="https://github.com/maddenp/iotaa",

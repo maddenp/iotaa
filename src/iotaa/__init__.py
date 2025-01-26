@@ -16,26 +16,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
-from hashlib import md5
+from hashlib import sha256
 from importlib import import_module
 from importlib import resources as _resources
 from itertools import chain
 from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
-from types import ModuleType
-from typing import (
-    Any,
-    Callable,
-    Generator,
-    Iterator,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast, overload
+
+if TYPE_CHECKING:
+    from collections.abc import Generator, Iterator  # pragma: no cover
+    from types import ModuleType  # pragma: no cover
 
 _JSONValT = Union[bool, dict, float, int, list, str]
 _MARKER = "__IOTAA__"
@@ -69,9 +61,9 @@ class Node(ABC):
         self.taskname = taskname
         self._threads = threads
         self._logger = logger
-        self._assets: Optional[_AssetsT] = None
+        self._assets: _AssetsT | None = None
         self._first_visit = True
-        self._reqs: Optional[_ReqsT] = None
+        self._reqs: _ReqsT | None = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -100,7 +92,7 @@ class Node(ABC):
         :param node: The current task-graph node.
         :param level: The distance from the task-graph root node.
         """
-        log.debug("  " * level + str(node.taskname))
+        log.debug("%s%s", "  " * level, str(node.taskname))
         g.add(node)
         if not node.ready:
             predecessor: Node
@@ -142,7 +134,7 @@ class Node(ABC):
         log.debug(msg)
         log.debug(sep)
 
-    def _dedupe(self, known: Optional[set[Node]] = None) -> set[Node]:
+    def _dedupe(self, known: set[Node] | None = None) -> set[Node]:
         """
         Unify equivalent task-graph nodes.
 
@@ -163,17 +155,17 @@ class Node(ABC):
         """
 
         def existing(node: Node, known: set[Node]) -> Node:
-            x = [n for n in known if n == node][0]
+            x = next(n for n in known if n == node)
             if node is not x:
                 log.debug("Discarding node '%s' for identical '%s'", node, x)
-                node._assets = x._assets  # pylint: disable=protected-access
+                node._assets = x._assets  # noqa: SLF001
             return x
 
         def recur(node: Node, known: set[Node]) -> set[Node]:
             known.add(node)
-            return node._dedupe(known)  # pylint: disable=protected-access
+            return node._dedupe(known)  # noqa: SLF001
 
-        deduped: Optional[Union[Node, dict[str, Node], list[Node]]]
+        deduped: Node | dict[str, Node] | list[Node] | None
 
         known = known or {self}
         if isinstance(self._reqs, Node):
@@ -212,7 +204,7 @@ class Node(ABC):
                 node = futures[future]
                 try:
                     future.result()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     msg = f"{node.taskname}: Task failed in thread: %s"
                     log.error(msg, str(getattr(e, "value", e)))
                     for line in traceback.format_exc().strip().split("\n"):
@@ -242,7 +234,7 @@ class Node(ABC):
             except KeyboardInterrupt:
                 log.info("Interrupted")
                 break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 msg = f"{node.taskname}: Task failed: %s"
                 log.error(msg, str(getattr(e, "value", e)))
                 for line in traceback.format_exc().strip().split("\n"):
@@ -279,7 +271,7 @@ class Node(ABC):
         """
         Is this the root node (i.e. is it not a requirement of another task)?
         """
-        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function == "__iotaa_wrapper__"
+        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function == "_iotaa_wrapper"
         return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
 
 
@@ -297,7 +289,7 @@ class NodeExternal(Node):
         self._assets = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # pylint: disable=unused-variable
+        iotaa_logger = self._logger  # noqa: F841
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -325,7 +317,7 @@ class NodeTask(Node):
         self._exec_task_body = exec_task_body
 
     def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # pylint: disable=unused-variable
+        iotaa_logger = self._logger  # noqa: F841
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -348,16 +340,16 @@ class NodeTasks(Node):
         taskname: str,
         threads: int,
         logger: Logger,
-        reqs: Optional[_ReqsT] = None,
+        reqs: _ReqsT | None = None,
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._reqs = reqs
         self._assets = list(
-            chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])
+            chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])  # noqa: SLF001
         )
 
     def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # pylint: disable=unused-variable
+        iotaa_logger = self._logger  # noqa: F841
         if self._root and self._first_visit:
             self._assemble_and_exec(dry_run)
         else:
@@ -403,7 +395,7 @@ class _Graph:
         Returns the task graph in Graphviz DOT format.
         """
         s = '%s [fillcolor=%s, label="%s", style=filled]'
-        name = lambda node: "_%s" % md5(str(node.taskname).encode("utf-8")).hexdigest()
+        name = lambda node: "_%s" % sha256(str(node.taskname).encode("utf-8")).hexdigest()
         color = lambda node: "palegreen" if node.ready else "orange"
         nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
         edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
@@ -427,9 +419,9 @@ class _LoggerProxy:
         :raises: IotaaError is no logger is found.
         """
         for frameinfo in inspect.stack():
-            if logger := frameinfo.frame.f_locals.get("iotaa_logger"):
-                if _MARKER in dir(logger):  # getattr() => stack overflow
-                    return cast(Logger, logger)
+            logger = frameinfo.frame.f_locals.get("iotaa_logger")
+            if logger and hasattr(logger, _MARKER):
+                return cast(Logger, logger)
         msg = "No logger found: Ensure this call originated in an iotaa task function."
         raise IotaaError(msg)
 
@@ -469,7 +461,7 @@ def main() -> None:
 # Public API functions:
 
 
-def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=redefined-outer-name
+def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
     """
     Returns an Asset object.
 
@@ -479,13 +471,13 @@ def asset(ref: Any, ready: Callable[..., bool]) -> Asset:  # pylint: disable=red
     return Asset(ref, ready)
 
 
-def assets(node: Optional[Node]) -> _AssetsT:
+def assets(node: Node | None) -> _AssetsT:
     """
     Return the node's assets.
 
     :param node: A node.
     """
-    return node._assets if node else None  # pylint: disable=protected-access
+    return node._assets if node else None  # noqa: SLF001
 
 
 def graph(node: Node) -> str:
@@ -522,7 +514,7 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def refs(node: Optional[Node]) -> Any:
+def refs(node: Node | None) -> Any:
     """
     Extract and return asset references.
 
@@ -545,7 +537,7 @@ def requirements(node: Node) -> _ReqsT:
 
     :param node: A node.
     """
-    return node._reqs  # pylint: disable=protected-access
+    return node._reqs  # noqa: SLF001
 
 
 def tasknames(obj: object) -> list[str]:
@@ -581,7 +573,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
 
     @wraps(f)
-    def __iotaa_wrapper__(*args, **kwargs) -> NodeExternal:
+    def _iotaa_wrapper(*args, **kwargs) -> NodeExternal:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
@@ -593,7 +585,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
             assets_=assets_,
         )
 
-    return _mark(__iotaa_wrapper__)
+    return _mark(_iotaa_wrapper)
 
 
 def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
@@ -605,7 +597,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     """
 
     @wraps(f)
-    def __iotaa_wrapper__(*args, **kwargs) -> NodeTask:
+    def _iotaa_wrapper(*args, **kwargs) -> NodeTask:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
@@ -621,7 +613,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             exec_task_body=_exec_task_body_later(g, taskname),
         )
 
-    return _mark(__iotaa_wrapper__)
+    return _mark(_iotaa_wrapper)
 
 
 def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
@@ -633,7 +625,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     """
 
     @wraps(f)
-    def __iotaa_wrapper__(*args, **kwargs) -> NodeTasks:
+    def _iotaa_wrapper(*args, **kwargs) -> NodeTasks:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         reqs: _ReqsT = _next(g, "requirements")
@@ -646,14 +638,14 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
             reqs=reqs,
         )
 
-    return _mark(__iotaa_wrapper__)
+    return _mark(_iotaa_wrapper)
 
 
 # Private helper functions:
 
 
 def _construct_and_if_root_call(
-    node_class: Type[_NodeT],
+    node_class: type[_NodeT],
     taskname: str,
     threads: int,
     dry_run: bool,
@@ -669,7 +661,7 @@ def _construct_and_if_root_call(
     :return: A constructed Node object.
     """
     node = node_class(taskname=taskname, threads=threads, **kwargs)
-    if node._root:  # pylint: disable=protected-access
+    if node._root:  # noqa: SLF001
         node(dry_run)
     return node
 
@@ -766,7 +758,8 @@ def _next(g: Iterator, desc: str) -> Any:
     try:
         return next(g)
     except StopIteration as e:
-        raise IotaaError(f"Failed to get {desc}: Check yield statements.") from e
+        msg = f"Failed to get {desc}: Check yield statements."
+        raise IotaaError(msg) from e
 
 
 def _parse_args(raw: list[str]) -> Namespace:
