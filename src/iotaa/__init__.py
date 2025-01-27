@@ -344,9 +344,6 @@ class NodeTasks(Node):
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._reqs = reqs
-        self._assets = list(
-            chain.from_iterable([_flatten(req._assets) for req in _flatten(self._reqs)])  # noqa: SLF001
-        )
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
@@ -355,6 +352,15 @@ class NodeTasks(Node):
         else:
             self._report_readiness()
         return self
+
+    @property
+    def _assets(self) -> list[Asset]:
+        reqs = _flatten(self._reqs)
+        return list(chain.from_iterable([_flatten(req._assets) for req in reqs]))  # noqa: SLF001
+
+    @_assets.setter
+    def _assets(self, value) -> None:
+        pass
 
 
 class IotaaError(Exception):
