@@ -1,23 +1,24 @@
 {
   "build": "py_0",
-  "buildnum": "0",
+  "buildnum": 0,
   "name": "iotaa",
   "packages": {
     "dev": [
-      "docformatter =1.7.*",
-      "jq =1.7.*",
-      "mypy =1.14.*",
+      "docformatter ==1.7.*",
+      "jq ==1.7.*",
+      "mypy ==1.14.*",
       "pip",
-      "pyfakefs =5.7.*",
-      "pytest =8.3.*",
-      "pytest-cov =6.0.*",
-      "pytest-xdist =3.6.*",
-      "python >=3.9",
-      "python >=3.9",
-      "ruff =0.9.*",
+      "pyfakefs ==5.7.*",
+      "pytest ==8.3.*",
+      "pytest-cov ==6.0.*",
+      "pytest-xdist ==3.6.*",
+      "python ==3.9,>=3.9",
+      "ruff ==0.9.*",
       "setuptools"
     ],
-    "run": []
+    "run": [
+      "python >=3.9"
+    ]
   },
-  "version": "1.1.0"
+  "version": "1.1.1"
 }
