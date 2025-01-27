@@ -352,6 +352,23 @@ def test_ready(fakefs, t_external_foo_scalar):
     assert iotaa.ready(node_after)
 
 
+def test_ready_tasks():
+    @iotaa.task
+    def shared():
+        val: list[bool] = []
+        yield "shared"
+        yield iotaa.asset(val, lambda: bool(val))
+        yield None
+        val.append(True)
+
+    @iotaa.tasks
+    def tasks():
+        yield "tasks"
+        yield [shared(), shared()]
+
+    assert iotaa.ready(tasks())
+
+
 def test_refs():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
