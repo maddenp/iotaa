@@ -183,7 +183,7 @@ class Node(ABC):
                 known = recur(node, known)
                 deduped.append(existing(node, known))
         else:
-            deduped = None
+            deduped = self._reqs  # leave it (it might be a Mock)
         self._reqs = deduped
         return known
 
@@ -814,7 +814,7 @@ def _reify(s: str) -> _JSONValT:
     return val
 
 
-def _show_tasks_and_exit(name: str, obj: ModuleType) -> None:
+def _show_tasks_and_exit(name: str, obj: object) -> None:
     """
     Print names and descriptions of tasks available in module.
 
