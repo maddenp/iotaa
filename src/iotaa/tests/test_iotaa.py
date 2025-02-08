@@ -338,13 +338,16 @@ def test_refs():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
-    assert iotaa.refs(node=node) is None
+    assert iotaa.refs(obj=node) is None
     node._assets = {"foo": asset}
-    assert iotaa.refs(node=node)["foo"] == expected
+    assert iotaa.refs(obj=node)["foo"] == expected
     node._assets = [asset]
-    assert iotaa.refs(node=node)[0] == expected
+    assert iotaa.refs(obj=node)[0] == expected
     node._assets = asset
-    assert iotaa.refs(node=node) == expected
+    assert iotaa.refs(obj=node) == expected
+    assert iotaa.refs(asset) == expected
+    assert iotaa.refs([asset, asset]) == [expected, expected]
+    assert iotaa.refs({"a": asset, "b": asset}) == {"a": expected, "b": expected}
 
 
 def test_requirements(fakefs):

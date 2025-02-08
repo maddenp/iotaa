@@ -520,14 +520,14 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def refs(node: Node | None) -> Any:
+def refs(obj: Node | _AssetsT | None) -> Any:
     """
     Extract and return asset references.
 
-    :param node: A node.
-    :return: Asset reference(s) matching the node's assets' shape (e.g. dict, list, scalar, None).
+    :param obj: A Node, or an Asset, or a list or dict of Assets.
+    :return: Asset reference(s) matching the obj's assets' shape (e.g. dict, list, scalar, None).
     """
-    _assets = assets(node)
+    _assets = assets(obj) if isinstance(obj, Node) else obj
     if isinstance(_assets, dict):
         return {k: v.ref for k, v in _assets.items()}
     if isinstance(_assets, list):

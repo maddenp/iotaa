@@ -159,7 +159,7 @@ A number of public helper functions are available in the `iotaa` module:
 | `graph()`        | Given the value returned by a task-function call, return a Graphviz string representation of the task graph. |
 | `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
 | `ready()`        | Given the value returned by a task-function call, return the ready `bool` status of the task. |
-| `refs()`         | Given the value returned by a task-function call, return `ref` values of the assets in the same shape (e.g. `dict`, `list`) as returned by the task. |
+| `refs()`         | Given the value returned by a task-function call, a single asset, a `list` of assets, or a `dict` whose values are assets, return the `ref` values of the asset(s) in the corresponding shape (e.g. `dict`, `list`). |
 | `requirements()` | Given the value returned by a task-function call, return any other such values yielded by the task value as requirements. |
 | `tasknames()`    | Given an object (e.g. a module), return a list of names of  `iotaa` task members. Called by the CLI when `-s` / `--show` is specified. Prints each task name followed by, when available, the first line of its docstring.
 
