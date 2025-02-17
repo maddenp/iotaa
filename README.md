@@ -835,6 +835,102 @@ $ iotaa location2.py main 40.1672 -105.1091
 
 Here, both `city()` and `state()` yield `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers. This avoids pointless duplicate network requests.
 
+### Time Gate
+
+An `@xternal` task can serve as a time gate, such that a dependent task cannot execute until a certain time has been reached. For example:
+
+``` python
+from datetime import datetime, timezone
+from pathlib import Path
+
+from iotaa import asset, external, task
+
+
+@external
+def wait(gotime: datetime):
+    yield "Time %s" % gotime
+    yield asset(None, lambda: datetime.now(timezone.utc) >= gotime)
+
+
+@task
+def file(gotime: str):
+    path = Path("file")
+    yield "Touch %s" % path
+    yield asset(path, path.is_file)
+    yield wait(datetime.fromisoformat(f"{gotime}+00:00"))
+    path.touch()
+```
+
+A few seconds before the specified time:
+
+```
+$ date --utc
+Mon Feb 17 06:02:54 AM UTC 2025
+$ iotaa timegate.py file 2025-02-17T06:03:00
+[2025-02-17T06:02:56] WARNING Time 2025-02-17 06:03:00+00:00: Not ready [external asset]
+[2025-02-17T06:02:56] WARNING Touch file: Not ready
+[2025-02-17T06:02:56] WARNING Touch file: Requires:
+[2025-02-17T06:02:56] WARNING Touch file: ✖ Time 2025-02-17 06:03:00+00:00
+```
+
+A few seconds later:
+
+```
+$ date --utc
+Mon Feb 17 06:03:01 AM UTC 2025
+$ iotaa timegate.py file 2025-02-17T06:03:00
+[2025-02-17T06:03:04] INFO    Time 2025-02-17 06:03:00+00:00: Ready
+[2025-02-17T06:03:04] INFO    Touch file: Executing
+[2025-02-17T06:03:04] INFO    Touch file: Ready
+```
+
+### Upstream Resource
+
+An `@external` task can be used to represent availability of an upstream resource, for example to avoid trying to download a file that does not exist, eliminating the need for explicit conditional logic, exception handling, or logging calls:
+
+``` python
+from pathlib import Path
+from urllib.parse import urlparse
+
+from requests import get, head
+
+from iotaa import asset, external, task
+
+
+@external
+def upstream(url: str):
+    yield "Upstream resource %s" % url
+    yield asset(None, lambda: head(url, timeout=3).status_code == 200)
+
+
+@task
+def file(url: str):
+    path = Path(Path(urlparse(url).path).name)
+    yield "Local resource %s" % path
+    yield asset(path, path.is_file)
+    yield upstream(url)
+    path.write_bytes(get(url, timeout=3).content)
+```
+
+An attempt to download data related to today's 06:00 UTC weather corecast, which is not yet available:
+
+```
+$ iotaa upstream.py file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t06z.wrfnatf00.grib2.idx
+[2025-02-17T06:22:02] WARNING Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t06z.wrfnatf00.grib2.idx: Not ready [external asset]
+[2025-02-17T06:22:02] WARNING Local resource hrrr.t06z.wrfnatf00.grib2.idx: Not ready
+[2025-02-17T06:22:02] WARNING Local resource hrrr.t06z.wrfnatf00.grib2.idx: Requires:
+[2025-02-17T06:22:02] WARNING Local resource hrrr.t06z.wrfnatf00.grib2.idx: ✖ Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t06z.wrfnatf00.grib2.idx
+```
+
+A successful download of data from the earlier 00:00 UTC forecast, which is available:
+
+```
+$ iotaa upstream.py file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t00z.wrfnatf00.grib2.idx
+[2025-02-17T06:22:22] INFO    Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t00z.wrfnatf00.grib2.idx: Ready
+[2025-02-17T06:22:22] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Executing
+[2025-02-17T06:22:22] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Ready
+```
+
 ### CPU-Bound Tasks
 
 Thread-based concurrency as implemented by `iotaa` helps overall execution time for IO-based tasks, but is less helpful (or even detrimental) for CPU-bound tasks. For example, here is a workflow that computes two Fibonacci numbers whose indices are `n1` and `n2`:
