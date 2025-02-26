@@ -106,9 +106,11 @@ class Node(ABC):
 
         :return: The graph.
         """
+        log.info("Preparing task graph")
         g: TopologicalSorter = TopologicalSorter()
-        self._debug_header("Task Graph")
+        log.debug("Deduplicating task-graph nodes")
         self._dedupe()
+        self._debug_header("Task Graph")
         self._add_node_and_predecessors(g, self)
         self._debug_header("Execution")
         self._first_visit = False
