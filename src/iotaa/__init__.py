@@ -82,7 +82,7 @@ class Node(ABC):
         """
         Are the assets represented by this task-graph node ready?
         """
-        return all(x.ready() for x in _flatten(self._assets))
+        return _ready(self._assets)
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
@@ -106,7 +106,6 @@ class Node(ABC):
 
         :return: The graph.
         """
-        log.info("Preparing task graph")
         g: TopologicalSorter = TopologicalSorter()
         log.debug("Deduplicating task-graph nodes")
         self._dedupe()
@@ -609,7 +608,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
-        reqs: _ReqsT = _next(g, "requirements")
+        reqs: _ReqsT = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"))
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
@@ -636,7 +635,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     def _iotaa_wrapper(*args, **kwargs) -> NodeTasks:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
-        reqs: _ReqsT = _next(g, "requirements")
+        reqs: _ReqsT = _not_ready_reqs(_next(g, "requirements"))
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
@@ -770,6 +769,21 @@ def _next(g: Iterator, desc: str) -> Any:
         raise IotaaError(msg) from e
 
 
+def _not_ready_reqs(reqs: _ReqsT) -> _ReqsT:
+    """
+    Return only not-ready requirements.
+
+    :param reqs: dict with Node values, list of Node, or Node.
+    """
+    if reqs is None:
+        return None
+    if isinstance(reqs, dict):
+        return {k: req for k, req in reqs.items() if not req.ready}
+    if isinstance(reqs, list):
+        return [req for req in reqs if not req.ready]
+    return None if reqs.ready else reqs  # might be Node, might be a Mock
+
+
 def _parse_args(raw: list[str]) -> Namespace:
     """
     Parse command-line arguments.
@@ -799,6 +813,16 @@ def _parse_args(raw: list[str]) -> Namespace:
         print("Specify task name")
         sys.exit(1)
     return args
+
+
+def _ready(assets: _AssetsT) -> bool:
+    """
+    Are all the provided assets ready?
+
+    :param assets: The assets to check.
+    :return: Are they?
+    """
+    return all(x.ready() for x in _flatten(assets))
 
 
 def _reify(s: str) -> _JSONValT:

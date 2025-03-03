@@ -502,7 +502,7 @@ def test_task_ready(caplog, fakefs, func, iotaa_logger, val):
 
 
 def test_tasks_structured():
-    a = iotaa.asset(ref="a", ready=lambda: True)
+    a = iotaa.asset(ref="a", ready=lambda: False)
 
     @iotaa.external
     def tdict():
@@ -559,8 +559,8 @@ def test_tasks_ready(caplog, fakefs, iotaa_logger):
     assert not f_bar.is_file()
     node = t_tasks_baz(fakefs, log=iotaa_logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
-    assert iotaa.refs(requirements[0]) == f_foo
-    assert iotaa.refs(requirements[1])["path"] == f_bar
+    assert len(requirements) == 1  # ready requirement foo was filtered out
+    assert iotaa.refs(requirements[0]) == {"path": f_bar}
     assert all(
         a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
     )
@@ -615,6 +615,22 @@ def test__next():
     assert str(e.value) == "Failed to get foo: Check yield statements."
 
 
+def test__not_ready_reqs():
+    n = Mock(ready=False)
+    r = Mock(ready=True)
+    assert iotaa._not_ready_reqs({}) == {}
+    assert iotaa._not_ready_reqs({"r": r}) == {}
+    assert iotaa._not_ready_reqs({"n": n}) == {"n": n}
+    assert iotaa._not_ready_reqs({"r": r, "n": n}) == {"n": n}
+    assert iotaa._not_ready_reqs([]) == []
+    assert iotaa._not_ready_reqs([r]) == []
+    assert iotaa._not_ready_reqs([n]) == [n]
+    assert iotaa._not_ready_reqs([r, n]) == [n]
+    assert iotaa._not_ready_reqs(r) is None
+    assert iotaa._not_ready_reqs(n) is n
+    assert iotaa._not_ready_reqs(None) is None
+
+
 @mark.parametrize("graph", [None, "-g", "--graph"])
 @mark.parametrize("show", [None, "-s", "--show"])
 @mark.parametrize("verbose", [None, "-v", "--verbose"])
@@ -647,6 +663,19 @@ def test__parse_args_missing_task_ok(switch):
     args = iotaa._parse_args(raw=["a_module", switch])
     assert args.module == "a_module"
     assert args.show is True
+
+
+def test__ready():
+    n = iotaa.asset(None, lambda: False)
+    r = iotaa.asset(None, lambda: True)
+    assert iotaa._ready(r)
+    assert iotaa._ready([r, r])
+    assert iotaa._ready({"a": r, "b": r})
+    assert not iotaa._ready(n)
+    assert not iotaa._ready([n, n])
+    assert not iotaa._ready({"a": n, "b": n})
+    assert not iotaa._ready([r, n])
+    assert not iotaa._ready({"a": r, "b": n})
 
 
 def test__reify():
@@ -856,12 +885,6 @@ def test_Node__dedupe(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     # The replacement was reported in log messages:
     msg = "Discarding node 'external foo .*' for identical 'external foo .*'"
     assert logged(caplog, msg, escape=False)
-
-
-def test_Node_dedupe_mock_support(fakefs):
-    assert iotaa.requirements(t_task_bar_list(fakefs)) == t_external_foo_scalar(fakefs)
-    with patch(f"{__name__}.t_external_foo_scalar"):
-        assert iotaa.requirements(t_task_bar_list(fakefs)) == t_external_foo_scalar(fakefs)
 
 
 @mark.parametrize("touch", [False, True])
