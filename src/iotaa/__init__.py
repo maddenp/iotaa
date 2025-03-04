@@ -599,6 +599,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
+        # breakpoint()
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
@@ -627,6 +628,8 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
+        # from collections import UserDict
+        # iotaa_nodes = _mark(UserDict())
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         reqs: _ReqsT = _not_ready_reqs(_next(g, "requirements"))
@@ -692,9 +695,10 @@ def _findabove(name: str, desc: str) -> Any:
     :raises: IotaaError is no such object is found.
     """
     for frameinfo in inspect.stack():
-        obj = frameinfo.frame.f_locals.get(name)
-        if obj and hasattr(obj, _MARKER):
-            return obj
+        if name in frameinfo.frame.f_locals:
+            obj = frameinfo.frame.f_locals[name]
+            if hasattr(obj, _MARKER):
+                return obj
     msg = f"No {desc} found: Ensure this call originated in an iotaa task function."
     raise IotaaError(msg)
 
