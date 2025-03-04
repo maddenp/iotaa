@@ -272,7 +272,9 @@ class Node(ABC):
         """
         Is this the root node (i.e. is it not a requirement of another task)?
         """
-        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function == "_iotaa_wrapper"
+        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function.startswith(
+            "_iotaa_wrapper_"
+        )
         return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
 
 
@@ -574,7 +576,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     """
 
     @wraps(f)
-    def _iotaa_wrapper(*args, **kwargs) -> NodeExternal:
+    def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
@@ -586,7 +588,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
             assets_=assets_,
         )
 
-    return _mark(_iotaa_wrapper)
+    return _mark(_iotaa_wrapper_external)
 
 
 def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
@@ -598,7 +600,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     """
 
     @wraps(f)
-    def _iotaa_wrapper(*args, **kwargs) -> NodeTask:
+    def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         assets_ = _next(g, "assets")
@@ -614,7 +616,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             exec_task_body=_exec_task_body_later(g, taskname),
         )
 
-    return _mark(_iotaa_wrapper)
+    return _mark(_iotaa_wrapper_task)
 
 
 def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
@@ -626,7 +628,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     """
 
     @wraps(f)
-    def _iotaa_wrapper(*args, **kwargs) -> NodeTasks:
+    def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
         taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
         assert isinstance(iotaa_logger, Logger)
         reqs: _ReqsT = _not_ready_reqs(_next(g, "requirements"))
@@ -639,7 +641,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
             reqs=reqs,
         )
 
-    return _mark(_iotaa_wrapper)
+    return _mark(_iotaa_wrapper_tasks)
 
 
 # Private helper functions:
