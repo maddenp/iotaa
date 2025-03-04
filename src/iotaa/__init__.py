@@ -424,7 +424,10 @@ class _LoggerProxy:
 
         :raises: IotaaError is no logger is found.
         """
-        return cast(Logger, _findabove(name="iotaa_logger", desc="logger"))
+        if not (found := _findabove(name="iotaa_logger")):
+            msg = "No logger found: Ensure this call originated in an iotaa task function."
+            raise IotaaError(msg)
+        return cast(Logger, found)
 
 
 _LoggerT = Union[Logger, _LoggerProxy]
@@ -688,10 +691,11 @@ def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
     return exec_task_body
 
 
-def _findabove(name: str, desc: str) -> Any:
+def _findabove(name: str) -> Any:
     """
     Search the stack for a specially-named and iotaa-marked frame-local object with the given name.
 
+    :param name: The name of the object to be found in an ancestor stack frame.
     :raises: IotaaError is no such object is found.
     """
     for frameinfo in inspect.stack():
@@ -699,8 +703,7 @@ def _findabove(name: str, desc: str) -> Any:
             obj = frameinfo.frame.f_locals[name]
             if hasattr(obj, _MARKER):
                 return obj
-    msg = f"No {desc} found: Ensure this call originated in an iotaa task function."
-    raise IotaaError(msg)
+    return None
 
 
 @overload
