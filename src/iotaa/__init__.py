@@ -744,13 +744,6 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _iotaa_nodes() -> UserDict:
-    """
-    Returns the "iotaa_nodes" object from the most recent stack frame.
-    """
-    return _findabove("iotaa_nodes") or _mark(UserDict())
-
-
 def _mark(f: _T) -> _T:
     """
     Returns a function, marked as an iotaa task.
@@ -896,7 +889,9 @@ def _task_common(
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = str(_next(g, "task name"))
-    return taskname, threads, dry_run, logger, _iotaa_nodes(), g
+    if (nodes := _findabove("iotaa_nodes")) is None:
+        nodes = _mark(UserDict())
+    return taskname, threads, dry_run, logger, nodes, g
 
 
 def _version() -> str:
