@@ -31,6 +31,7 @@ ignore = [
   "ANN202",  # missing-return-type-private-function
   "ANN204",  # missing-return-type-special-method
   "ANN401",  # any-type
+  "C408",    # unnecessary-collection-call
   "COM812",  # missing-trailing-comma
   "D102",    # undocumented-public-method
   "D103",    # undocumented-public-function

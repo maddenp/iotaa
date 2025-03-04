@@ -5,6 +5,7 @@ Tests for module iotaa.
 import logging
 import re
 from abc import abstractmethod
+from collections import UserDict
 from graphlib import TopologicalSorter
 from hashlib import sha256
 from itertools import chain, combinations
@@ -616,19 +617,43 @@ def test__next():
 
 
 def test__not_ready_reqs():
-    n = Mock(ready=False)
-    r = Mock(ready=True)
-    assert iotaa._not_ready_reqs({}) == {}
-    assert iotaa._not_ready_reqs({"r": r}) == {}
-    assert iotaa._not_ready_reqs({"n": n}) == {"n": n}
-    assert iotaa._not_ready_reqs({"r": r, "n": n}) == {"n": n}
-    assert iotaa._not_ready_reqs([]) == []
-    assert iotaa._not_ready_reqs([r]) == []
-    assert iotaa._not_ready_reqs([n]) == [n]
-    assert iotaa._not_ready_reqs([r, n]) == [n]
-    assert iotaa._not_ready_reqs(r) is None
-    assert iotaa._not_ready_reqs(n) is n
-    assert iotaa._not_ready_reqs(None) is None
+    logger = logging.getLogger()
+    kwargs = lambda name, ready: dict(
+        taskname=name, threads=0, logger=logger, assets_=iotaa.asset(None, lambda: ready)
+    )
+    n = iotaa.NodeExternal(**kwargs("n", False))  # a not-ready node
+    d = iotaa.NodeExternal(**kwargs("n", False))  # a duplicate not-ready node
+    r = iotaa.NodeExternal(**kwargs("r", True))  # a ready node
+    nodes: UserDict[str, iotaa.NodeExternal] = UserDict()
+    assert iotaa._not_ready_reqs({}, nodes) == {}
+    assert nodes == {}
+    assert iotaa._not_ready_reqs({"r": r}, nodes) == {}
+    assert nodes == {}
+    invariant = lambda: nodes == {"n": n} and nodes["n"] is n
+    assert iotaa._not_ready_reqs({"n": n}, nodes) == {"n": n}
+    assert invariant()
+    assert iotaa._not_ready_reqs({"n": d}, nodes) == {"n": d}
+    assert invariant()  # i.e. n retained, d discarded
+    assert iotaa._not_ready_reqs({"r": r, "n": n}, nodes) == {"n": n}
+    assert invariant()
+    assert iotaa._not_ready_reqs([], nodes) == []
+    assert invariant()
+    assert iotaa._not_ready_reqs([r], nodes) == []
+    assert invariant()
+    assert iotaa._not_ready_reqs([n], nodes) == [n]
+    assert invariant()
+    assert iotaa._not_ready_reqs([d], nodes) == [n]
+    assert invariant()  # i.e. n retained, d discarded
+    assert iotaa._not_ready_reqs([r, n], nodes) == [n]
+    assert invariant()
+    assert iotaa._not_ready_reqs(r, nodes) is None
+    assert invariant()
+    assert iotaa._not_ready_reqs(n, nodes) is n
+    assert invariant()
+    assert iotaa._not_ready_reqs(d, nodes) is n
+    assert invariant()  # i.e. n retained, d discarded
+    assert iotaa._not_ready_reqs(None, nodes) is None
+    assert invariant()
 
 
 @mark.parametrize("graph", [None, "-g", "--graph"])

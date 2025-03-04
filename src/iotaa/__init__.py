@@ -605,7 +605,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
-        reqs = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"))
+        reqs = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"), iotaa_nodes)
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
@@ -631,7 +631,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     @wraps(f)
     def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
         taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
-        reqs = _not_ready_reqs(_next(g, "requirements"))
+        reqs = _not_ready_reqs(_next(g, "requirements"), iotaa_nodes)
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
@@ -787,19 +787,26 @@ def _next(g: Iterator, desc: str) -> Any:
         raise IotaaError(msg) from e
 
 
-def _not_ready_reqs(reqs: _ReqsT) -> _ReqsT:
+def _not_ready_reqs(reqs: _ReqsT, nodes: UserDict[str, _NodeT]) -> _ReqsT:
     """
     Return only not-ready requirements.
 
     :param reqs: dict with Node values, list of Node, or Node.
+    :param nodes: dict mapping tasknames to already-seen Nodes.
     """
+
+    def unique(req):
+        if req.taskname not in nodes:
+            nodes[req.taskname] = req
+        return nodes[req.taskname]
+
     if reqs is None:
         return None
     if isinstance(reqs, dict):
-        return {k: req for k, req in reqs.items() if not req.ready}
+        return {k: unique(req) for k, req in reqs.items() if not req.ready}
     if isinstance(reqs, list):
-        return [req for req in reqs if not req.ready]
-    return None if reqs.ready else reqs  # might be Node, might be a Mock
+        return [unique(req) for req in reqs if not req.ready]
+    return None if reqs.ready else unique(reqs)
 
 
 def _parse_args(raw: list[str]) -> Namespace:
