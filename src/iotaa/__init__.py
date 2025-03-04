@@ -420,17 +420,11 @@ class _LoggerProxy:
     @staticmethod
     def logger() -> Logger:
         """
-        Search the stack for a specially-named and iotaa-marked local logger variable, which will
-        exist for calls made from iotaa task functions.
+        Search the stack for the logger, which will exist for calls made from iotaa task functions.
 
         :raises: IotaaError is no logger is found.
         """
-        for frameinfo in inspect.stack():
-            logger = frameinfo.frame.f_locals.get("iotaa_logger")
-            if logger and hasattr(logger, _MARKER):
-                return cast(Logger, logger)
-        msg = "No logger found: Ensure this call originated in an iotaa task function."
-        raise IotaaError(msg)
+        return cast(Logger, _findabove(name="iotaa_logger", desc="logger"))
 
 
 _LoggerT = Union[Logger, _LoggerProxy]
@@ -625,7 +619,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
 def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     """
-    The @tasks decorator for collections of @task (or @external) calls.
+    The @tasks decorator for collections tasks.
 
     :param f: The function being decorated.
     :return: A decorated function.
@@ -689,6 +683,20 @@ def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
             pass
 
     return exec_task_body
+
+
+def _findabove(name: str, desc: str) -> Any:
+    """
+    Search the stack for a specially-named and iotaa-marked frame-local object with the given name.
+
+    :raises: IotaaError is no such object is found.
+    """
+    for frameinfo in inspect.stack():
+        obj = frameinfo.frame.f_locals.get(name)
+        if obj and hasattr(obj, _MARKER):
+            return obj
+    msg = f"No {desc} found: Ensure this call originated in an iotaa task function."
+    raise IotaaError(msg)
 
 
 @overload
