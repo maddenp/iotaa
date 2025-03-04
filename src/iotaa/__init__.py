@@ -272,10 +272,8 @@ class Node(ABC):
         """
         Is this the root node (i.e. is it not a requirement of another task)?
         """
-        is_iotaa_wrapper = lambda x: x.filename == __file__ and x.function.startswith(
-            "_iotaa_wrapper_"
-        )
-        return sum(1 for x in inspect.stack() if is_iotaa_wrapper(x)) == 1
+        is_wrapper = lambda x: x.filename == __file__ and x.function.startswith("_iotaa_wrapper_")
+        return sum(1 for x in inspect.stack() if is_wrapper(x)) == 1
 
 
 _NodeT = TypeVar("_NodeT", bound=Node)
