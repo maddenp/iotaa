@@ -8,7 +8,7 @@ from abc import abstractmethod
 from collections import UserDict
 from graphlib import TopologicalSorter
 from hashlib import sha256
-from itertools import chain, combinations
+from itertools import chain
 from operator import add
 from pathlib import Path
 from textwrap import dedent
@@ -808,13 +808,9 @@ def test_Node__add_node_and_predecessors(caplog, fakefs, iotaa_logger):  # noqa:
 
 def test_Node__assemble(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     node = t_tasks_baz(fakefs)
-    with (
-        patch.object(node, "_dedupe") as _dedupe,
-        patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors,
-    ):
+    with patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors:
         g = node._assemble()
     assert logged(caplog, "Task Graph")
-    _dedupe.assert_called_once_with()
     _add_node_and_predecessors.assert_called_once_with(ANY, node)
     assert logged(caplog, "Execution")
     assert node._first_visit is False
@@ -891,27 +887,6 @@ def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     """
     actual = "\n".join(caplog.messages[-3:])
     assert actual.strip() == dedent(expected).strip()
-
-
-def test_Node__dedupe(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    n = [t_external_foo_scalar(fakefs) for _ in range(6)]
-    # All the nodes are distinct objects:
-    assert not any(n1 is n2 for n1, n2 in combinations(n, 2))
-    # But they're equivalent due to their identical tasknames:
-    assert all(n1 == n2 for n1, n2 in combinations(n, 2))
-    # A scalar requirement:
-    n[0]._reqs = n[1]
-    # A list of requirements:
-    n[1]._reqs = [n[2], n[3]]
-    # A dict of requirements:
-    n[2]._reqs = {"a": n[4], "b": n[5]}
-    # No requirements:
-    n[3]._reqs = n[4]._reqs = n[5]._reqs = None
-    # These deduplicate to a set with a single node:
-    assert n[0]._dedupe() == {n[0]}
-    # The replacement was reported in log messages:
-    msg = "Discarding node 'external foo .*' for identical 'external foo .*'"
-    assert logged(caplog, msg, escape=False)
 
 
 @mark.parametrize("touch", [False, True])

@@ -109,7 +109,6 @@ class Node(ABC):
         """
         g: TopologicalSorter = TopologicalSorter()
         log.debug("Deduplicating task-graph nodes")
-        self._dedupe()
         self._debug_header("Task Graph")
         self._add_node_and_predecessors(g, self)
         self._debug_header("Execution")
@@ -135,59 +134,6 @@ class Node(ABC):
         log.debug(sep)
         log.debug(msg)
         log.debug(sep)
-
-    def _dedupe(self, known: set[Node] | None = None) -> set[Node]:
-        """
-        Unify equivalent task-graph nodes.
-
-        Decorated task functions/methods may create Node objects semantically equivalent to those
-        created by others. Walk the task graph, deduplicating such nodes. Nodes are equivalent if
-        their tasknames match. The __eq__ and __hash__ methods on class Node define equivalence
-        semantics.
-
-        In addition to ensuring that a single Node object representing a class of equivalent Node
-        objects is present in the task graph, replace assets on to-be-discarded Node objects with
-        the assets of the retained Node. This is necessary because code in the closure referred to
-        by a discarded Node's .exec_task_body attribute will never run, and it might have updated an
-        in-scope Asset object; that Asset object is now unreliable. However, the retained Node has
-        an equivalent Asset whose close code will run, making it reliable.
-
-        :param known: The set of known nodes.
-        :return: The (possibly updated) set of known nodes.
-        """
-
-        def existing(node: Node, known: set[Node]) -> Node:
-            x = next(n for n in known if n == node)
-            if node is not x:
-                log.debug("Discarding node '%s' for identical '%s'", node, x)
-                node._assets = x._assets  # noqa: SLF001
-            return x
-
-        def recur(node: Node, known: set[Node]) -> set[Node]:
-            known.add(node)
-            return node._dedupe(known)  # noqa: SLF001
-
-        deduped: Node | dict[str, Node] | list[Node] | None
-
-        known = known or {self}
-        if isinstance(self._reqs, Node):
-            node = self._reqs
-            known = recur(node, known)
-            deduped = existing(node, known)
-        elif isinstance(self._reqs, dict):
-            deduped = {}
-            for k, node in self._reqs.items():
-                known = recur(node, known)
-                deduped[k] = existing(node, known)
-        elif isinstance(self._reqs, list):
-            deduped = []
-            for node in self._reqs:
-                known = recur(node, known)
-                deduped.append(existing(node, known))
-        else:
-            deduped = self._reqs  # leave it (it might be a Mock)
-        self._reqs = deduped
-        return known
 
     def _exec_concurrent(self, g: TopologicalSorter, dry_run: bool) -> None:
         """
