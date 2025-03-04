@@ -605,7 +605,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
-        reqs: _ReqsT = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"))
+        reqs = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"))
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
@@ -631,7 +631,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     @wraps(f)
     def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
         taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
-        reqs: _ReqsT = _not_ready_reqs(_next(g, "requirements"))
+        reqs = _not_ready_reqs(_next(g, "requirements"))
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
