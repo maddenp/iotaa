@@ -12,6 +12,7 @@ import time
 import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
+from collections import UserDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
@@ -578,7 +579,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
 
     @wraps(f)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -602,9 +603,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
 
     @wraps(f)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
-        # breakpoint()
-        taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
-        assert isinstance(iotaa_logger, Logger)
+        taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
         assets_ = _next(g, "assets")
         reqs: _ReqsT = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"))
         return _construct_and_if_root_call(
@@ -631,10 +630,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
     @wraps(f)
     def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
-        # from collections import UserDict
-        # iotaa_nodes = _mark(UserDict())
-        taskname, threads, dry_run, iotaa_logger, g = _task_common(f, *args, **kwargs)
-        assert isinstance(iotaa_logger, Logger)
+        taskname, threads, dry_run, iotaa_logger, iotaa_nodes, g = _task_common(f, *args, **kwargs)
         reqs: _ReqsT = _not_ready_reqs(_next(g, "requirements"))
         return _construct_and_if_root_call(
             node_class=NodeTasks,
@@ -746,6 +742,13 @@ def _formatter(prog: str) -> HelpFormatter:
     :return: An argparse help formatter.
     """
     return HelpFormatter(prog, max_help_position=4)
+
+
+def _iotaa_nodes() -> UserDict:
+    """
+    Returns the "iotaa_nodes" object from the most recent stack frame.
+    """
+    return _findabove("iotaa_nodes") or _mark(UserDict())
 
 
 def _mark(f: _T) -> _T:
@@ -870,7 +873,9 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
     sys.exit(0)
 
 
-def _task_common(f: Callable, *args, **kwargs) -> tuple[str, int, bool, _LoggerT, Generator]:
+def _task_common(
+    f: Callable, *args, **kwargs
+) -> tuple[str, int, bool, _LoggerT, UserDict[str, Node], Generator]:
     """
     Collect and return info about the task.
 
@@ -884,7 +889,7 @@ def _task_common(f: Callable, *args, **kwargs) -> tuple[str, int, bool, _LoggerT
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)
     taskname = str(_next(g, "task name"))
-    return taskname, threads, dry_run, logger, g
+    return taskname, threads, dry_run, logger, _iotaa_nodes(), g
 
 
 def _version() -> str:

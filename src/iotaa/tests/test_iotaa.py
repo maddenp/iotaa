@@ -705,11 +705,12 @@ def test__task_common():
         yield n
 
     tn = "task"
-    taskname, threads, dry_run, logger, g = iotaa._task_common(f, tn, n=42, threads=1)
+    taskname, threads, dry_run, logger, nodes, g = iotaa._task_common(f, tn, n=42, threads=1)
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
     assert logger is iotaa.logging.getLogger()
+    assert nodes == {}
     assert next(g) == 42
 
 
@@ -720,11 +721,12 @@ def test__task_common_extras():
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, threads, dry_run, logger, g = iotaa._task_common(f, tn, n=42, dry_run=True)
+    taskname, threads, dry_run, logger, nodes, g = iotaa._task_common(f, tn, n=42, dry_run=True)
     assert taskname == tn
     assert threads == 0
     assert dry_run is True
     assert logger is iotaa.logging.getLogger()
+    assert nodes == {}
     assert next(g) == 42
 
 
