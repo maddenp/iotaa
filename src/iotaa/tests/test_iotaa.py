@@ -278,7 +278,7 @@ class TaskClass:
         pass
 
 
-# Public API tests
+# Tests
 
 
 @mark.parametrize(
@@ -289,6 +289,189 @@ class TaskClass:
 def test_Asset(asset):
     assert asset.ref == "foo"
     assert asset.ready()
+
+
+def test__Graph(graphkit):
+    expected, graph, _ = graphkit
+    assert str(graph).strip() == expected
+
+
+def test__LoggerProxy():
+    lp = iotaa._LoggerProxy()
+    with raises(iotaa.IotaaError) as e:
+        lp.info("fail")
+    expected = "No logger found: Ensure this call originated in an iotaa task function."
+    assert str(e.value) == expected
+
+
+def test_Node___call___dry_run(caplog, fakefs):
+    caplog.set_level(logging.INFO)
+    (fakefs / "foo").touch()
+    node = t_task_bar_scalar(fakefs, dry_run=True)
+    assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
+
+
+def test_Node__eq__(fakefs):
+    # These two have the same taskname:
+    node_dict1 = t_task_bar_dict(fakefs)
+    node_dict2 = t_task_bar_dict(fakefs)
+    assert node_dict1 == node_dict2
+    # But this one has a different taskname:
+    node_scalar = t_external_foo_scalar(fakefs)
+    assert node_dict1 != node_scalar
+
+
+def test_Node__hash__(fakefs):
+    node_dict = t_task_bar_dict(fakefs)
+    assert hash(node_dict) == hash("task bar dict %s" % Path(fakefs, "bar"))
+
+
+def test_Node___repr__(fakefs):
+    node = t_task_bar_scalar(fakefs)
+    assert re.match(r"^task bar scalar %s <\d+>$" % Path(fakefs, "bar"), str(node))
+
+
+def test_Node_ready(fakefs):
+    assert not t_external_foo_scalar(fakefs).ready
+    (fakefs / "foo").touch()
+    assert t_external_foo_scalar(fakefs).ready
+
+
+def test_Node__add_node_and_predecessors(caplog, fakefs, iotaa_logger):  # noqa: ARG001
+    g: TopologicalSorter = TopologicalSorter()
+    node = t_tasks_baz(fakefs)
+    node._add_node_and_predecessors(g=g, node=node)
+    tasknames = [
+        "external foo %s" % Path(fakefs, "foo"),
+        "task bar dict %s" % Path(fakefs, "bar"),
+        "tasks baz",
+    ]
+    assert [x.taskname for x in g.static_order()] == tasknames
+    assert logged(caplog, "tasks baz")
+    assert logged(caplog, "  external foo %s" % Path(fakefs, "foo"))
+    assert logged(caplog, "  task bar dict %s" % Path(fakefs, "bar"))
+
+
+def test_Node__assemble(caplog, fakefs, iotaa_logger):  # noqa: ARG001
+    node = t_tasks_baz(fakefs)
+    with patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors:
+        g = node._assemble()
+    assert logged(caplog, "Task Graph")
+    _add_node_and_predecessors.assert_called_once_with(ANY, node)
+    assert logged(caplog, "Execution")
+    assert node._first_visit is False
+    assert isinstance(g, TopologicalSorter)
+
+
+@mark.parametrize("concurrent", [False, True])
+def test_Node__assemble_and_exec(concurrent, fakefs):
+    kwargs = {"threads": 2} if concurrent else {}
+    with (
+        patch.object(iotaa.Node, "_exec_concurrent") as _exec_concurrent,
+        patch.object(iotaa.Node, "_exec_synchronous") as _exec_synchronous,
+    ):
+        t_tasks_baz(fakefs, **kwargs)
+    expected = _exec_concurrent if concurrent else _exec_synchronous
+    expected.assert_called_once_with(g=ANY, dry_run=False)
+    unexpected = _exec_synchronous if concurrent else _exec_concurrent
+    unexpected.assert_not_called()
+
+
+@mark.parametrize("n", [2, -1])
+@mark.parametrize("threads", [1, 2])
+def test_Node__exec_concurrent(caplog, iotaa_logger, n, threads):  # noqa: ARG001
+    node = memval(n, threads=threads)
+    success = "Task completed in thread"
+    assert logged(caplog, f"b 1: {success}")
+    assert logged(caplog, f"b {n}: {success}")
+    if n == -1:
+        for msg in (
+            "zero result",
+            "Traceback (most recent call last):",
+            "RuntimeError: zero result",
+        ):
+            assert logged(caplog, f"a: Task failed in thread: {msg}")
+    else:
+        assert iotaa.refs(node)[0] == 3
+        assert logged(caplog, f"a: {success}")
+
+
+def test_Node__exec_concurrent_interrupt(caplog, iotaa_logger):  # noqa: ARG001
+    node = interrupted(threads=1)
+    assert not iotaa.ready(node)
+    assert logged(caplog, "Interrupted")
+    assert logged(caplog, "Cancelling: Interrupted Task")
+
+
+@mark.parametrize("n", [2, -1])
+def test_Node__exec_synchronous(caplog, iotaa_logger, n):  # noqa: ARG001
+    node = memval(n)
+    if n == -1:
+        for msg in (
+            "zero result",
+            "Traceback (most recent call last):",
+            "RuntimeError: zero result",
+        ):
+            assert logged(caplog, f"a: Task failed: {msg}")
+    else:
+        assert iotaa.refs(node)[0] == 3
+
+
+def test_Node__exec_synchronous_interrupt(caplog, iotaa_logger):  # noqa: ARG001
+    node = interrupted()
+    assert not iotaa.ready(node)
+    assert logged(caplog, "Interrupted")
+
+
+def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
+    node = t_tasks_baz(fakefs)
+    node._debug_header("foo")
+    expected = """
+    ───
+    foo
+    ───
+    """
+    actual = "\n".join(caplog.messages[-3:])
+    assert actual.strip() == dedent(expected).strip()
+
+
+@mark.parametrize("touch", [False, True])
+def test_Node__report_readiness_tasks(caplog, fakefs, iotaa_logger, touch):  # noqa: ARG001
+    path = fakefs / "foo"
+    if touch:
+        path.touch()
+    node = t_tasks_qux(fakefs)
+    node._report_readiness()
+    assert logged(caplog, "tasks qux: %s" % ("Ready" if touch else "Not ready"))
+    if not touch:
+        assert logged(caplog, "tasks qux: Requires:")
+        assert logged(caplog, "tasks qux: ✖ external foo %s" % path)
+        assert logged(caplog, "tasks qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
+
+
+def test_Node__reset_ready(fakefs):
+    path = fakefs / "foo"
+    node = t_external_foo_scalar(fakefs)
+    # File doesn't exist so:
+    assert not node.ready
+    path.touch()
+    # Now file exists:
+    node = t_external_foo_scalar(fakefs)
+    assert node.ready
+    # Rmove file:
+    path.unlink()
+    # But node is stil ready due to caching:
+    assert node.ready
+    # Reset cache:
+    node._reset_ready()
+    assert not node.ready
+
+
+def test_Node__root(fakefs):
+    node = t_tasks_baz(fakefs)
+    assert node._root
+    children = cast(list[iotaa.Node], node._reqs)
+    assert not any(child._root for child in children)
 
 
 def test_assets(fakefs):
@@ -753,195 +936,3 @@ def test__task_common_extras():
     assert logger is iotaa.logging.getLogger()
     assert nodes == {}
     assert next(g) == 42
-
-
-# Node tests
-
-
-def test_Node___call___dry_run(caplog, fakefs):
-    caplog.set_level(logging.INFO)
-    (fakefs / "foo").touch()
-    node = t_task_bar_scalar(fakefs, dry_run=True)
-    assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
-
-
-def test_Node__eq__(fakefs):
-    # These two have the same taskname:
-    node_dict1 = t_task_bar_dict(fakefs)
-    node_dict2 = t_task_bar_dict(fakefs)
-    assert node_dict1 == node_dict2
-    # But this one has a different taskname:
-    node_scalar = t_external_foo_scalar(fakefs)
-    assert node_dict1 != node_scalar
-
-
-def test_Node__hash__(fakefs):
-    node_dict = t_task_bar_dict(fakefs)
-    assert hash(node_dict) == hash("task bar dict %s" % Path(fakefs, "bar"))
-
-
-def test_Node___repr__(fakefs):
-    node = t_task_bar_scalar(fakefs)
-    assert re.match(r"^task bar scalar %s <\d+>$" % Path(fakefs, "bar"), str(node))
-
-
-def test_Node_ready(fakefs):
-    assert not t_external_foo_scalar(fakefs).ready
-    (fakefs / "foo").touch()
-    assert t_external_foo_scalar(fakefs).ready
-
-
-def test_Node__add_node_and_predecessors(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    g: TopologicalSorter = TopologicalSorter()
-    node = t_tasks_baz(fakefs)
-    node._add_node_and_predecessors(g=g, node=node)
-    tasknames = [
-        "external foo %s" % Path(fakefs, "foo"),
-        "task bar dict %s" % Path(fakefs, "bar"),
-        "tasks baz",
-    ]
-    assert [x.taskname for x in g.static_order()] == tasknames
-    assert logged(caplog, "tasks baz")
-    assert logged(caplog, "  external foo %s" % Path(fakefs, "foo"))
-    assert logged(caplog, "  task bar dict %s" % Path(fakefs, "bar"))
-
-
-def test_Node__assemble(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    node = t_tasks_baz(fakefs)
-    with patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors:
-        g = node._assemble()
-    assert logged(caplog, "Task Graph")
-    _add_node_and_predecessors.assert_called_once_with(ANY, node)
-    assert logged(caplog, "Execution")
-    assert node._first_visit is False
-    assert isinstance(g, TopologicalSorter)
-
-
-@mark.parametrize("concurrent", [False, True])
-def test_Node__assemble_and_exec(concurrent, fakefs):
-    kwargs = {"threads": 2} if concurrent else {}
-    with (
-        patch.object(iotaa.Node, "_exec_concurrent") as _exec_concurrent,
-        patch.object(iotaa.Node, "_exec_synchronous") as _exec_synchronous,
-    ):
-        t_tasks_baz(fakefs, **kwargs)
-    expected = _exec_concurrent if concurrent else _exec_synchronous
-    expected.assert_called_once_with(g=ANY, dry_run=False)
-    unexpected = _exec_synchronous if concurrent else _exec_concurrent
-    unexpected.assert_not_called()
-
-
-@mark.parametrize("n", [2, -1])
-@mark.parametrize("threads", [1, 2])
-def test_Node__exec_concurrent(caplog, iotaa_logger, n, threads):  # noqa: ARG001
-    node = memval(n, threads=threads)
-    success = "Task completed in thread"
-    assert logged(caplog, f"b 1: {success}")
-    assert logged(caplog, f"b {n}: {success}")
-    if n == -1:
-        for msg in (
-            "zero result",
-            "Traceback (most recent call last):",
-            "RuntimeError: zero result",
-        ):
-            assert logged(caplog, f"a: Task failed in thread: {msg}")
-    else:
-        assert iotaa.refs(node)[0] == 3
-        assert logged(caplog, f"a: {success}")
-
-
-def test_Node__exec_concurrent_interrupt(caplog, iotaa_logger):  # noqa: ARG001
-    node = interrupted(threads=1)
-    assert not iotaa.ready(node)
-    assert logged(caplog, "Interrupted")
-    assert logged(caplog, "Cancelling: Interrupted Task")
-
-
-@mark.parametrize("n", [2, -1])
-def test_Node__exec_synchronous(caplog, iotaa_logger, n):  # noqa: ARG001
-    node = memval(n)
-    if n == -1:
-        for msg in (
-            "zero result",
-            "Traceback (most recent call last):",
-            "RuntimeError: zero result",
-        ):
-            assert logged(caplog, f"a: Task failed: {msg}")
-    else:
-        assert iotaa.refs(node)[0] == 3
-
-
-def test_Node__exec_synchronous_interrupt(caplog, iotaa_logger):  # noqa: ARG001
-    node = interrupted()
-    assert not iotaa.ready(node)
-    assert logged(caplog, "Interrupted")
-
-
-def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    node = t_tasks_baz(fakefs)
-    node._debug_header("foo")
-    expected = """
-    ───
-    foo
-    ───
-    """
-    actual = "\n".join(caplog.messages[-3:])
-    assert actual.strip() == dedent(expected).strip()
-
-
-@mark.parametrize("touch", [False, True])
-def test_Node__report_readiness_tasks(caplog, fakefs, iotaa_logger, touch):  # noqa: ARG001
-    path = fakefs / "foo"
-    if touch:
-        path.touch()
-    node = t_tasks_qux(fakefs)
-    node._report_readiness()
-    assert logged(caplog, "tasks qux: %s" % ("Ready" if touch else "Not ready"))
-    if not touch:
-        assert logged(caplog, "tasks qux: Requires:")
-        assert logged(caplog, "tasks qux: ✖ external foo %s" % path)
-        assert logged(caplog, "tasks qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
-
-
-def test_Node__reset_ready(fakefs):
-    path = fakefs / "foo"
-    node = t_external_foo_scalar(fakefs)
-    # File doesn't exist so:
-    assert not node.ready
-    path.touch()
-    # Now file exists:
-    node = t_external_foo_scalar(fakefs)
-    assert node.ready
-    # Rmove file:
-    path.unlink()
-    # But node is stil ready due to caching:
-    assert node.ready
-    # Reset cache:
-    node._reset_ready()
-    assert not node.ready
-
-
-def test_Node__root(fakefs):
-    node = t_tasks_baz(fakefs)
-    assert node._root
-    children = cast(list[iotaa.Node], node._reqs)
-    assert not any(child._root for child in children)
-
-
-# _Graph tests
-
-
-def test__Graph(graphkit):
-    expected, graph, _ = graphkit
-    assert str(graph).strip() == expected
-
-
-# _LoggerProxy tests
-
-
-def test__LoggerProxy():
-    lp = iotaa._LoggerProxy()
-    with raises(iotaa.IotaaError) as e:
-        lp.info("fail")
-    expected = "No logger found: Ensure this call originated in an iotaa task function."
-    assert str(e.value) == expected

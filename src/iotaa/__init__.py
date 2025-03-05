@@ -30,11 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator, Iterator  # pragma: no cover
     from types import ModuleType  # pragma: no cover
 
-_JSONValT = Union[bool, dict, float, int, list, str]
-_MARKER = "__IOTAA__"
-_T = TypeVar("_T")
-
-# Public return-value classes:
+# Classes
 
 
 @dataclass
@@ -50,7 +46,67 @@ class Asset:
     ready: Callable[..., bool]
 
 
-_AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+class _Graph:
+    """
+    Graphviz digraph support.
+    """
+
+    def __init__(self, root: Node) -> None:
+        """
+        :param root: The task-graph root node.
+        """
+        self._nodes: set = set()
+        self._edges: set = set()
+        self._build(root)
+
+    def _build(self, node: Node) -> None:
+        """
+        Recursively add task nodes with edges to nodes they require.
+
+        :param node: The root node of the current subgraph.
+        """
+        self._nodes.add(node)
+        for req in _flatten(requirements(node)):
+            self._edges.add((node, req))
+            self._build(req)
+
+    def __repr__(self) -> str:
+        """
+        Returns the task graph in Graphviz DOT format.
+        """
+        s = '%s [fillcolor=%s, label="%s", style=filled]'
+        name = lambda node: "_%s" % sha256(str(node.taskname).encode("utf-8")).hexdigest()
+        color = lambda node: "palegreen" if node.ready else "orange"
+        nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
+        edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
+        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
+
+
+class IotaaError(Exception):
+    """
+    A custom exception type for iotaa-specific errors.
+    """
+
+
+class _LoggerProxy:
+    """
+    A proxy for the logger currently in use by iotaa.
+    """
+
+    def __getattr__(self, name):
+        return getattr(self.logger(), name)
+
+    @staticmethod
+    def logger() -> Logger:
+        """
+        Search the stack for the logger, which will exist for calls made from iotaa task functions.
+
+        :raises: IotaaError is no logger is found.
+        """
+        if not (found := _findabove(name="iotaa_logger")):
+            msg = "No logger found: Ensure this call originated in an iotaa task function."
+            raise IotaaError(msg)
+        return cast(Logger, found)
 
 
 class Node(ABC):
@@ -223,10 +279,6 @@ class Node(ABC):
         return sum(1 for x in inspect.stack() if is_wrapper(x)) == 1
 
 
-_NodeT = TypeVar("_NodeT", bound=Node)
-_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
-
-
 class NodeExternal(Node):
     """
     A node encapsulating an @external-decorated function/method.
@@ -311,102 +363,15 @@ class NodeTasks(Node):
         pass
 
 
-class IotaaError(Exception):
-    """
-    A custom exception type for iotaa-specific errors.
-    """
-
-
-# Private helper classes and their instances:
-
-
-class _Graph:
-    """
-    Graphviz digraph support.
-    """
-
-    def __init__(self, root: Node) -> None:
-        """
-        :param root: The task-graph root node.
-        """
-        self._nodes: set = set()
-        self._edges: set = set()
-        self._build(root)
-
-    def _build(self, node: Node) -> None:
-        """
-        Recursively add task nodes with edges to nodes they require.
-
-        :param node: The root node of the current subgraph.
-        """
-        self._nodes.add(node)
-        for req in _flatten(requirements(node)):
-            self._edges.add((node, req))
-            self._build(req)
-
-    def __repr__(self) -> str:
-        """
-        Returns the task graph in Graphviz DOT format.
-        """
-        s = '%s [fillcolor=%s, label="%s", style=filled]'
-        name = lambda node: "_%s" % sha256(str(node.taskname).encode("utf-8")).hexdigest()
-        color = lambda node: "palegreen" if node.ready else "orange"
-        nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
-        edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
-        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
-
-
-class _LoggerProxy:
-    """
-    A proxy for the logger currently in use by iotaa.
-    """
-
-    def __getattr__(self, name):
-        return getattr(self.logger(), name)
-
-    @staticmethod
-    def logger() -> Logger:
-        """
-        Search the stack for the logger, which will exist for calls made from iotaa task functions.
-
-        :raises: IotaaError is no logger is found.
-        """
-        if not (found := _findabove(name="iotaa_logger")):
-            msg = "No logger found: Ensure this call originated in an iotaa task function."
-            raise IotaaError(msg)
-        return cast(Logger, found)
-
-
+_AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
+_JSONValT = Union[bool, dict, float, int, list, str]
 _LoggerT = Union[Logger, _LoggerProxy]
+_NodeT = TypeVar("_NodeT", bound=Node)
+_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
+_T = TypeVar("_T")
 
-# Main entry-point function:
-
-
-def main() -> None:
-    """
-    Main CLI entry point.
-    """
-    # Parse the command-line arguments, set up logging, then: If the module-name argument represents
-    # a file, append its parent directory to sys.path and remove any extension (presumably .py) so
-    # that it can be imported. If it does not represent a file, assume that it names a module that
-    # can be imported via standard means, maybe via PYTHONPATH. Trailing positional command-line
-    # arguments are then JSON-parsed to Python objects and passed to the specified function.
-
-    args = _parse_args(sys.argv[1:])
-    logcfg(verbose=args.verbose)
-    modobj = _modobj(args.module)
-    if args.show:
-        _show_tasks_and_exit(args.module, modobj)
-    task_func = getattr(modobj, args.function)
-    task_args = [_reify(arg) for arg in args.args]
-    task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
-    try:
-        root = task_func(*task_args, **task_kwargs)
-    except IotaaError as e:
-        logging.error(str(e))
-        sys.exit(1)
-    if args.graph:
-        print(graph(root))
+_MARKER = "__IOTAA__"
+log = _LoggerProxy()
 
 
 # Public API functions:
@@ -440,9 +405,6 @@ def graph(node: Node) -> str:
     return str(_Graph(root=node))
 
 
-log = _LoggerProxy()
-
-
 def logcfg(verbose: bool = False) -> None:
     """
     Configure default logging.
@@ -454,6 +416,33 @@ def logcfg(verbose: bool = False) -> None:
         format="[%(asctime)s] %(levelname)-7s %(message)s",
         level=logging.DEBUG if verbose else logging.INFO,
     )
+
+
+def main() -> None:
+    """
+    Main CLI entry point.
+    """
+    # Parse the command-line arguments, set up logging, then: If the module-name argument represents
+    # a file, append its parent directory to sys.path and remove any extension (presumably .py) so
+    # that it can be imported. If it does not represent a file, assume that it names a module that
+    # can be imported via standard means, maybe via PYTHONPATH. Trailing positional command-line
+    # arguments are then JSON-parsed to Python objects and passed to the specified function.
+
+    args = _parse_args(sys.argv[1:])
+    logcfg(verbose=args.verbose)
+    modobj = _modobj(args.module)
+    if args.show:
+        _show_tasks_and_exit(args.module, modobj)
+    task_func = getattr(modobj, args.function)
+    task_args = [_reify(arg) for arg in args.args]
+    task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
+    try:
+        root = task_func(*task_args, **task_kwargs)
+    except IotaaError as e:
+        logging.error(str(e))
+        sys.exit(1)
+    if args.graph:
+        print(graph(root))
 
 
 def ready(node: Node) -> bool:
