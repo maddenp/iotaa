@@ -363,6 +363,13 @@ class NodeTasks(Node):
         pass
 
 
+# Globals
+
+_MARKER = "__IOTAA__"
+log = _LoggerProxy()
+
+# Types
+
 _AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 _JSONValT = Union[bool, dict, float, int, list, str]
 _LoggerT = Union[Logger, _LoggerProxy]
@@ -370,11 +377,8 @@ _NodeT = TypeVar("_NodeT", bound=Node)
 _ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 _T = TypeVar("_T")
 
-_MARKER = "__IOTAA__"
-log = _LoggerProxy()
 
-
-# Public API functions:
+# Public functions:
 
 
 def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
@@ -498,7 +502,7 @@ def tasknames(obj: object) -> list[str]:
     return sorted(name for name in dir(obj) if f(getattr(obj, name)))
 
 
-# Public task-graph decorator functions:
+# Public decorators:
 
 # NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-marked
 # logger local variable in each wrapper function below and will use it when logging via iotaa.log().
@@ -579,7 +583,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
     return _mark(_iotaa_wrapper_tasks)
 
 
-# Private helper functions:
+# Private functions:
 
 
 def _construct_and_if_root_call(

@@ -278,7 +278,7 @@ class TaskClass:
         pass
 
 
-# Tests
+# Tests for classes
 
 
 @mark.parametrize(
@@ -474,6 +474,16 @@ def test_Node__root(fakefs):
     assert not any(child._root for child in children)
 
 
+# Tests for public functions
+
+
+def test_asset():
+    o = object()
+    a = iotaa.asset(ref=o, ready=lambda: True)
+    assert a.ref == o
+    assert a.ready()
+
+
 def test_assets(fakefs):
     node = t_external_foo_scalar(fakefs)
     asset = cast(iotaa.Asset, iotaa.assets(node))
@@ -491,58 +501,6 @@ def test_logcfg(vals):
     with patch.object(iotaa.logging, "basicConfig") as bc:
         iotaa.logcfg(verbose=verbose)
     bc.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
-
-
-def test_ready(fakefs):
-    node_before = t_external_foo_scalar(fakefs)
-    assert not iotaa.ready(node_before)
-    iotaa.refs(node_before).touch()
-    node_after = t_external_foo_scalar(fakefs)
-    assert iotaa.ready(node_after)
-
-
-def test_ready_tasks():
-    @iotaa.task
-    def shared():
-        val: list[bool] = []
-        yield "shared"
-        yield iotaa.asset(val, lambda: bool(val))
-        yield None
-        val.append(True)
-
-    @iotaa.tasks
-    def tasks():
-        yield "tasks"
-        yield [shared(), shared()]
-
-    assert iotaa.ready(tasks())
-
-
-def test_refs():
-    expected = "bar"
-    asset = iotaa.asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
-    assert iotaa.refs(obj=node) is None
-    node._assets = {"foo": asset}
-    assert iotaa.refs(obj=node)["foo"] == expected
-    node._assets = [asset]
-    assert iotaa.refs(obj=node)[0] == expected
-    node._assets = asset
-    assert iotaa.refs(obj=node) == expected
-    assert iotaa.refs(asset) == expected
-    assert iotaa.refs([asset, asset]) == [expected, expected]
-    assert iotaa.refs({"a": asset, "b": asset}) == {"a": expected, "b": expected}
-
-
-def test_requirements(fakefs):
-    assert iotaa.requirements(t_task_bar_dict(fakefs)) == t_external_foo_scalar(fakefs)
-
-
-def test_tasknames():
-    assert iotaa.tasknames(TaskClass) == ["bar", "baz", "foo"]
-
-
-# main() tests
 
 
 def test_main_error(caplog):
@@ -611,19 +569,60 @@ def test_main_mocked_up_tasknames(fakefs):
         graph.assert_not_called()
 
 
-# Decorator tests
+def test_ready(fakefs):
+    node_before = t_external_foo_scalar(fakefs)
+    assert not iotaa.ready(node_before)
+    iotaa.refs(node_before).touch()
+    node_after = t_external_foo_scalar(fakefs)
+    assert iotaa.ready(node_after)
 
 
-@mark.parametrize(
-    ("docstring", "func"),
-    [
-        ("EXTERNAL!", t_external_foo_scalar),
-        ("TASK!", t_task_bar_scalar),
-        ("TASKS!", t_tasks_baz),
-    ],
-)
-def test_docstrings(docstring, func):
-    assert func.__doc__.strip() == docstring
+def test_ready_tasks():
+    @iotaa.task
+    def shared():
+        val: list[bool] = []
+        yield "shared"
+        yield iotaa.asset(val, lambda: bool(val))
+        yield None
+        val.append(True)
+
+    @iotaa.tasks
+    def tasks():
+        yield "tasks"
+        yield [shared(), shared()]
+
+    assert iotaa.ready(tasks())
+
+
+def test_refs():
+    expected = "bar"
+    asset = iotaa.asset(ref="bar", ready=lambda: True)
+    node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
+    assert iotaa.refs(obj=node) is None
+    node._assets = {"foo": asset}
+    assert iotaa.refs(obj=node)["foo"] == expected
+    node._assets = [asset]
+    assert iotaa.refs(obj=node)[0] == expected
+    node._assets = asset
+    assert iotaa.refs(obj=node) == expected
+    assert iotaa.refs(asset) == expected
+    assert iotaa.refs([asset, asset]) == [expected, expected]
+    assert iotaa.refs({"a": asset, "b": asset}) == {"a": expected, "b": expected}
+
+
+def test_requirements(fakefs):
+    assert iotaa.requirements(t_task_bar_dict(fakefs)) == t_external_foo_scalar(fakefs)
+
+
+def test_tasknames():
+    assert iotaa.tasknames(TaskClass) == ["bar", "baz", "foo"]
+
+
+# Tests for decorators.
+
+
+def test_external_docstring():
+    assert t_external_foo_scalar.__doc__.strip() == "EXTERNAL!"  # type: ignore[union-attr]
 
 
 def test_external_not_ready(fakefs, iotaa_logger):  # noqa: ARG001
@@ -643,6 +642,10 @@ def test_external_ready(fakefs, iotaa_logger):  # noqa: ARG001
     node()
     assert iotaa.refs(node) == f
     assert node.ready
+
+
+def test_task_docstring():
+    assert t_task_bar_scalar.__doc__.strip() == "TASK!"  # type: ignore[union-attr]
 
 
 @mark.parametrize(
@@ -683,6 +686,10 @@ def test_task_ready(caplog, fakefs, func, iotaa_logger, val):
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
+
+
+def test_tasks_docstring():
+    assert t_tasks_baz.__doc__.strip() == "TASKS!"  # type: ignore[union-attr]
 
 
 def test_tasks_structured():
@@ -752,13 +759,21 @@ def test_tasks_ready(caplog, fakefs, iotaa_logger):
     assert logged(caplog, "tasks baz: Ready")
 
 
-# Private function tests
+# Tests for private functions
+
+
+@mark.skip()
+def test__construct_and_call_if_root(): ...
 
 
 def test__continuation(caplog, iotaa_logger, rungen):  # noqa: ARG001
     continuation = iotaa._continuation(g=rungen, taskname="task")
     continuation()
     assert logged(caplog, "task: Executing")
+
+
+@mark.skip()
+def test__findabove(): ...
 
 
 def test__flatten():
@@ -936,3 +951,7 @@ def test__task_common_extras():
     assert logger is iotaa.logging.getLogger()
     assert nodes == {}
     assert next(g) == 42
+
+
+@mark.skip()
+def test__version(): ...
