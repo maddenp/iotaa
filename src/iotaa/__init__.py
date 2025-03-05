@@ -734,7 +734,7 @@ def _not_ready_reqs(reqs: _ReqsT, nodes: UserDict[str, _NodeT]) -> _ReqsT:
     :param nodes: dict mapping tasknames to already-seen Nodes.
     """
 
-    def unique(req):
+    def the(req):
         if req.taskname not in nodes:
             nodes[req.taskname] = req
         return nodes[req.taskname]
@@ -742,10 +742,11 @@ def _not_ready_reqs(reqs: _ReqsT, nodes: UserDict[str, _NodeT]) -> _ReqsT:
     if reqs is None:
         return None
     if isinstance(reqs, dict):
-        return {k: unique(req) for k, req in reqs.items() if not req.ready}
+        return {k: the(req) for k, req in reqs.items() if not the(req).ready}
     if isinstance(reqs, list):
-        return [unique(req) for req in reqs if not req.ready]
-    return None if reqs.ready else unique(reqs)
+        return [the(req) for req in reqs if not the(req).ready]
+    req = reqs  # i.e. a scalar
+    return None if the(req).ready else the(req)
 
 
 def _parse_args(raw: list[str]) -> Namespace:

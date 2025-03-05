@@ -628,8 +628,8 @@ def test__not_ready_reqs():
     assert iotaa._not_ready_reqs({}, nodes) == {}
     assert nodes == {}
     assert iotaa._not_ready_reqs({"r": r}, nodes) == {}
-    assert nodes == {}
-    invariant = lambda: nodes == {"n": n} and nodes["n"] is n
+    assert nodes == {"r": r}
+    invariant = lambda: nodes == {"n": n, "r": r} and nodes["n"] is n
     assert iotaa._not_ready_reqs({"n": n}, nodes) == {"n": n}
     assert invariant()
     assert iotaa._not_ready_reqs({"n": d}, nodes) == {"n": d}
