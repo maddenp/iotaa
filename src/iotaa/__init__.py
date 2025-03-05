@@ -587,11 +587,7 @@ def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
 
 
 def _construct_and_if_root_call(
-    node_class: type[_NodeT],
-    taskname: str,
-    threads: int,
-    dry_run: bool,
-    **kwargs,
+    node_class: type[_NodeT], taskname: str, threads: int, dry_run: bool, **kwargs
 ) -> _NodeT:
     """
     Construct a Node object and, if it is a root node, call it.
