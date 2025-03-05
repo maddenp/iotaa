@@ -257,12 +257,12 @@ class NodeTask(Node):
         logger: Logger,
         assets_: _AssetsT,
         reqs: _ReqsT,
-        exec_task_body: Callable,
+        continuation: Callable,
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._assets = assets_
         self._reqs = reqs
-        self._exec_task_body = exec_task_body
+        self._continuation = continuation
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
@@ -273,7 +273,7 @@ class NodeTask(Node):
                 if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
-                    self._exec_task_body()
+                    self._continuation()
             self._report_readiness()
         return self
 
@@ -560,7 +560,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
             dry_run=dry_run,
             assets_=assets_,
             reqs=reqs,
-            exec_task_body=_exec_task_body_later(g, taskname),
+            continuation=_continuation(g, taskname),
         )
 
     return _mark(_iotaa_wrapper_task)
@@ -615,7 +615,7 @@ def _construct_and_if_root_call(
     return node
 
 
-def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
+def _continuation(g: Generator, taskname: str) -> Callable:
     """
     Returns a function that, when called, executes the post-yield body of a decorated function.
 
@@ -623,14 +623,14 @@ def _exec_task_body_later(g: Generator, taskname: str) -> Callable:
     :param taskname: The current task's name.
     """
 
-    def exec_task_body():
+    def continuation():
         try:
             log.info("%s: Executing", taskname)
             next(g)
         except StopIteration:
             pass
 
-    return exec_task_body
+    return continuation
 
 
 def _findabove(name: str) -> Any:

@@ -572,9 +572,9 @@ def test_tasks_ready(caplog, fakefs, iotaa_logger):
 # Private function tests
 
 
-def test__exec_task_body_later(caplog, iotaa_logger, rungen):  # noqa: ARG001
-    exec_task_body = iotaa._exec_task_body_later(g=rungen, taskname="task")
-    exec_task_body()
+def test__continuation(caplog, iotaa_logger, rungen):  # noqa: ARG001
+    continuation = iotaa._continuation(g=rungen, taskname="task")
+    continuation()
     assert logged(caplog, "task: Executing")
 
 
