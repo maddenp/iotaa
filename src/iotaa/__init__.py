@@ -735,7 +735,9 @@ def _not_ready_reqs(reqs: _ReqsT, nodes: UserDict[str, _NodeT]) -> _ReqsT:
     """
 
     def the(req):
-        if req.taskname not in nodes:
+        if req.taskname in nodes:
+            req._assets = nodes[req.taskname]._assets  # noqa: SLF001
+        else:
             nodes[req.taskname] = req
         return nodes[req.taskname]
 
