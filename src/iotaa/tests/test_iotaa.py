@@ -399,8 +399,7 @@ def test_Node__exec_concurrent(caplog, iotaa_logger, n, threads):  # noqa: ARG00
 def test_Node__exec_concurrent_interrupt(caplog, iotaa_logger):  # noqa: ARG001
     node = interrupted(threads=1)
     assert not iotaa.ready(node)
-    assert logged(caplog, "Interrupted")
-    assert logged(caplog, "Cancelling: Interrupted Task")
+    assert logged(caplog, "Interrupted, shutting down")
 
 
 @mark.parametrize("n", [2, -1])

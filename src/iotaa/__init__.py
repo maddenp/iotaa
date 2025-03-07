@@ -218,12 +218,10 @@ class Node(ABC):
                 g.done(node)
                 del futures[future]
                 time.sleep(0)
-            except KeyboardInterrupt:
-                log.info("Interrupted")
-                for future, node in futures.items():
-                    log.debug("Cancelling: %s", node.taskname)
-                    future.cancel()
+            except (KeyboardInterrupt, SystemExit):
+                log.info("Interrupted, shutting down")
                 break
+        executor.shutdown(cancel_futures=True, wait=True)
 
     def _exec_synchronous(self, g: TopologicalSorter, dry_run: bool) -> None:
         """

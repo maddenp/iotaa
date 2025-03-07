@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from setuptools import find_packages, setup
+from setuptools import find_packages, setup  # type: ignore[import-untyped]
 
 if os.environ.get("CONDA_BUILD"):
     meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")}
