@@ -171,15 +171,6 @@ class Node(ABC):
         self._first_visit = False
         return g
 
-    def _assemble_and_exec(self, dry_run: bool) -> None:
-        """
-        Assemble and then execute the task graph.
-
-        :param dry_run: Avoid executing state-affecting code?
-        """
-        m = self._exec_synchronous if self._threads == 0 else self._exec_concurrent
-        m(g=self._assemble(), dry_run=dry_run)
-
     def _debug_header(self, msg: str) -> None:
         """
         Log a header message.
@@ -191,13 +182,13 @@ class Node(ABC):
         log.debug(msg)
         log.debug(sep)
 
-    def _exec_concurrent(self, g: TopologicalSorter, dry_run: bool) -> None:
+    def _exec(self, dry_run: bool) -> None:
         """
-        Execute the task graph concurrently.
+        Assemble and execute the task graph.
 
-        :param g: The graph.
         :param dry_run: Avoid executing state-affecting code?
         """
+        g = self._assemble()
         g.prepare()
         executor = ThreadPoolExecutor(max_workers=self._threads)
         futures = {}
@@ -209,38 +200,21 @@ class Node(ABC):
                 try:
                     future.result()
                 except Exception as e:  # noqa: BLE001
-                    msg = f"{node.taskname}: Task failed in thread: %s"
+                    msg = f"{node.taskname}: Task failed: %s"
                     log.error(msg, str(getattr(e, "value", e)))
                     for line in traceback.format_exc().strip().split("\n"):
                         log.debug(msg, line)
                 else:
-                    log.debug("%s: Task completed in thread", node.taskname)
+                    log.debug("%s: Task completed", node.taskname)
                 g.done(node)
                 del futures[future]
                 time.sleep(0)
-            except (KeyboardInterrupt, SystemExit):
-                log.info("Interrupted, shutting down")
+            except (KeyboardInterrupt, SystemExit) as e:
+                if isinstance(e, KeyboardInterrupt):
+                    log.info("Interrupted")
+                log.info("Shutting down")
                 break
         executor.shutdown(cancel_futures=True, wait=True)
-
-    def _exec_synchronous(self, g: TopologicalSorter, dry_run: bool) -> None:
-        """
-        Execute the task graph synchonously.
-
-        :param g: The graph.
-        :param dry_run: Avoid executing state-affecting code?
-        """
-        for node in g.static_order():
-            try:
-                node(dry_run)
-            except KeyboardInterrupt:
-                log.info("Interrupted")
-                break
-            except Exception as e:  # noqa: BLE001
-                msg = f"{node.taskname}: Task failed: %s"
-                log.error(msg, str(getattr(e, "value", e)))
-                for line in traceback.format_exc().strip().split("\n"):
-                    log.debug(msg, line)
 
     def _report_readiness(self) -> None:
         """
@@ -289,7 +263,7 @@ class NodeExternal(Node):
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
         if self._root and self._first_visit:
-            self._assemble_and_exec(dry_run)
+            self._exec(dry_run)
         else:
             self._report_readiness()
         return self
@@ -317,7 +291,7 @@ class NodeTask(Node):
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
         if self._root and self._first_visit:
-            self._assemble_and_exec(dry_run)
+            self._exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self._reqs)):
                 if dry_run:
@@ -346,7 +320,7 @@ class NodeTasks(Node):
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
         if self._root and self._first_visit:
-            self._assemble_and_exec(dry_run)
+            self._exec(dry_run)
         else:
             self._report_readiness()
         return self
@@ -758,12 +732,12 @@ def _parse_args(raw: list[str]) -> Namespace:
     parser.add_argument("function", help="task name", type=str, nargs="?")
     parser.add_argument("args", help="task arguments", type=str, nargs="*")
     optional = parser.add_argument_group("optional arguments")
-    optional.add_argument("-d", "--dry-run", action="store_true", help="run in dry-run mode")
-    optional.add_argument("-g", "--graph", action="store_true", help="emit Graphviz dot to stdout")
-    optional.add_argument("-h", "--help", action="help", help="show help and exit")
-    optional.add_argument("-s", "--show", action="store_true", help="show available tasks")
-    optional.add_argument("-t", "--threads", help="use N threads", metavar="N", type=int)
-    optional.add_argument("-v", "--verbose", action="store_true", help="enable verbose logging")
+    optional.add_argument("-d", "--dry-run", help="run in dry-run mode", action="store_true")
+    optional.add_argument("-g", "--graph", help="emit Graphviz dot to stdout", action="store_true")
+    optional.add_argument("-h", "--help", help="show help and exit", action="help")
+    optional.add_argument("-s", "--show", help="show available tasks", action="store_true")
+    optional.add_argument("-t", "--threads", help="use N threads", default=1, metavar="N", type=int)
+    optional.add_argument("-v", "--verbose", help="enable verbose logging", action="store_true")
     optional.add_argument(
         "--version",
         action="version",
@@ -773,6 +747,9 @@ def _parse_args(raw: list[str]) -> Namespace:
     args = parser.parse_args(raw)
     if not args.function and not args.show:
         print("Specify task name")
+        sys.exit(1)
+    if args.threads < 1:
+        print("Specify at least 1 thread")
         sys.exit(1)
     return args
 
@@ -828,7 +805,7 @@ def _task_common(
     """
     dry_run = bool(kwargs.get("dry_run"))
     logger = cast(_LoggerT, _mark(kwargs.get("log") or getLogger()))
-    threads = int(kwargs.get("threads") or 0)
+    threads = int(kwargs.get("threads") or 1)
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     g = f(*args, **task_kwargs)

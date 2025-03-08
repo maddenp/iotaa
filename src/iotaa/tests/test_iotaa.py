@@ -363,48 +363,13 @@ def test_Node__assemble(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     assert isinstance(g, TopologicalSorter)
 
 
-@mark.parametrize("concurrent", [False, True])
-def test_Node__assemble_and_exec(concurrent, fakefs):
-    kwargs = {"threads": 2} if concurrent else {}
-    with (
-        patch.object(iotaa.Node, "_exec_concurrent") as _exec_concurrent,
-        patch.object(iotaa.Node, "_exec_synchronous") as _exec_synchronous,
-    ):
-        t_tasks_baz(fakefs, **kwargs)
-    expected = _exec_concurrent if concurrent else _exec_synchronous
-    expected.assert_called_once_with(g=ANY, dry_run=False)
-    unexpected = _exec_synchronous if concurrent else _exec_concurrent
-    unexpected.assert_not_called()
-
-
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
-def test_Node__exec_concurrent(caplog, iotaa_logger, n, threads):  # noqa: ARG001
+def test_Node__exec(caplog, iotaa_logger, n, threads):  # noqa: ARG001
     node = memval(n, threads=threads)
-    success = "Task completed in thread"
+    success = "Task completed"
     assert logged(caplog, f"b 1: {success}")
     assert logged(caplog, f"b {n}: {success}")
-    if n == -1:
-        for msg in (
-            "zero result",
-            "Traceback (most recent call last):",
-            "RuntimeError: zero result",
-        ):
-            assert logged(caplog, f"a: Task failed in thread: {msg}")
-    else:
-        assert iotaa.refs(node)[0] == 3
-        assert logged(caplog, f"a: {success}")
-
-
-def test_Node__exec_concurrent_interrupt(caplog, iotaa_logger):  # noqa: ARG001
-    node = interrupted(threads=1)
-    assert not iotaa.ready(node)
-    assert logged(caplog, "Interrupted, shutting down")
-
-
-@mark.parametrize("n", [2, -1])
-def test_Node__exec_synchronous(caplog, iotaa_logger, n):  # noqa: ARG001
-    node = memval(n)
     if n == -1:
         for msg in (
             "zero result",
@@ -414,12 +379,14 @@ def test_Node__exec_synchronous(caplog, iotaa_logger, n):  # noqa: ARG001
             assert logged(caplog, f"a: Task failed: {msg}")
     else:
         assert iotaa.refs(node)[0] == 3
+        assert logged(caplog, f"a: {success}")
 
 
-def test_Node__exec_synchronous_interrupt(caplog, iotaa_logger):  # noqa: ARG001
-    node = interrupted()
+def test_Node__exec_interrupt(caplog, iotaa_logger):  # noqa: ARG001
+    node = interrupted(threads=1)
     assert not iotaa.ready(node)
     assert logged(caplog, "Interrupted")
+    assert logged(caplog, "Shutting down")
 
 
 def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
@@ -906,6 +873,14 @@ def test__parse_args_missing_task_ok(switch):
     assert args.show is True
 
 
+@mark.parametrize("switch", ["-t", "--threads"])
+def test__parse_args_threads_no(capsys, switch):
+    with raises(SystemExit) as e:
+        iotaa._parse_args(raw=["a_module", "a_function", switch, "0"])
+    assert e.value.code == 1
+    assert capsys.readouterr().out.strip() == "Specify at least 1 thread"
+
+
 def test__ready():
     n = iotaa.asset(None, lambda: False)
     r = iotaa.asset(None, lambda: True)
@@ -964,7 +939,7 @@ def test__task_common_extras():
     tn = "task"
     taskname, threads, dry_run, logger, nodes, g = iotaa._task_common(f, tn, n=42, dry_run=True)
     assert taskname == tn
-    assert threads == 0
+    assert threads == 1
     assert dry_run is True
     assert logger is iotaa.logging.getLogger()
     assert nodes == {}
