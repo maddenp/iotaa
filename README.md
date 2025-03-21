@@ -738,12 +738,11 @@ def main(lat: float, lon: float):
     yield asset(None, lambda: ran)
     req = json(lat, lon)
     yield req
-    if ready(req):
-        city, state = [
-            refs(req)[0]["properties"]["relativeLocation"]["properties"][x]
-            for x in ("city", "state")
-        ]
-        log.info("%s: Location: %s, %s", taskname, city, state)
+    city, state = [
+        refs(req)[0]["properties"]["relativeLocation"]["properties"][x]
+        for x in ("city", "state")
+    ]
+    log.info("%s: Location: %s, %s", taskname, city, state)
     ran = True
 ```
 
@@ -756,9 +755,9 @@ $ iotaa location1.py main 40.1672 -105.1091
 [2025-01-21T20:07:45] INFO    Main: Ready
 ```
 
-Since `val` is initially empty, the second (`ready`) argument to `asset()` is initially `False`, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, so `ready(result)` in the caller returns `True` and `val` can be extracted by calling `refs()` on the result.
+Since `val` is initially empty in `json()`, the second argument to `asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `refs(req)`.
 
-Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` `val` is mutated with `.append()`; a `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` `@task` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would be lost.
+Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` is mutated with `.append()`. A `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would not be visible outside the lexical scope of `json()`.
 
 In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, depulication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
 
