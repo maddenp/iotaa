@@ -23,6 +23,8 @@ An asset (an instance of class `iotaa.Asset`) has two attributes:
 
 Create assets by calling `iotaa.asset()`.
 
+See the _In-Memory Asset_ topic in the _Cookbook_ section for a strategy for handling in-memory assets.
+
 ## Tasks
 
 A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. Tasks are identified by their names, so two tasks yielding the same name are considered identical and `iotaa` will discard one of them. Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
