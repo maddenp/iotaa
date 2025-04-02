@@ -27,8 +27,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast, overload
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterator  # pragma: no cover
-    from types import ModuleType  # pragma: no cover
+    from collections.abc import Iterator
+    from types import ModuleType
 
 # Classes
 
@@ -118,9 +118,9 @@ class Node(ABC):
         self.taskname = taskname
         self._threads = threads
         self._logger = logger
-        self._assets: _AssetsT | None = None
+        self._assets: _AssetsT = None
         self._first_visit = True
-        self._reqs: _ReqsT | None = None
+        self._reqs: _ReqsT = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -134,12 +134,36 @@ class Node(ABC):
     def __repr__(self):
         return "%s <%s>" % (self.taskname, id(self))
 
-    @cached_property
+    @property
+    def assets(self) -> _AssetsT:
+        return self._assets
+
+    @property
+    def graph(self) -> str:
+        return str(_Graph(root=self))
+
+    @property
     def ready(self) -> bool:
         """
         Are the assets represented by this task-graph node ready?
         """
         return _ready(self._assets)
+
+    @property
+    def refs(self) -> Any:
+        return refs(self.assets)
+
+    @property
+    def requirements(self) -> _ReqsT:
+        return self._reqs
+
+    @cached_property
+    def root(self) -> bool:
+        """
+        Is this the root node (i.e. is it not a requirement of another task)?
+        """
+        is_wrapper = lambda x: x.filename == __file__ and x.function.startswith("_iotaa_wrapper_")
+        return sum(1 for x in inspect.stack() if is_wrapper(x)) == 1
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
@@ -220,7 +244,6 @@ class Node(ABC):
         """
         Log information about [un]ready requirements of this task-graph node.
         """
-        self._reset_ready()
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
         logfunc, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
@@ -234,22 +257,6 @@ class Node(ABC):
                 status = "✔" if ready_ else "✖"
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
-    def _reset_ready(self) -> None:
-        """
-        Reset the cached ready property.
-        """
-        attr = "ready"
-        if hasattr(self, attr):
-            delattr(self, attr)
-
-    @cached_property
-    def _root(self) -> bool:
-        """
-        Is this the root node (i.e. is it not a requirement of another task)?
-        """
-        is_wrapper = lambda x: x.filename == __file__ and x.function.startswith("_iotaa_wrapper_")
-        return sum(1 for x in inspect.stack() if is_wrapper(x)) == 1
-
 
 class NodeExternal(Node):
     """
@@ -262,7 +269,7 @@ class NodeExternal(Node):
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
-        if self._root and self._first_visit:
+        if self.root and self._first_visit:
             self._exec(dry_run)
         else:
             self._report_readiness()
@@ -290,7 +297,7 @@ class NodeTask(Node):
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
-        if self._root and self._first_visit:
+        if self.root and self._first_visit:
             self._exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self._reqs)):
@@ -312,14 +319,14 @@ class NodeTasks(Node):
         taskname: str,
         threads: int,
         logger: Logger,
-        reqs: _ReqsT | None = None,
+        reqs: _ReqsT = None,
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._reqs = reqs
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
-        if self._root and self._first_visit:
+        if self.root and self._first_visit:
             self._exec(dry_run)
         else:
             self._report_readiness()
@@ -328,7 +335,7 @@ class NodeTasks(Node):
     @property
     def _assets(self) -> list[Asset]:
         reqs = _flatten(self._reqs)
-        return list(chain.from_iterable([_flatten(req._assets) for req in reqs]))  # noqa: SLF001
+        return list(chain.from_iterable([_flatten(req.assets) for req in reqs]))
 
     @_assets.setter
     def _assets(self, value) -> None:
@@ -349,7 +356,6 @@ _NodeT = TypeVar("_NodeT", bound=Node)
 _ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 _T = TypeVar("_T")
 
-
 # Public functions:
 
 
@@ -369,7 +375,7 @@ def assets(node: Node | None) -> _AssetsT:
 
     :param node: A node.
     """
-    return node._assets if node else None  # noqa: SLF001
+    return node.assets if node else None
 
 
 def graph(node: Node) -> str:
@@ -378,7 +384,7 @@ def graph(node: Node) -> str:
 
     :param ndoe: The root node.
     """
-    return str(_Graph(root=node))
+    return node.graph
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -430,7 +436,7 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def refs(obj: Node | _AssetsT | None) -> Any:
+def refs(obj: Node | _AssetsT) -> Any:
     """
     Extract and return asset references.
 
@@ -453,7 +459,7 @@ def requirements(node: Node) -> _ReqsT:
 
     :param node: A node.
     """
-    return node._reqs  # noqa: SLF001
+    return node.requirements
 
 
 def tasknames(obj: object) -> list[str]:
@@ -480,7 +486,7 @@ def tasknames(obj: object) -> list[str]:
 # logger local variable in each wrapper function below and will use it when logging via iotaa.log().
 
 
-def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
+def external(f: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
 
@@ -504,7 +510,7 @@ def external(f: Callable[..., Generator]) -> Callable[..., NodeExternal]:
     return _mark(_iotaa_wrapper_external)
 
 
-def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
+def task(f: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     """
     The @task decorator for assets that the workflow can produce.
 
@@ -531,7 +537,7 @@ def task(f: Callable[..., Generator]) -> Callable[..., NodeTask]:
     return _mark(_iotaa_wrapper_task)
 
 
-def tasks(f: Callable[..., Generator]) -> Callable[..., NodeTasks]:
+def tasks(f: Callable[..., Iterator]) -> Callable[..., NodeTasks]:
     """
     The @tasks decorator for collections tasks.
 
@@ -571,12 +577,12 @@ def _construct_and_if_root_call(
     :return: A constructed Node object.
     """
     node = node_class(taskname=taskname, threads=threads, **kwargs)
-    if node._root:  # noqa: SLF001
+    if node.root:
         node(dry_run)
     return node
 
 
-def _continuation(g: Generator, taskname: str) -> Callable:
+def _continuation(g: Iterator, taskname: str) -> Callable:
     """
     Returns a function that, when called, executes the post-yield body of a decorated function.
 
@@ -705,7 +711,7 @@ def _not_ready_reqs(reqs: _ReqsT, reps: UserDict[str, _NodeT]) -> _ReqsT:
 
     def the(req):
         if req.taskname in reps:
-            req._assets = reps[req.taskname]._assets  # noqa: SLF001
+            req._assets = reps[req.taskname].assets  # noqa: SLF001
         else:
             reps[req.taskname] = req
         return reps[req.taskname]
@@ -796,7 +802,7 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
 
 def _task_common(
     f: Callable, *args, **kwargs
-) -> tuple[str, int, bool, _LoggerT, UserDict[str, Node], Generator]:
+) -> tuple[str, int, bool, _LoggerT, UserDict[str, Node], Iterator]:
     """
     Collect and return info about the task.
 

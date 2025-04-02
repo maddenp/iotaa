@@ -6,6 +6,7 @@ import logging
 import re
 from abc import abstractmethod
 from collections import UserDict
+from collections.abc import Iterator
 from graphlib import TopologicalSorter
 from hashlib import sha256
 from itertools import chain
@@ -124,7 +125,7 @@ def args(path, show):
 
 
 @iotaa.external
-def badtask():
+def badtask() -> Iterator:
     yield "Bad task yields no asset"
 
 
@@ -133,7 +134,7 @@ def interrupt():
 
 
 @iotaa.task
-def interrupted():
+def interrupted() -> Iterator:
     completed = False
     yield "Interrupted Task"
     yield iotaa.asset(None, lambda: completed)
@@ -143,7 +144,7 @@ def interrupted():
 
 
 @iotaa.task
-def memval(n):
+def memval(n) -> Iterator:
     assert n != 1
     val: list[int] = []
     yield "a"
@@ -158,7 +159,7 @@ def memval(n):
 
 
 @iotaa.task
-def memval_req(n):
+def memval_req(n) -> Iterator:
     val: list[int] = []
     yield "b %s" % n
     yield iotaa.asset(val, lambda: bool(val))
@@ -181,7 +182,7 @@ def simple_assets():
 
 
 @iotaa.external
-def t_external_foo_scalar(path):
+def t_external_foo_scalar(path) -> Iterator:
     """
     EXTERNAL!
     """
@@ -191,7 +192,7 @@ def t_external_foo_scalar(path):
 
 
 @iotaa.task
-def t_task_bar_dict(path):
+def t_task_bar_dict(path) -> Iterator:
     f = path / "bar"
     yield f"task bar dict {f}"
     yield {"path": iotaa.asset(f, f.is_file)}
@@ -200,7 +201,7 @@ def t_task_bar_dict(path):
 
 
 @iotaa.task
-def t_task_bar_list(path):
+def t_task_bar_list(path) -> Iterator:
     f = path / "bar"
     yield f"task bar list {f}"
     yield [iotaa.asset(f, f.is_file)]
@@ -209,7 +210,7 @@ def t_task_bar_list(path):
 
 
 @iotaa.task
-def t_task_bar_scalar(path):
+def t_task_bar_scalar(path) -> Iterator:
     """
     TASK!
     """
@@ -221,7 +222,7 @@ def t_task_bar_scalar(path):
 
 
 @iotaa.tasks
-def t_tasks_baz(path):
+def t_tasks_baz(path) -> Iterator:
     """
     TASKS!
     """
@@ -230,7 +231,7 @@ def t_tasks_baz(path):
 
 
 @iotaa.tasks
-def t_tasks_qux(path):
+def t_tasks_qux(path) -> Iterator:
     """
     TASKS!
     """
@@ -245,34 +246,35 @@ class TaskClass:
 
     @iotaa.task
     @abstractmethod
-    def asdf(self):
-        pass
+    def asdf(self) -> Iterator:
+        yield
 
     @iotaa.external
-    def foo(self):
+    def foo(self) -> Iterator:
         """
         The foo task.
         """
+        yield
 
     @iotaa.task
-    def bar(self):
-        pass
+    def bar(self) -> Iterator:
+        yield
 
     @iotaa.tasks
-    def baz(self):
-        pass
+    def baz(self) -> Iterator:
+        yield
 
     @iotaa.external
-    def _foo(self):
-        pass
+    def _foo(self) -> Iterator:
+        yield
 
     @iotaa.task
-    def _bar(self):
-        pass
+    def _bar(self) -> Iterator:
+        yield
 
     @iotaa.tasks
-    def _baz(self):
-        pass
+    def _baz(self) -> Iterator:
+        yield
 
     def qux(self):
         pass
@@ -415,29 +417,11 @@ def test_Node__report_readiness_tasks(caplog, fakefs, iotaa_logger, touch):  # n
         assert logged(caplog, "tasks qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
 
 
-def test_Node__reset_ready(fakefs):
-    path = fakefs / "foo"
-    node = t_external_foo_scalar(fakefs)
-    # File doesn't exist so:
-    assert not node.ready
-    path.touch()
-    # Now file exists:
-    node = t_external_foo_scalar(fakefs)
-    assert node.ready
-    # Rmove file:
-    path.unlink()
-    # But node is stil ready due to caching:
-    assert node.ready
-    # Reset cache:
-    node._reset_ready()
-    assert not node.ready
-
-
 def test_Node__root(fakefs):
     node = t_tasks_baz(fakefs)
-    assert node._root
+    assert node.root
     children = cast(list[iotaa.Node], node._reqs)
-    assert not any(child._root for child in children)
+    assert not any(child.root for child in children)
 
 
 # Tests for public functions
@@ -454,11 +438,14 @@ def test_assets(fakefs):
     node = t_external_foo_scalar(fakefs)
     asset = cast(iotaa.Asset, iotaa.assets(node))
     assert asset.ref == fakefs / "foo"
+    assert node.assets == asset
 
 
 def test_graph(graphkit):
     expected, _, root = graphkit
-    assert iotaa.graph(root).strip() == expected
+    graph = iotaa.graph(root)
+    assert graph.strip() == expected
+    assert root.graph == graph
 
 
 @mark.parametrize("vals", [(False, iotaa.logging.INFO), (True, iotaa.logging.DEBUG)])
@@ -540,12 +527,14 @@ def test_ready(fakefs):
     assert not iotaa.ready(node_before)
     iotaa.refs(node_before).touch()
     node_after = t_external_foo_scalar(fakefs)
-    assert iotaa.ready(node_after)
+    ready = iotaa.ready(node_after)
+    assert ready
+    assert node_after.ready == ready
 
 
 def test_ready_tasks():
     @iotaa.task
-    def shared():
+    def shared() -> Iterator:
         val: list[bool] = []
         yield "shared"
         yield iotaa.asset(val, lambda: bool(val))
@@ -553,7 +542,7 @@ def test_ready_tasks():
         val.append(True)
 
     @iotaa.tasks
-    def tasks():
+    def tasks() -> Iterator:
         yield "tasks"
         yield [shared(), shared()]
 
@@ -564,20 +553,31 @@ def test_refs():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
-    assert iotaa.refs(obj=node) is None
+    refs1 = iotaa.refs(obj=node)
+    assert refs1 is None
+    assert node.refs == refs1
     node._assets = {"foo": asset}
-    assert iotaa.refs(obj=node)["foo"] == expected
+    refs2 = iotaa.refs(obj=node)
+    assert refs2["foo"] == expected
+    assert node.refs == refs2
     node._assets = [asset]
-    assert iotaa.refs(obj=node)[0] == expected
+    refs3 = iotaa.refs(obj=node)
+    assert refs3[0] == expected
+    assert node.refs == refs3
     node._assets = asset
-    assert iotaa.refs(obj=node) == expected
+    refs4 = iotaa.refs(obj=node)
+    assert refs4 == expected
+    assert node.refs == refs4
     assert iotaa.refs(asset) == expected
     assert iotaa.refs([asset, asset]) == [expected, expected]
     assert iotaa.refs({"a": asset, "b": asset}) == {"a": expected, "b": expected}
 
 
 def test_requirements(fakefs):
-    assert iotaa.requirements(t_task_bar_dict(fakefs)) == t_external_foo_scalar(fakefs)
+    node = t_task_bar_dict(fakefs)
+    requirements = iotaa.requirements(node)
+    assert requirements == t_external_foo_scalar(fakefs)
+    assert node.requirements == requirements
 
 
 def test_tasknames():
@@ -662,22 +662,22 @@ def test_tasks_structured():
     a = iotaa.asset(ref="a", ready=lambda: False)
 
     @iotaa.external
-    def tdict():
+    def tdict() -> Iterator:
         yield "dict"
         yield {"foo": a, "bar": a}
 
     @iotaa.external
-    def tlist():
+    def tlist() -> Iterator:
         yield "list"
         yield [a, a]
 
     @iotaa.external
-    def tscalar():
+    def tscalar() -> Iterator:
         yield "scalar"
         yield a
 
     @iotaa.tasks
-    def structured():
+    def structured() -> Iterator:
         yield "structured"
         yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
 

@@ -1,4 +1,7 @@
 [tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:"
+]
 fail_under = 100
 omit = ["*/tests/*", "demo.py", "pylint.py"]
 show_missing = true
@@ -50,10 +53,12 @@ ignore = [
   "FBT001",  # boolean-type-hint-positional-argument
   "FBT002",  # boolean-default-value-positional-argument
   "FBT003",  # boolean-positional-value-in-call
+  "LOG015",  # root-logger-call
   "PERF203", # try-except-in-loop
   "PLR0913", # too-many-arguments
   "S101",    # assert
   "T201",    # print
+  "TC006",   # runtime-cast-value
   "TRY400",  # error-instead-of-exception
   "UP031",   # printf-string-formatting
 ]

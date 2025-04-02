@@ -21,13 +21,13 @@ test:
   requires:
     - docformatter 1.7.*
     - jq 1.7.*
-    - mypy 1.14.*
+    - mypy 1.15.*
     - pyfakefs 5.7.*
     - pytest 8.3.*
     - pytest-cov 6.0.*
     - pytest-xdist 3.6.*
     - python {{ minpy }}
-    - ruff 0.9.*
+    - ruff 0.11.*
 about:
   home: https://github.com/maddenp/iotaa
   license: APACHE
