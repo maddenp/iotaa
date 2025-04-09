@@ -570,7 +570,7 @@ def _construct_and_if_root_call(
     node_class: type[_NodeT], taskname: str, threads: int, dry_run: bool, **kwargs
 ) -> _NodeT:
     """
-    Construct a Node object and, if it is a root node, call it.
+    Construct a Node object and, if it is the root node, call it.
 
     :param node_class: The type of Node to construct.
     :param taskname: The current task's name.
