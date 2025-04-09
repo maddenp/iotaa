@@ -242,7 +242,7 @@ class Node(ABC):
 
     def _report_readiness(self) -> None:
         """
-        Log information about [un]ready requirements of this task-graph node.
+        Log readiness status for this task-graph node and its requirements.
         """
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
