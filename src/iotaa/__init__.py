@@ -142,7 +142,7 @@ class Node(ABC):
     def graph(self) -> str:
         return str(_Graph(root=self))
 
-    @property
+    @cached_property
     def ready(self) -> bool:
         """
         Are the assets represented by this task-graph node ready?
@@ -304,6 +304,7 @@ class NodeTask(Node):
                 if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
+                    del self.ready  # reset cached property
                     self._continuation()
             self._report_readiness()
         return self
@@ -329,6 +330,7 @@ class NodeTasks(Node):
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
+            del self.ready  # reset cached property
             self._report_readiness()
         return self
 
