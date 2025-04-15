@@ -142,12 +142,12 @@ class Node(ABC):
     def graph(self) -> str:
         return str(_Graph(root=self))
 
-    @property
+    @cached_property
     def ready(self) -> bool:
         """
         Are the assets represented by this task-graph node ready?
         """
-        return _ready(self._assets)
+        return all(x.ready() for x in _flatten(self.assets))
 
     @property
     def refs(self) -> Any:
@@ -242,7 +242,7 @@ class Node(ABC):
 
     def _report_readiness(self) -> None:
         """
-        Log information about [un]ready requirements of this task-graph node.
+        Log readiness status for this task-graph node and its requirements.
         """
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
@@ -304,6 +304,7 @@ class NodeTask(Node):
                 if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
+                    del self.ready  # reset cached property
                     self._continuation()
             self._report_readiness()
         return self
@@ -329,6 +330,7 @@ class NodeTasks(Node):
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
+            del self.ready  # reset cached property
             self._report_readiness()
         return self
 
@@ -497,14 +499,13 @@ def external(f: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(f)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         taskname, threads, dry_run, iotaa_logger, iotaa_reps, g = _task_common(f, *args, **kwargs)
-        assets_ = _next(g, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
             threads=threads,
             logger=iotaa_logger,
             dry_run=dry_run,
-            assets_=assets_,
+            assets_=_next(g, "assets"),
         )
 
     return _mark(_iotaa_wrapper_external)
@@ -521,16 +522,14 @@ def task(f: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(f)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         taskname, threads, dry_run, iotaa_logger, iotaa_reps, g = _task_common(f, *args, **kwargs)
-        assets_ = _next(g, "assets")
-        reqs = None if _ready(assets_) else _not_ready_reqs(_next(g, "requirements"), iotaa_reps)
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
             threads=threads,
             logger=iotaa_logger,
             dry_run=dry_run,
-            assets_=assets_,
-            reqs=reqs,
+            assets_=_next(g, "assets"),
+            reqs=_not_ready_reqs(_next(g, "requirements"), iotaa_reps),
             continuation=_continuation(g, taskname),
         )
 
@@ -548,14 +547,13 @@ def tasks(f: Callable[..., Iterator]) -> Callable[..., NodeTasks]:
     @wraps(f)
     def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
         taskname, threads, dry_run, iotaa_logger, iotaa_reps, g = _task_common(f, *args, **kwargs)
-        reqs = _not_ready_reqs(_next(g, "requirements"), iotaa_reps)
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
             threads=threads,
             logger=iotaa_logger,
             dry_run=dry_run,
-            reqs=reqs,
+            reqs=_not_ready_reqs(_next(g, "requirements"), iotaa_reps),
         )
 
     return _mark(_iotaa_wrapper_tasks)
@@ -568,7 +566,7 @@ def _construct_and_if_root_call(
     node_class: type[_NodeT], taskname: str, threads: int, dry_run: bool, **kwargs
 ) -> _NodeT:
     """
-    Construct a Node object and, if it is a root node, call it.
+    Construct a Node object and, if it is the root node, call it.
 
     :param node_class: The type of Node to construct.
     :param taskname: The current task's name.
@@ -701,13 +699,12 @@ def _not_ready_reqs(reqs: _ReqsT, reps: UserDict[str, _NodeT]) -> _ReqsT:
     :param reps: Mapping from tasknames to representative Nodes.
     """
 
-    # The 'reps' dict holds a single node representing any number of duplicates, per the rule that
-    # distinct tasks require distinct tasknames. While filtering out ready requirements, replace a
-    # duplicate node with its representative, so that the final task graph contains distinct nodes
-    # ony. NB: Since continuation closures capturing the imperative action code of tasks may hold
-    # references to such duplicate nodes, update the assets on duplicate nodes to point to those of
-    # the representative so that, after the representative node is processed, a duplicate will see
-    # its own assets as ready.
+    # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
+    # the rule that tasks with the same name are equivalent. Discard already-ready requirements and
+    # replace those remaining with their previously-seen representatives when possible, so that the
+    # final task graph contains distinct nodes only. Update the assets on discarded nodes to point
+    # to their representatives' assets so that any outstanding references to them will show their
+    # assets as ready after the representative is processed.
 
     def the(req):
         if req.taskname in reps:
@@ -758,16 +755,6 @@ def _parse_args(raw: list[str]) -> Namespace:
         print("Specify at least 1 thread")
         sys.exit(1)
     return args
-
-
-def _ready(assets: _AssetsT) -> bool:
-    """
-    Are all the provided assets ready?
-
-    :param assets: The assets to check.
-    :return: Are they?
-    """
-    return all(x.ready() for x in _flatten(assets))
 
 
 def _reify(s: str) -> _JSONValT:

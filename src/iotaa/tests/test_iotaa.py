@@ -881,19 +881,6 @@ def test__parse_args_threads_no(capsys, switch):
     assert capsys.readouterr().out.strip() == "Specify at least 1 thread"
 
 
-def test__ready():
-    n = iotaa.asset(None, lambda: False)
-    r = iotaa.asset(None, lambda: True)
-    assert iotaa._ready(r)
-    assert iotaa._ready([r, r])
-    assert iotaa._ready({"a": r, "b": r})
-    assert not iotaa._ready(n)
-    assert not iotaa._ready([n, n])
-    assert not iotaa._ready({"a": n, "b": n})
-    assert not iotaa._ready([r, n])
-    assert not iotaa._ready({"a": r, "b": n})
-
-
 def test__reify():
     strs = ["foo", "42", "3.14", "true"]
     assert [iotaa._reify(s) for s in strs] == ["foo", 42, 3.14, True]
