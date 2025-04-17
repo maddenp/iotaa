@@ -8,7 +8,6 @@ import inspect
 import json
 import logging
 import sys
-import time
 import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
@@ -162,8 +161,13 @@ class Node(ABC):
         """
         Is this the root node (i.e. is it not a requirement of another task)?
         """
-        is_wrapper = lambda x: x.filename == __file__ and x.function.startswith("_iotaa_wrapper_")
-        return sum(1 for x in inspect.stack() if is_wrapper(x)) == 1
+        n = 0
+        f = inspect.currentframe()
+        while f is not None:
+            if f.f_code.co_filename == __file__ and f.f_code.co_name.startswith("_iotaa_wrapper_"):
+                n += 1
+            f = f.f_back
+        return n == 1
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
@@ -223,6 +227,8 @@ class Node(ABC):
                 node = futures[future]
                 try:
                     future.result()
+                except (KeyboardInterrupt, SystemExit):
+                    raise
                 except Exception as e:  # noqa: BLE001
                     msg = f"{node.taskname}: Task failed: %s"
                     log.error(msg, str(getattr(e, "value", e)))
@@ -232,7 +238,6 @@ class Node(ABC):
                     log.debug("%s: Task completed", node.taskname)
                 g.done(node)
                 del futures[future]
-                time.sleep(0)
             except (KeyboardInterrupt, SystemExit) as e:
                 if isinstance(e, KeyboardInterrupt):
                     log.info("Interrupted")
@@ -605,12 +610,14 @@ def _findabove(name: str) -> Any:
     :param name: The name of the object to be found in an ancestor stack frame.
     :raises: IotaaError is no such object is found.
     """
-    for frameinfo in inspect.stack():
-        if name in frameinfo.frame.f_locals:
-            obj = frameinfo.frame.f_locals[name]
+    f = inspect.currentframe()
+    while f is not None:
+        if name in f.f_locals:
+            obj = f.f_locals[name]
             if hasattr(obj, _MARKER):
                 return obj
-    return None
+        f = f.f_back
+    return f
 
 
 @overload
