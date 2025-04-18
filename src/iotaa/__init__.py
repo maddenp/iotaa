@@ -12,7 +12,7 @@ import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import UserDict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
@@ -162,11 +162,13 @@ class Node(ABC):
         Is this the root node (i.e. is it not a requirement of another task)?
         """
         n = 0
-        f = inspect.currentframe()
-        while f is not None:
-            if f.f_code.co_filename == __file__ and f.f_code.co_name.startswith("_iotaa_wrapper_"):
+        frame = inspect.currentframe()
+        while frame is not None:
+            if frame.f_code.co_filename == __file__ and frame.f_code.co_name.startswith(
+                "_iotaa_wrapper_"
+            ):
                 n += 1
-            f = f.f_back
+            frame = frame.f_back
         return n == 1
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
@@ -219,25 +221,26 @@ class Node(ABC):
         g = self._assemble()
         g.prepare()
         executor = ThreadPoolExecutor(max_workers=self._threads)
-        futures = {}
-        while g.is_active():
+        futures: dict[Future, Node] = {}
+        while g.is_active() or futures:
             try:
-                futures.update({executor.submit(node, dry_run): node for node in g.get_ready()})
-                future = next(as_completed(futures))
-                node = futures[future]
+                for ready_node in g.get_ready():
+                    new_future = executor.submit(ready_node, dry_run)
+                    futures[new_future] = ready_node
+                    g.done(ready_node)
+                completed_future = next(as_completed(futures))
                 try:
-                    future.result()
+                    completed_future.result()
                 except (KeyboardInterrupt, SystemExit):
                     raise
                 except Exception as e:  # noqa: BLE001
-                    msg = f"{node.taskname}: Task failed: %s"
+                    msg = f"{futures[completed_future].taskname}: Task failed: %s"
                     log.error(msg, str(getattr(e, "value", e)))
                     for line in traceback.format_exc().strip().split("\n"):
                         log.debug(msg, line)
                 else:
-                    log.debug("%s: Task completed", node.taskname)
-                g.done(node)
-                del futures[future]
+                    log.debug("%s: Task completed", futures[completed_future].taskname)
+                del futures[completed_future]
             except (KeyboardInterrupt, SystemExit) as e:
                 if isinstance(e, KeyboardInterrupt):
                     log.info("Interrupted")
@@ -477,14 +480,14 @@ def tasknames(obj: object) -> list[str]:
     :return: The names of iotaa tasks in the given object.
     """
 
-    def f(o):
+    def pred(o):
         return (
             getattr(o, _MARKER, False)
             and not hasattr(o, "__isabstractmethod__")
             and not o.__name__.startswith("_")
         )
 
-    return sorted(name for name in dir(obj) if f(getattr(obj, name)))
+    return sorted(name for name in dir(obj) if pred(getattr(obj, name)))
 
 
 # Public decorators:
@@ -493,72 +496,78 @@ def tasknames(obj: object) -> list[str]:
 # logger local variable in each wrapper function below and will use it when logging via iotaa.log().
 
 
-def external(f: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
+def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     """
     The @external decorator for assets the workflow cannot produce.
 
-    :param f: The function being decorated.
+    :param func: The function being decorated.
     :return: A decorated function.
     """
 
-    @wraps(f)
+    @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, g = _task_common(f, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
+            func, *args, **kwargs
+        )
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
             threads=threads,
             logger=iotaa_logger,
             dry_run=dry_run,
-            assets_=_next(g, "assets"),
+            assets_=_next(iterator, "assets"),
         )
 
     return _mark(_iotaa_wrapper_external)
 
 
-def task(f: Callable[..., Iterator]) -> Callable[..., NodeTask]:
+def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     """
     The @task decorator for assets that the workflow can produce.
 
-    :param f: The function being decorated.
+    :param func: The function being decorated.
     :return: A decorated function.
     """
 
-    @wraps(f)
+    @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, g = _task_common(f, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
+            func, *args, **kwargs
+        )
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
             threads=threads,
             logger=iotaa_logger,
             dry_run=dry_run,
-            assets_=_next(g, "assets"),
-            reqs=_not_ready_reqs(_next(g, "requirements"), iotaa_reps),
-            continuation=_continuation(g, taskname),
+            assets_=_next(iterator, "assets"),
+            reqs=_not_ready_reqs(_next(iterator, "requirements"), iotaa_reps),
+            continuation=_continuation(iterator, taskname),
         )
 
     return _mark(_iotaa_wrapper_task)
 
 
-def tasks(f: Callable[..., Iterator]) -> Callable[..., NodeTasks]:
+def tasks(func: Callable[..., Iterator]) -> Callable[..., NodeTasks]:
     """
     The @tasks decorator for collections tasks.
 
-    :param f: The function being decorated.
+    :param func: The function being decorated.
     :return: A decorated function.
     """
 
-    @wraps(f)
+    @wraps(func)
     def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, g = _task_common(f, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
+            func, *args, **kwargs
+        )
         return _construct_and_if_root_call(
             node_class=NodeTasks,
             taskname=taskname,
             threads=threads,
             logger=iotaa_logger,
             dry_run=dry_run,
-            reqs=_not_ready_reqs(_next(g, "requirements"), iotaa_reps),
+            reqs=_not_ready_reqs(_next(iterator, "requirements"), iotaa_reps),
         )
 
     return _mark(_iotaa_wrapper_tasks)
@@ -585,18 +594,18 @@ def _construct_and_if_root_call(
     return node
 
 
-def _continuation(g: Iterator, taskname: str) -> Callable:
+def _continuation(iterator: Iterator, taskname: str) -> Callable:
     """
     Returns a function that, when called, executes the post-yield body of a decorated function.
 
-    :param g: The current task.
+    :param iterator: The current task.
     :param taskname: The current task's name.
     """
 
     def continuation():
         try:
             log.info("%s: Executing", taskname)
-            next(g)
+            next(iterator)
         except StopIteration:
             pass
 
@@ -610,14 +619,14 @@ def _findabove(name: str) -> Any:
     :param name: The name of the object to be found in an ancestor stack frame.
     :raises: IotaaError is no such object is found.
     """
-    f = inspect.currentframe()
-    while f is not None:
-        if name in f.f_locals:
-            obj = f.f_locals[name]
+    frame = inspect.currentframe()
+    while frame is not None:
+        if name in frame.f_locals:
+            obj = frame.f_locals[name]
             if hasattr(obj, _MARKER):
                 return obj
-        f = f.f_back
-    return f
+        frame = frame.f_back
+    return frame
 
 
 @overload
@@ -642,11 +651,11 @@ def _flatten(o):
 
     :param o: An object, a collection of objects, or None.
     """
-    f: Callable = lambda xs: list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
+    func: Callable = lambda xs: list(filter(None, chain.from_iterable(_flatten(x) for x in xs)))
     if isinstance(o, dict):
-        return f(list(o.values()))
+        return func(list(o.values()))
     if isinstance(o, list):
-        return f(o)
+        return func(o)
     if o is None:
         return []
     return [o]
@@ -662,14 +671,14 @@ def _formatter(prog: str) -> HelpFormatter:
     return HelpFormatter(prog, max_help_position=4)
 
 
-def _mark(f: _T) -> _T:
+def _mark(obj: _T) -> _T:
     """
     Returns a function, marked as an iotaa task.
 
-    :param g: The function to mark.
+    :param obj: The object to mark.
     """
-    setattr(f, _MARKER, True)
-    return f
+    setattr(obj, _MARKER, True)
+    return obj
 
 
 def _modobj(modname: str) -> ModuleType:
@@ -685,14 +694,14 @@ def _modobj(modname: str) -> ModuleType:
     return import_module(modname)
 
 
-def _next(g: Iterator, desc: str) -> Any:
+def _next(iterator: Iterator, desc: str) -> Any:
     """
     Return the next value from the generator, if available. Otherwise log an error and exit.
 
     :param desc: A description of the expected value.
     """
     try:
-        return next(g)
+        return next(iterator)
     except StopIteration as e:
         msg = f"Failed to get {desc}: Check yield statements."
         raise IotaaError(msg) from e
@@ -795,12 +804,12 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
 
 
 def _task_common(
-    f: Callable, *args, **kwargs
+    func: Callable, *args, **kwargs
 ) -> tuple[str, int, bool, _LoggerT, UserDict[str, Node], Iterator]:
     """
     Collect and return info about the task.
 
-    :param f: A task function (receives the provided args & kwargs).
+    :param func: A task function (receives the provided args & kwargs).
     :return: Information needed for task execution.
     """
     dry_run = bool(kwargs.get("dry_run"))
@@ -808,11 +817,11 @@ def _task_common(
     threads = int(kwargs.get("threads") or 1)
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
-    g = f(*args, **task_kwargs)
-    taskname = str(_next(g, "task name"))
+    iterator = func(*args, **task_kwargs)
+    taskname = str(_next(iterator, "task name"))
     if (reps := _findabove("iotaa_reps")) is None:
         reps = _mark(UserDict())
-    return taskname, threads, dry_run, logger, reps, g
+    return taskname, threads, dry_run, logger, reps, iterator
 
 
 def _version() -> str:

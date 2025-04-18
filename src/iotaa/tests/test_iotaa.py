@@ -743,7 +743,7 @@ def test__construct_and_call_if_root():
 
 
 def test__continuation(caplog, iotaa_logger, rungen):  # noqa: ARG001
-    continuation = iotaa._continuation(g=rungen, taskname="task")
+    continuation = iotaa._continuation(iterator=rungen, taskname="task")
     continuation()
     assert logged(caplog, "task: Executing")
 
