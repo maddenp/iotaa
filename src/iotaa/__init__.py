@@ -181,12 +181,12 @@ class Node(ABC):
         :param level: The distance from the task-graph root node.
         """
         log.debug("%s%s", "  " * level, str(node.taskname))
-        g.add(node)
+        predecessors: list[Node] = []
         if not node.ready:
-            predecessors: list[Node] = _flatten(requirements(node))
-            g.add(node, *predecessors)
+            predecessors = _flatten(requirements(node))
             for predecessor in predecessors:
                 self._add_node_and_predecessors(g, predecessor, level + 1)
+        g.add(node, *predecessors)
 
     def _assemble(self) -> TopologicalSorter:
         """
