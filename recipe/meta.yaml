@@ -24,7 +24,7 @@ test:
     - mypy 1.15.*
     - pyfakefs 5.7.*
     - pytest 8.3.*
-    - pytest-cov 6.0.*
+    - pytest-cov 6.1.*
     - pytest-xdist 3.6.*
     - python {{ minpy }}
     - ruff 0.11.*

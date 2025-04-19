@@ -44,17 +44,14 @@ ignore = [
   "D200",    # unnecessary-multiline-docstring
   "D202",    # blank-line-after-function
   "D203",    # incorrect-blank-line-before-class
-  "D205",    # missing-blank-line-after-summary
   "D212",    # multi-line-summary-first-line
   "D400",    # missing-trailing-period
   "D401",    # non-imperative-mood
   "E731",    # lambda-assignment
-  "ERA001",  # commented-out-code
   "FBT001",  # boolean-type-hint-positional-argument
   "FBT002",  # boolean-default-value-positional-argument
   "FBT003",  # boolean-positional-value-in-call
   "LOG015",  # root-logger-call
-  "PERF203", # try-except-in-loop
   "PLR0913", # too-many-arguments
   "S101",    # assert
   "T201",    # print
