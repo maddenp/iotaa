@@ -183,9 +183,9 @@ class Node(ABC):
         log.debug("%s%s", "  " * level, str(node.taskname))
         g.add(node)
         if not node.ready:
-            predecessor: Node
-            for predecessor in _flatten(requirements(node)):
-                g.add(node, predecessor)
+            predecessors: list[Node] = _flatten(requirements(node))
+            g.add(node, *predecessors)
+            for predecessor in predecessors:
                 self._add_node_and_predecessors(g, predecessor, level + 1)
 
     def _assemble(self) -> TopologicalSorter:
