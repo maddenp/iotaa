@@ -12,7 +12,7 @@ import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import UserDict
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast,
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from types import ModuleType
+
 
 # Classes
 
@@ -218,34 +219,34 @@ class Node(ABC):
 
         :param dry_run: Avoid executing state-affecting code?
         """
+        executor = ThreadPoolExecutor(max_workers=self._threads)
+        batchsize = 100
         g = self._assemble()
         g.prepare()
-        executor = ThreadPoolExecutor(max_workers=self._threads)
-        futures: dict[Future, Node] = {}
-        while g.is_active() or futures:
-            try:
-                for ready_node in g.get_ready():
-                    new_future = executor.submit(ready_node, dry_run)
-                    futures[new_future] = ready_node
-                    g.done(ready_node)
-                completed_future = next(as_completed(futures))
-                try:
-                    completed_future.result()
-                except (KeyboardInterrupt, SystemExit):
-                    raise
-                except Exception as e:  # noqa: BLE001
-                    msg = f"{futures[completed_future].taskname}: Task failed: %s"
-                    log.error(msg, str(getattr(e, "value", e)))
-                    for line in traceback.format_exc().strip().split("\n"):
-                        log.debug(msg, line)
-                else:
-                    log.debug("%s: Task completed", futures[completed_future].taskname)
-                del futures[completed_future]
-            except (KeyboardInterrupt, SystemExit) as e:
-                if isinstance(e, KeyboardInterrupt):
-                    log.info("Interrupted")
-                log.info("Shutting down")
-                break
+        try:
+            while g.is_active():
+                ready = g.get_ready()
+                while ready:
+                    batch, ready = ready[:batchsize], ready[batchsize:]
+                    futures = {executor.submit(node, dry_run): node for node in batch}
+                    for node in batch:
+                        g.done(node)
+                    for completed in as_completed(futures):
+                        try:
+                            completed.result()
+                        except (KeyboardInterrupt, SystemExit):
+                            raise
+                        except Exception as e:  # noqa: BLE001
+                            msg = f"{futures[completed].taskname}: Task failed: %s"
+                            log.error(msg, str(getattr(e, "value", e)))
+                            for line in traceback.format_exc().strip().split("\n"):
+                                log.debug(msg, line)
+                        else:
+                            log.debug("%s: Task completed", futures[completed].taskname)
+        except (KeyboardInterrupt, SystemExit) as e:
+            if isinstance(e, KeyboardInterrupt):
+                log.info("Interrupted")
+            log.info("Shutting down")
         executor.shutdown(cancel_futures=True, wait=True)
 
     def _report_readiness(self) -> None:
