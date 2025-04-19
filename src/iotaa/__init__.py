@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from types import ModuleType
 
-
 # Classes
 
 
