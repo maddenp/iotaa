@@ -12,7 +12,6 @@ import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import UserDict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
@@ -23,6 +22,8 @@ from itertools import chain
 from json import JSONDecodeError, loads
 from logging import Logger, getLogger
 from pathlib import Path
+from queue import Queue
+from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast, overload
 
 if TYPE_CHECKING:
@@ -219,35 +220,35 @@ class Node(ABC):
 
         :param dry_run: Avoid executing state-affecting code?
         """
-        executor = ThreadPoolExecutor(max_workers=self._threads)
-        batchsize = 100
+        threads, todo, done, interrupt = self._exec_threads_startup(dry_run)
         g = self._assemble()
         g.prepare()
         try:
             while g.is_active():
-                ready = g.get_ready()
-                while ready:
-                    batch, ready = ready[:batchsize], ready[batchsize:]
-                    futures = {executor.submit(node, dry_run): node for node in batch}
-                    for node in batch:
-                        g.done(node)
-                    for completed in as_completed(futures):
-                        try:
-                            completed.result()
-                        except (KeyboardInterrupt, SystemExit):
-                            raise
-                        except Exception as e:  # noqa: BLE001
-                            msg = f"{futures[completed].taskname}: Task failed: %s"
-                            log.error(msg, str(getattr(e, "value", e)))
-                            for line in traceback.format_exc().strip().split("\n"):
-                                log.debug(msg, line)
-                        else:
-                            log.debug("%s: Task completed", futures[completed].taskname)
-        except (KeyboardInterrupt, SystemExit) as e:
-            if isinstance(e, KeyboardInterrupt):
-                log.info("Interrupted")
-            log.info("Shutting down")
-        executor.shutdown(cancel_futures=True, wait=True)
+                for node in g.get_ready():
+                    todo.put(node)
+                g.done(done.get())
+        except KeyboardInterrupt:
+            log.info("Interrupted, shutting down...")
+            interrupt.set()
+        self._exec_threads_shutdown(threads, todo)
+
+    def _exec_threads_shutdown(self, threads: list[Thread], todo: _QueueT) -> None:
+        for _ in range(self._threads):
+            todo.put(None)
+        for thread in threads:
+            thread.join()
+
+    def _exec_threads_startup(self, dry_run: bool) -> tuple[list[Thread], _QueueT, _QueueT, Event]:
+        todo: _QueueT = Queue()
+        done: _QueueT = Queue()
+        interrupt = Event()
+        threads = []
+        for _ in range(self._threads):
+            thread = Thread(target=_do, args=(todo, done, interrupt, dry_run, self._logger))
+            thread.start()
+            threads.append(thread)
+        return threads, todo, done, interrupt
 
     def _report_readiness(self) -> None:
         """
@@ -364,6 +365,7 @@ _AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
 _JSONValT = Union[bool, dict, float, int, list, str]
 _LoggerT = Union[Logger, _LoggerProxy]
 _NodeT = TypeVar("_NodeT", bound=Node)
+_QueueT = Queue[Optional[Node]]
 _ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 _T = TypeVar("_T")
 
@@ -611,6 +613,23 @@ def _continuation(iterator: Iterator, taskname: str) -> Callable:
             pass
 
     return continuation
+
+
+def _do(todo: _QueueT, done: _QueueT, term: Event, dry_run: bool, iotaa_logger: Logger):  # noqa: ARG001
+    while not term.is_set():
+        node = todo.get()
+        if node is None:
+            break
+        try:
+            node(dry_run)
+        except Exception as e:  # noqa: BLE001
+            msg = f"{node.taskname}: Task failed: %s"
+            log.error(msg, str(getattr(e, "value", e)))
+            for line in traceback.format_exc().strip().split("\n"):
+                log.debug(msg, line)
+        else:
+            log.debug("%s: Task completed", node.taskname)
+        done.put(node)
 
 
 def _findabove(name: str) -> Any:

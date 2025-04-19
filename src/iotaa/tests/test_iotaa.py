@@ -12,7 +12,9 @@ from hashlib import sha256
 from itertools import chain
 from operator import add
 from pathlib import Path
+from queue import Queue
 from textwrap import dedent
+from threading import Event, Thread
 from typing import cast
 from unittest.mock import ANY, Mock, patch
 from unittest.mock import DEFAULT as D
@@ -129,20 +131,6 @@ def badtask() -> Iterator:
     yield "Bad task yields no asset"
 
 
-def interrupt():
-    raise KeyboardInterrupt
-
-
-@iotaa.task
-def interrupted() -> Iterator:
-    completed = False
-    yield "Interrupted Task"
-    yield iotaa.asset(None, lambda: completed)
-    yield None
-    interrupt()
-    completed = True
-
-
 @iotaa.task
 def memval(n) -> Iterator:
     assert n != 1
@@ -151,7 +139,7 @@ def memval(n) -> Iterator:
     yield iotaa.asset(val, lambda: bool(val))
     reqs = [memval_req(1), memval_req(n)]
     yield reqs
-    m = add(*[iotaa.refs(req)[0] for req in reqs])
+    m = add(*[req.refs[0] for req in reqs])
     if m == 0:
         msg = "zero result"
         raise RuntimeError(msg)
@@ -339,6 +327,13 @@ def test_Node_ready(fakefs):
     assert t_external_foo_scalar(fakefs).ready
 
 
+def test_Node_root(fakefs):
+    node = t_tasks_baz(fakefs)
+    assert node.root
+    children = cast(list[iotaa.Node], node._reqs)
+    assert not any(child.root for child in children)
+
+
 def test_Node__add_node_and_predecessors(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     g: TopologicalSorter = TopologicalSorter()
     node = t_tasks_baz(fakefs)
@@ -384,11 +379,44 @@ def test_Node__exec(caplog, iotaa_logger, n, threads):  # noqa: ARG001
         assert logged(caplog, f"a: {success}")
 
 
-def test_Node__exec_interrupt(caplog, iotaa_logger):  # noqa: ARG001
-    node = interrupted(threads=1)
+def test_Node__exec__interrupt(caplog, iotaa_logger):  # noqa: ARG001
+    with patch.object(iotaa.TopologicalSorter, "is_active", side_effect=KeyboardInterrupt):
+        node = memval(2)
     assert not iotaa.ready(node)
-    assert logged(caplog, "Interrupted")
-    assert logged(caplog, "Shutting down")
+    assert logged(caplog, "Interrupted, shutting down...")
+
+
+def test_Node__exec_threads_shutdown():
+    nthreads = 2
+    obj = Mock(_threads=nthreads)
+    threads = []
+    for _ in range(nthreads):
+        thread = Thread(target=lambda: None)
+        threads.append(thread)
+        thread.start()
+    todo: iotaa._QueueT = Queue()
+    assert todo.qsize() == 0
+    iotaa.Node._exec_threads_shutdown(self=obj, threads=threads, todo=todo)
+    assert todo.qsize() == nthreads
+    for thread in threads:
+        assert not thread.is_alive()
+
+
+def test_Node__exec_threads_startup(iotaa_logger):
+    nthreads = 2
+    obj = Mock(_threads=nthreads, _logger=iotaa_logger)
+    threads, todo, done, interrupt = iotaa.Node._exec_threads_startup(self=obj, dry_run=False)
+    nodes = [Mock(), Mock()]
+    for node in nodes:
+        todo.put(node)
+    for _ in range(nthreads):
+        todo.put(None)
+    for thread in threads:
+        thread.join()
+        assert not thread.is_alive()
+    assert todo.qsize() == 0
+    assert [done.get() for _ in range(done.qsize())] == nodes
+    assert not interrupt.is_set()
 
 
 def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
@@ -404,7 +432,7 @@ def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
 
 
 @mark.parametrize("touch", [False, True])
-def test_Node__report_readiness_tasks(caplog, fakefs, iotaa_logger, touch):  # noqa: ARG001
+def test_Node__report_readiness(caplog, fakefs, iotaa_logger, touch):  # noqa: ARG001
     path = fakefs / "foo"
     if touch:
         path.touch()
@@ -415,13 +443,6 @@ def test_Node__report_readiness_tasks(caplog, fakefs, iotaa_logger, touch):  # n
         assert logged(caplog, "tasks qux: Requires:")
         assert logged(caplog, "tasks qux: ✖ external foo %s" % path)
         assert logged(caplog, "tasks qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
-
-
-def test_Node__root(fakefs):
-    node = t_tasks_baz(fakefs)
-    assert node.root
-    children = cast(list[iotaa.Node], node._reqs)
-    assert not any(child.root for child in children)
 
 
 # Tests for public functions
@@ -456,7 +477,7 @@ def test_logcfg(vals):
     bc.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_main_error(caplog):
+def test_main__error(caplog):
     with (
         patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]),
         raises(SystemExit),
@@ -465,13 +486,13 @@ def test_main_error(caplog):
     assert logged(caplog, "Failed to get assets: Check yield statements.")
 
 
-def test_main_live_abspath(capsys, module_for_main):
+def test_main__live_abspath(capsys, module_for_main):
     with patch.object(iotaa.sys, "argv", new=["prog", str(module_for_main), "hi", "world"]):
         iotaa.main()
     assert "hello world!" in capsys.readouterr().out
 
 
-def test_main_live_syspath(capsys, module_for_main):
+def test_main__live_syspath(capsys, module_for_main):
     m = str(module_for_main.name).replace(".py", "")  # i.e. not a path to an actual file
     with patch.object(iotaa.sys, "argv", new=["prog", m, "hi", "world"]):
         syspath = [iotaa.sys.path, str(module_for_main.parent)]
@@ -484,7 +505,7 @@ def test_main_live_syspath(capsys, module_for_main):
 
 
 @mark.parametrize("g", [lambda _s, _i, _f, _b: (None, False), lambda _s, _i, _f, _b: (None, True)])
-def test_main_mocked_up(capsys, fakefs, g):
+def test_main__mocked_up(capsys, fakefs, g):
     with (
         patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks,
         patch.object(iotaa, "graph", return_value="DOT code") as graph,
@@ -504,7 +525,7 @@ def test_main_mocked_up(capsys, fakefs, g):
         assert capsys.readouterr().out.strip() == "DOT code"
 
 
-def test_main_mocked_up_tasknames(fakefs):
+def test_main__mocked_up_tasknames(fakefs):
     with (
         patch.multiple(iotaa, _parse_args=D, import_module=D, logcfg=D, tasknames=D) as mocks,
         patch.object(iotaa, "graph", return_value="DOT code") as graph,
@@ -532,7 +553,7 @@ def test_ready(fakefs):
     assert node_after.ready == ready
 
 
-def test_ready_tasks():
+def test_ready__tasks():
     @iotaa.task
     def shared() -> Iterator:
         val: list[bool] = []
@@ -587,11 +608,11 @@ def test_tasknames():
 # Tests for decorators.
 
 
-def test_external_docstring():
+def test_external__docstring():
     assert t_external_foo_scalar.__doc__.strip() == "EXTERNAL!"  # type: ignore[union-attr]
 
 
-def test_external_not_ready(fakefs, iotaa_logger):  # noqa: ARG001
+def test_external__not_ready(fakefs, iotaa_logger):  # noqa: ARG001
     f = fakefs / "foo"
     assert not f.is_file()
     node = t_external_foo_scalar(fakefs)
@@ -600,7 +621,7 @@ def test_external_not_ready(fakefs, iotaa_logger):  # noqa: ARG001
     assert not node.ready
 
 
-def test_external_ready(fakefs, iotaa_logger):  # noqa: ARG001
+def test_external__ready(fakefs, iotaa_logger):  # noqa: ARG001
     f = fakefs / "foo"
     f.touch()
     assert f.is_file()
@@ -610,7 +631,7 @@ def test_external_ready(fakefs, iotaa_logger):  # noqa: ARG001
     assert node.ready
 
 
-def test_task_docstring():
+def test_task__docstring():
     assert t_task_bar_scalar.__doc__.strip() == "TASK!"  # type: ignore[union-attr]
 
 
@@ -621,7 +642,7 @@ def test_task_docstring():
         (t_task_bar_list, lambda x: x[0]),
     ],
 )
-def test_task_not_ready(caplog, fakefs, func, iotaa_logger, val):
+def test_task__not_ready(caplog, fakefs, func, iotaa_logger, val):
     f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = func(fakefs, log=iotaa_logger)
@@ -641,7 +662,7 @@ def test_task_not_ready(caplog, fakefs, func, iotaa_logger, val):
         (t_task_bar_scalar, lambda x: x),
     ],
 )
-def test_task_ready(caplog, fakefs, func, iotaa_logger, val):
+def test_task__ready(caplog, fakefs, func, iotaa_logger, val):
     f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
@@ -654,11 +675,11 @@ def test_task_ready(caplog, fakefs, func, iotaa_logger, val):
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
 
 
-def test_tasks_docstring():
+def test_tasks__docstring():
     assert t_tasks_baz.__doc__.strip() == "TASKS!"  # type: ignore[union-attr]
 
 
-def test_tasks_structured():
+def test_tasks__structured():
     a = iotaa.asset(ref="a", ready=lambda: False)
 
     @iotaa.external
@@ -689,7 +710,7 @@ def test_tasks_structured():
     assert iotaa.refs(requirements["scalar"]) == "a"
 
 
-def test_tasks_not_ready(caplog, fakefs):
+def test_tasks__not_ready(caplog, fakefs):
     f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = t_tasks_baz(fakefs)
@@ -709,7 +730,7 @@ def test_tasks_not_ready(caplog, fakefs):
         assert logged(caplog, f"tasks baz: {msg}")
 
 
-def test_tasks_ready(caplog, fakefs, iotaa_logger):
+def test_tasks__ready(caplog, fakefs, iotaa_logger):
     f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     f_foo.touch()
     assert f_foo.is_file()
@@ -746,6 +767,30 @@ def test__continuation(caplog, iotaa_logger, rungen):  # noqa: ARG001
     continuation = iotaa._continuation(iterator=rungen, taskname="task")
     continuation()
     assert logged(caplog, "task: Executing")
+
+
+def test__do(caplog, iotaa_logger):
+    todo: iotaa._QueueT = Queue()
+    done: iotaa._QueueT = Queue()
+    term = Event()
+    # Good node:
+    node = Mock(taskname="foo")
+    todo.put(node)
+    todo.put(None)
+    iotaa._do(todo=todo, done=done, term=term, dry_run=False, iotaa_logger=iotaa_logger)
+    node.assert_called_once_with(False)
+    assert logged(caplog, "foo: Task completed")
+    assert todo.qsize() == 0
+    assert done.qsize() == 1
+    # Bad node:
+    boom = Mock(taskname="boom", side_effect=RuntimeError)
+    todo.put(boom)
+    todo.put(None)
+    iotaa._do(todo=todo, done=done, term=term, dry_run=False, iotaa_logger=iotaa_logger)
+    node.assert_called_once_with(False)
+    assert logged(caplog, "boom: Task failed: RuntimeError")
+    assert todo.qsize() == 0
+    assert done.qsize() == 2
 
 
 def test__findabove():
@@ -859,7 +904,7 @@ def test__parse_args(graph, show, verbose):
     assert args.verbose is bool(verbose)
 
 
-def test__parse_args_missing_task_no(capsys):
+def test__parse_args__missing_task_no(capsys):
     with raises(SystemExit) as e:
         iotaa._parse_args(raw=["a_module"])
     assert e.value.code == 1
@@ -867,14 +912,14 @@ def test__parse_args_missing_task_no(capsys):
 
 
 @mark.parametrize("switch", ["-s", "--show"])
-def test__parse_args_missing_task_ok(switch):
+def test__parse_args__missing_task_ok(switch):
     args = iotaa._parse_args(raw=["a_module", switch])
     assert args.module == "a_module"
     assert args.show is True
 
 
 @mark.parametrize("switch", ["-t", "--threads"])
-def test__parse_args_threads_no(capsys, switch):
+def test__parse_args__threads_no(capsys, switch):
     with raises(SystemExit) as e:
         iotaa._parse_args(raw=["a_module", "a_function", switch, "0"])
     assert e.value.code == 1
@@ -917,7 +962,7 @@ def test__task_common():
     assert next(g) == 42
 
 
-def test__task_common_extras():
+def test__task_common__extras():
     def f(taskname, n):
         yield taskname
         yield n
