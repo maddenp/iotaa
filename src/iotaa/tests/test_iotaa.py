@@ -395,9 +395,11 @@ def test_Node__exec_threads_shutdown():
         threads.append(thread)
         thread.start()
     todo: iotaa._QueueT = Queue()
+    interrupt = Event()
     assert todo.qsize() == 0
-    iotaa.Node._exec_threads_shutdown(self=obj, threads=threads, todo=todo)
+    iotaa.Node._exec_threads_shutdown(self=obj, threads=threads, todo=todo, interrupt=interrupt)
     assert todo.qsize() == nthreads
+    assert interrupt.is_set()
     for thread in threads:
         assert not thread.is_alive()
 
@@ -772,12 +774,12 @@ def test__continuation(caplog, iotaa_logger, rungen):  # noqa: ARG001
 def test__do(caplog, iotaa_logger):
     todo: iotaa._QueueT = Queue()
     done: iotaa._QueueT = Queue()
-    term = Event()
+    interrupt = Event()
     # Good node:
     node = Mock(taskname="foo")
     todo.put(node)
     todo.put(None)
-    iotaa._do(todo=todo, done=done, term=term, dry_run=False, iotaa_logger=iotaa_logger)
+    iotaa._do(todo=todo, done=done, interrupt=interrupt, dry_run=False, iotaa_logger=iotaa_logger)
     node.assert_called_once_with(False)
     assert logged(caplog, "foo: Task completed")
     assert todo.qsize() == 0
@@ -786,7 +788,7 @@ def test__do(caplog, iotaa_logger):
     boom = Mock(taskname="boom", side_effect=RuntimeError)
     todo.put(boom)
     todo.put(None)
-    iotaa._do(todo=todo, done=done, term=term, dry_run=False, iotaa_logger=iotaa_logger)
+    iotaa._do(todo=todo, done=done, interrupt=interrupt, dry_run=False, iotaa_logger=iotaa_logger)
     node.assert_called_once_with(False)
     assert logged(caplog, "boom: Task failed: RuntimeError")
     assert todo.qsize() == 0

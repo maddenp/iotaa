@@ -219,9 +219,9 @@ class Node(ABC):
 
         :param dry_run: Avoid executing state-affecting code?
         """
-        threads, todo, done, interrupt = self._exec_threads_startup(dry_run)
         g = self._assemble()
         g.prepare()
+        threads, todo, done, interrupt = self._exec_threads_startup(dry_run)
         try:
             while g.is_active():
                 for node in g.get_ready():
@@ -229,11 +229,13 @@ class Node(ABC):
                 g.done(done.get())
         except KeyboardInterrupt:
             log.info("Interrupted, shutting down...")
-            interrupt.set()
-        self._exec_threads_shutdown(threads, todo)
+        self._exec_threads_shutdown(threads, todo, interrupt)
 
-    def _exec_threads_shutdown(self, threads: list[Thread], todo: _QueueT) -> None:
-        for _ in range(self._threads):
+    def _exec_threads_shutdown(
+        self, threads: list[Thread], todo: _QueueT, interrupt: Event
+    ) -> None:
+        interrupt.set()
+        for _ in threads:
             todo.put(None)
         for thread in threads:
             thread.join()
@@ -245,8 +247,8 @@ class Node(ABC):
         threads = []
         for _ in range(self._threads):
             thread = Thread(target=_do, args=(todo, done, interrupt, dry_run, self._logger))
-            thread.start()
             threads.append(thread)
+            thread.start()
         return threads, todo, done, interrupt
 
     def _report_readiness(self) -> None:
@@ -614,8 +616,8 @@ def _continuation(iterator: Iterator, taskname: str) -> Callable:
     return continuation
 
 
-def _do(todo: _QueueT, done: _QueueT, term: Event, dry_run: bool, iotaa_logger: Logger):  # noqa: ARG001
-    while not term.is_set():
+def _do(todo: _QueueT, done: _QueueT, interrupt: Event, dry_run: bool, iotaa_logger: Logger):  # noqa: ARG001
+    while not interrupt.is_set():
         node = todo.get()
         if node is None:
             break
