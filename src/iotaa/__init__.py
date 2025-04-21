@@ -234,6 +234,19 @@ class Node(ABC):
     def _exec_threads_shutdown(
         self, threads: list[Thread], todo: _QueueT, interrupt: Event
     ) -> None:
+        """
+        Shut down worker threads.
+
+        :param threads: The worker threads.
+        :param todo: The outstanding-work queue.
+        :param interrupt: Signal threads to exit even if outstanding work exists.
+        """
+
+        # For each worker thread, enqueue a None sentinel telling it to stop. Since the sentinel
+        # is inserted at the end of the queue, and it might take some time for the worker to reach
+        # it, also set the interrupt, which the worker will see as soon as it processes its current
+        # work item.
+
         interrupt.set()
         for _ in threads:
             todo.put(None)
@@ -241,6 +254,12 @@ class Node(ABC):
             thread.join()
 
     def _exec_threads_startup(self, dry_run: bool) -> tuple[list[Thread], _QueueT, _QueueT, Event]:
+        """
+        Start up worker threads.
+
+        :param dry_run: Avoid executing state-affecting code?
+        :return: The worker threads, outstanding- and finished-work queues, and the interrupt event.
+        """
         todo: _QueueT = Queue()
         done: _QueueT = Queue()
         interrupt = Event()
@@ -617,6 +636,15 @@ def _continuation(iterator: Iterator, taskname: str) -> Callable:
 
 
 def _do(todo: _QueueT, done: _QueueT, interrupt: Event, dry_run: bool, iotaa_logger: Logger):  # noqa: ARG001
+    """
+    The worker-thread function.
+
+    :param todo: The outstanding-work queue.
+    :param done: The completed-work queue.
+    :param interrupt: Signal threads to exit even if outstanding work exists.
+    :param dry_run: Avoid executing state-affecting code?
+    :param iotaa_logger: The loger to use.
+    """
     while not interrupt.is_set():
         node = todo.get()
         if node is None:
