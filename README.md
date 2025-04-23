@@ -6,69 +6,69 @@ A simple workflow engine with semantics inspired by [Luigi](https://github.com/s
 
 ## Workflows
 
-Workflows are composed of tasks, each of which comprises some combination of:
+Workflows are composed of tasks, each of which is some combination of:
 
-- Assets: Observable state. These are often external entities like files, but may also be more abstract entities like file line counts, REST API responses, times of day, or any kind of in-memory data.
+- Assets: Observable state, an asset is often an external entity like a file, but may also be a more abstract entity like a file line count, REST API response, time of day, or any kind of in-memory data.
 - Actions: Imperative logic to create or otherwise "ready" assets.
-- Requirements: Dependency relationships that define the order in which tasks must be executed and allow a task, when readying its own assets, to use assets from tasks it requires.
+- Requirements: Dependency relationships that define the order in which tasks must be executed, they also allow a task to use assets from tasks it requires when readying its own assets.
 
-A workflow can be thought of as a graph where tasks are the nodes and the dependency relationships between them are the edges.
+A workflow can be thought of as a graph where tasks are nodes and the dependency relationships between them are directed edges between them.
 
 ## Assets
 
 An asset (an instance of class `iotaa.Asset`) has two attributes:
 
-1. `ref`: A value, of any type, identifying the observable state this asset represents (e.g. a filesystem path, a URI, a timestamp, a floating-point number).
+1. `ref`: A value, of any type, identifying the observable state this asset represents.
 2. `ready`: A 0-arity (no-argument) function that returns a `bool` indicating whether the asset is ready to use. Note that this should be a reference to a callable function, not a function _call_.
 
-Create an asset by calling `iotaa.asset()`.
+Create an asset by calling `iotaa.asset(ref=<ref>, ready=<callable>)`.
 
 See the _In-Memory Asset_ topic in the _Cookbook_ section for a strategy for handling in-memory assets.
 
 ## Tasks
 
-A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. Tasks are identified by their names, so multiple tasks yielding the same name are considered identical, and `iotaa` will discard all but one of them. Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
+A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. A task is identified by its name, so multiple tasks yielding the same name are considered equivalent, and `iotaa` will select one as a representative for execution.
 
-`iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be single items, or a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a required task `t`.
+Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
 
-For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A common pattern is to assign a requirement's result to a variable, yield that result via the variable, then access assets via its `.refs` property (or by passing it as the argument to the `iotaa.refs()` helper function):
+`iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be a single (scalar) item, a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a required task `t`.
+
+For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A useful pattern is to assign a requirement to a variable, yield that variable, then access its assets via its `.refs` property (or by passing it as the argument to the `iotaa.refs()` helper function). For example:
 
 ``` python
 @task
 def random_number_file(path: Path):
     yield "Random number file: %s" % path # Yield task name
     yield asset(path, path.is_file)       # Yield task asset
-    rn = random_number()                  # Call required task & save result
-    yield rn                              # Yield required task's result
-    path.write_text(rn.refs)              # Ready this task's asset
+    rn = random_number()                  # Call and save required task
+    yield rn                              # Yield required task
+    path.write_text(rn.refs)              # Ready THIS task's asset, using the requirement's asset.
 ```
 
 ### `@task`
 
-The essential task type, a `@task` function implements three `yield` statements yielding, in order:
+The essential task type, a `@task` function yields, in order:
 
 1. Its name.
 2. The asset(s) it readies.
 3. Any requirements.
 
-A task may have no requirements, in which case `None` can be specified. For example, a task to create a file with static content might not rely on any other tasks. (It could perhaps rely on another task to ready the parent directory, but could also create that directory itself.)
+A task may have no requirements, in which case `None` can be specified. For example, a task to create a file with static content might not rely on any other tasks. (It could perhaps rely on another task to ready the parent directory, but could also create that directory itself before writing the file.)
 
-Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.refs` prperties (or by passing them to the `iotaa.refs()` helper function) -- see example code below.
+Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.refs` properties (or by passing them to the `iotaa.refs()` helper function -- see the demo application below).
 
 ### `@tasks`
 
-A collection of other tasks, a `@tasks` task is ready when all of its required tasks are ready. It implements two `yield` statements yielding, in order:
+A collection of other tasks, a `@tasks` task is ready when all of its required tasks are ready. It yields, in order:
 
 1. Its name.
-2. The collection of required tasks.
-
-A `@tasks` function could yield a scalar requirement (or even `None`) but this probably makes no sense in practice.
+2. The collection of required tasks: A `list` of task-function calls, or a `dict` mapping `str` keys to task-function-call values. A `@tasks` function could yield a scalar requirement (or even `None`) but this probably makes no sense in practice.
 
 No action code should follow the final `yield`: It will never be executed.
 
 ### `@external`
 
-An `@external` task describes assets required by downstream tasks that are outside the workflow's power to ready. It provides two `yield` statements yielding, in order:
+An `@external` task describes assets required by downstream tasks that are outside the workflow's power to ready. It yields, in order:
 
 1. Its name.
 2. The asset(s) that are required but cannot be readied by the workflow.
@@ -132,7 +132,7 @@ Specifying positional arguments `module function hello 42` calls task function `
 
 It is assumed that `module` is importable by Python by customary means. As a convenience, if `module` is a valid absolute or relative path (perhaps specified as `module.py` or `/path/to/module.py`), its parent directory will automatically be added to `sys.path` so that it can be imported.
 
-Given a task graph comprising any number of nodes, any arbitrary subgraph may be executed by specifying the appropriate root function `function`: Only `function` and its requirements (and their requirements, etc.) will be processed, resulting in partial execution of the potentially larger graph.
+Given a task graph comprising any number of nodes, any arbitrary subgraph may be executed by specifying the appropriate root function `function`: Only `function` and its requirements (and their requirements, etc.) will be executed, resulting in partial processing of the potentially larger graph.
 
 The `function` argument is optional, and ignored if supplied, if the `-s` / `--show` option to show the names of available task functions in `module` is specified.
 
@@ -142,13 +142,13 @@ After installation, `import iotaa` or `from iotaa import <name>` to access publi
 
 ### Dry-Run Mode
 
-Use the `--dry-mode` CLI switch, or supply the `dry_run=True` argument when calling a task-graph root function, to run `iotaa` in a mode where no post-`yield` action statements in `@task` bodies are executed. When applications are written such that no state-affecting statements precede the final `yield` statement, dry-run mode will report the current condition of the workflow with affecting state and potentially identifying not-ready requirements that are blocking workflow progress.
+Use the `--dry-mode` CLI switch, or supply the `dry_run=True` argument when calling a task-graph root function, to run `iotaa` in a mode where no post-`yield` action statements in `@task` bodies are executed. When applications are written such that no state-affecting statements precede the final `yield` statement, dry-run mode will report the current state of the workflow without affecting state, potentially identifying not-ready requirements that are blocking workflow progress.
 
 ### Threading
 
-Use the `--threads` CLI switch, or supply the `threads=` argument when calling a task-graph root function, to process the task graph with a specified number of threads. Threads can speed up workflows by executing IO-bound tasks concurrently. (See the _Cookbook_ section, below, for information on combining threads and processes to speed up CPU-bound tasks.)
+Use the `--threads` CLI switch, or supply the `threads=` argument when calling a task-graph root function, to process the task graph with the specified number of threads. Threads can speed up workflows by executing IO-bound tasks concurrently. (See the _Cookbook_ section, below, for information on combining threads and processes to speed up CPU-bound tasks.)
 
-When using threads, note that log messages relating to different tasks may be interleaved. Those logged by `iotaa` itself should be prefixed with each task's name, so it should be clear which messages belong to which task. When creating custom log messages via `iotaa.log`, consider prefixing them with the taskname, too, to allow them to be logically grouped together when reading.
+When using threads, note that log messages relating to different tasks may be interleaved. Those logged by `iotaa` itself should be prefixed with each task's name, so it should be clear which messages belong to which task. When creating custom log messages by via `iotaa.log`, consider prefixing them with the taskname, too, to allow them to be logically grouped together when reading.
 
 ## Helpers
 
@@ -160,29 +160,29 @@ A number of public helper functions are available in the `iotaa` module:
 | `assets()`       | Given the `Node` value returned by a task-function call, return the asset(s) yielded by the task. Equivalent to accessing the `.assets` property of the `Node`. |
 | `graph()`        | Given the `Node` value returned by a task-function call, return a Graphviz string representation of the task graph. Equivalent to accessing the `.graph` property of the `Node`. |
 | `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
-| `ready()`        | Given the `Node` value returned by a task-function call, return the ready `bool` status of the task. Equivalent to accessing the `.ready` property of the `Node`. |
+| `ready()`        | Given the `Node` value returned by a task-function call, return the ready (`bool`) status of the task. Equivalent to accessing the `.ready` property of the `Node`. |
 | `refs()`         | Given the `Node` value returned by a task-function call, a single asset, a `list` of assets, or a `dict` whose values are assets, return the `ref` values of the asset(s) in the corresponding shape (e.g. `dict`, `list`). Accessing the `.refs` property returns the `ref` values for the assets of that `Node`. |
-| `requirements()` | Given the `Node` value returned by a task-function call, return any other such values yielded by the task value as requirements. Equivalent to accessing the `.requirements` property of the `Node`. |
+| `requirements()` | Given the `Node` value returned by a task-function call, return the represented task's requirements, themselves `Node` values. Equivalent to accessing the `.requirements` property of the `Node`. |
 | `tasknames()`    | Given an object (e.g. a module), return a list of names of  `iotaa` task members. Called by the CLI when `-s` / `--show` is specified. Prints each task name followed by, when available, the first line of its docstring. |
 
-Some linters may not recognize the existence of `Node` properties `.assets`, `.graph`, `.ready`, `.refs`, and `.requirements`. In these cases, calling the corresponding helper functions may silence the complaints.
+Some linters may not recognize the existence of `Node` properties `.assets`, `.graph`, `.ready`, `.refs`, and `.requirements`. In such cases, calling the corresponding helper functions instead may silence complaints.
 
-Additionally, `iotaa.log` provides a reference to the logger in use by `iotaa`. By default this will be the Python root logger, configured by `iotaa`. But, if a custom logger was supplied via the `log=` keyword argument to a task-graph root-function, that logger will be used. Thus, code can safely call `iotaa.log.info()`, `iotaa.log.debug()`, etc.
+Additionally, `iotaa.log` provides a reference to the logger in use by `iotaa`. By default this will be the Python root logger, configured by `iotaa`. But, if a custom logger was supplied via the `log=` keyword argument to a task-graph root function, `iotaa.log` will reference that logger. Thus, application code can safely call `iotaa.log.info()`, `iotaa.log.debug()`, etc.
 
 ## Development
 
-In the base environment of a conda installation ([Miniforge](https://github.com/conda-forge/miniforge) recommended), install the [condev](https://github.com/maddenp/condev) [package](https://anaconda.org/maddenp/condev), then run `make devshell` in the root of an `iotaa` git clone. See the [condev docs](https://github.com/maddenp/condev/blob/main/README.md) for details but, in short: In the development shell created by `make devshell`, edit and test code live (either by starting a `python` REPL, or by invoking the `iotaa` CLI program), run the auto-formatter with `make format`, and run the code-quality tests with `make test`. Type `exit` to exit the development shell. (The underlying `DEV-iotaa` conda environment created by `make devshell` will persist until manually removed, so future `make devshell` invocations should be much faster than the first one, which must create the environment.)
+In the base environment of a conda installation ([Miniforge](https://github.com/conda-forge/miniforge) recommended), install the [condev](https://github.com/maddenp/condev) [package](https://anaconda.org/maddenp/condev), then run `make devshell` in the root of an `iotaa` git clone. See the [condev docs](https://github.com/maddenp/condev/blob/main/README.md) for details but, in short: In the development shell created by `make devshell`, edit and test code live (either by starting a `python` REPL, or by invoking the `iotaa` CLI program), run the auto-formatter with `make format`, and run the code-quality tests with `make test`. Type `exit` to exit the development shell. (The underlying `DEV-iotaa` conda environment created by `make devshell` will persist until manually removed, so future `make devshell` invocations should be much faster than the first, which must create the environment.)
 
 ## Important Notes and Tips
 
-- Tasks yielding the same task name are deemed identical by `iotaa`, which will add just one to the task graph for execution, discarding the rest. Be sure that distinct tasks yield distinct names. If it appears that `iotaa` is not executing all expected tasks, too-general task names are often the cause.
+- Tasks yielding the same task name are deemed equivalent by `iotaa`, which will add a single representative to the task graph for execution and patch the rest with references to the representative's assets . Be sure that distinct tasks yield distinct names. If it appears that `iotaa` is not executing all expected tasks, too-general task names may be the cause.
 - For efficient task-graph execution, if `iotaa` finds that a task's assets are ready, it will ignore all that task's requirements, adding no child nodes for them to the task graph. Furthermore, when it _does_ process a task's requirements, it will discard any that are themselves ready. For this reason, yielding assets as soon as possible, before doing any work constructing requirements, may speed up workflow execution.
-- Because tasks with all their assets ready will not be re-executed, nor their requirements revisited, in order to force re-execution (for example, after a configuration change that would produce different assets) it is necessary to externally (perhaps manually) make them _not ready_, e.g. by deleting on-disk files for filesystem-based assets.
+- Tasks with all their assets ready will not be re-executed, nor their requirements revisited. So, in order to force re-execution (for example, after a configuration change that would produce different assets) it is necessary to externally make them _not ready_, e.g. by deleting on-disk files for filesystem-based assets.
 - The following keyword arguments to task functions are reserved. They need only be provided when calling the root function of a task graph from outside `iotaa`, not when calling a task function as a requirement inside a decorated `@task`, `@tasks`, or `@external` function. They are consumed by `iotaa`, not passed on to task functions, and should not appear in task functions' argument lists. Since they do not appear in argument lists, linter complaints may need to be suppressed at some call sites.
-    - `dry_run`: Instructs `iotaa` not to run the action code in `@task` functions. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting state appear only after the final `yield` statement.
-    - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger, configured by `iotaa`. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object.
-    - `threads`: Specifies the number of concurrent threads to use. Defaults to 1. When interrupted for example by ctrl-c, `iotaa` waits for outstanding tasks to complete before exiting; terminating `iotta` forcefully may leave the workflow in an inconsistent state requiring manual recovery.
-- Workflows may be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of external requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never repeated (i.e. tasks are idempotent), unless the asset becomes not-ready via external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
+    - `dry_run`: Instructs `iotaa` not to run the action code in `@task` functions. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting state appear only after the final `yield` statement in `@task` functions, and that `@tasks` and `@external` tasks perform no state-affecting actions.
+    - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger as configured by `iotaa`. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object.
+    - `threads`: Specifies the number of concurrent threads to use. Defaults to 1. When interrupted for example by CTRL-C, `iotaa` waits for outstanding tasks to complete before exiting; terminating `iotaa` forcefully may leave the workflow in an inconsistent state requiring manual recovery.
+- Workflows may be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never repeated. That is, correctly designed tasks are idempotent, unless their assets become not-ready by external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
 
 ## Demo
 
@@ -302,7 +302,7 @@ def steeped_tea(basedir):
         log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
 ```
 
-Here, the asset being yielded is more abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
+Here, the asset being yielded is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
 
 Note the statement
 
@@ -345,7 +345,7 @@ def tea_bag(basedir):
     path.touch()
 ```
 
-Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that just must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, an `@external` task yields, after its name, only the _assets_ it represents. It yields no requirements, and has no action code to ready the asset:
+Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that just must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, an `@external` task yields, after its name, only the _assets_ it represents. It yields no requirements, and provides no action code to ready the asset:
 
 ``` python
 @external
@@ -358,7 +358,7 @@ def box_of_tea_bags(basedir):
     yield asset(path, path.exists)
 ```
 
-Let's run this workflow with the `iotaa` command-line tool, requesting that the workflow start with the `a_cup_of_tea` task:
+Let's run this workflow with the `iotaa` CLI, requesting that the workflow start with the `a_cup_of_tea` task:
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea ./teatime
@@ -409,7 +409,7 @@ Note the blocker:
 [2025-04-01T14:44:23] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
 ```
 
-The external asset (file) `teatime/box-of-tea-bags` cannot be created by the workflow, as it is declared `@external`, but we can create it manually:
+The external asset (file) `teatime/box-of-tea-bags` cannot be created by the workflow, as it is declared `@external`. But we can create it manually:
 
 ```
 $ touch teatime/box-of-tea-bags
@@ -710,6 +710,184 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 ## Cookbook
 
+### Atomic Writes
+
+Since `iotaa` uses assets' `ready` predicate functions to guide execution, and does not rely on e.g. a progress database, it is important that when assets claim to be ready, they really are. A notorious source of error in this regard is partially written files. Given, for example `asset(ref=path, ready=path.is_file)`, if the `@task` function creating `path` opens that file, starts writing to it, then is killed before writing is complete, a future invocation of the workflow will see the asset as ready and will not re-execute the task. To protect against this, consider writing to a temporary file and then renaming the file (an [atomic operation](https://rcrowley.org/2010/01/06/things-unix-can-do-atomically.html)) when the file is complete. A context manager similar to the following may be useful:
+
+``` python
+@contextmanager
+def atomic(path: Path) -> Iterator[Path]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = Path("%s.tmp" % path)
+    yield tmp
+    tmp.rename(path)
+```
+
+Example usage:
+
+``` python
+with atomic(final_file) as temp_file:
+    with temp_file.open("w") as f:
+        f.write(data)
+```
+
+If `f.write(data)` is interrupted, `final_file` will not have been created, and a future `iotaa` invocation will re-execute the task responsible for it hopefully succeed in creating it. Without the atomicity, a partially written (or empty) `final_file` would exist and the task responsible for readying it would to be eligible for re-execution.
+
+### CPU-Bound Tasks
+
+Thread-based concurrency as implemented by `iotaa` helps overall execution time for IO-based tasks, but is less helpful (or even detrimental) for CPU-bound tasks. For example, here is a workflow that computes two Fibonacci numbers whose indices are `n1` and `n2`:
+
+`fibonacci1.py`
+
+``` python
+from iotaa import asset, log, logcfg, task
+
+logcfg()
+
+
+def fib(n: int) -> int:
+    return n if n < 2 else fib(n - 2) + fib(n - 1)
+
+
+@task
+def fibonacci(n: int):
+    val: list[int] = []
+    yield "Fibonacci %s" % n
+    yield asset(val, lambda: bool(val))
+    yield None
+    val.append(fib(n))
+
+
+@task
+def main(n1: int, n2: int):
+    ran = False
+    taskname = "Main"
+    yield taskname
+    yield asset(None, lambda: ran)
+    reqs = [fibonacci(n1), fibonacci(n2)]
+    yield reqs
+    if all(req.ready for req in reqs):
+        log.info("%s %s", *[req.refs[0] for req in reqs])
+    ran = True
+```
+
+Here's a synchronous run:
+
+```
+$ time iotaa fibonacci1.py main 36 37
+[2025-04-01T16:50:21] INFO    Fibonacci 36: Executing
+[2025-04-01T16:50:24] INFO    Fibonacci 36: Ready
+[2025-04-01T16:50:24] INFO    Fibonacci 37: Executing
+[2025-04-01T16:50:28] INFO    Fibonacci 37: Ready
+[2025-04-01T16:50:28] INFO    Main: Executing
+[2025-04-01T16:50:28] INFO    14930352 24157817
+[2025-04-01T16:50:28] INFO    Main: Ready
+
+real  0m6.378s
+user  0m6.362s
+sys   0m0.016s
+```
+
+Unsurprisingly, using threads does not decrease the execution time much:
+
+```
+$ time iotaa -t 2 fibonacci1.py main 36 37
+[2025-04-01T16:50:59] INFO    Fibonacci 36: Executing
+[2025-04-01T16:50:59] INFO    Fibonacci 37: Executing
+[2025-04-01T16:51:04] INFO    Fibonacci 36: Ready
+[2025-04-01T16:51:05] INFO    Fibonacci 37: Ready
+[2025-04-01T16:51:05] INFO    Main: Executing
+[2025-04-01T16:51:05] INFO    14930352 24157817
+[2025-04-01T16:51:05] INFO    Main: Ready
+
+real  0m6.225s
+user  0m6.206s
+sys   0m0.027s
+```
+
+For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
+
+`fibonacci2.py`
+
+``` python
+from __future__ import annotations
+
+from multiprocessing import Process, Value
+from typing import TYPE_CHECKING
+
+from iotaa import asset, log, logcfg, task
+
+if TYPE_CHECKING:
+    from multiprocessing.sharedctypes import Synchronized
+
+logcfg()
+
+
+def fib(n: int, v: Synchronized | None = None) -> int:
+    result = n if n < 2 else fib(n - 2) + fib(n - 1)
+    if v:
+        v.value = result
+    return result
+
+
+@task
+def fibonacci(n: int):
+    val = Value("i", -1)
+    yield "Fibonacci %s" % n
+    yield asset(val, lambda: val.value >= 0)
+    yield None
+    p = Process(target=fib, args=(n, val))
+    p.start()
+    p.join()
+
+
+@task
+def main(n1: int, n2: int):
+    ran = False
+    taskname = "Main"
+    yield taskname
+    yield asset(None, lambda: ran)
+    reqs = [fibonacci(n1), fibonacci(n2)]
+    yield reqs
+    if all(req.ready for req in reqs):
+        log.info("%s %s", *[req.refs.value for req in reqs])
+    ran = True
+```
+
+This decreases the execution time:
+
+```
+$ time iotaa -t 2 fibonacci2.py main 36 37
+[2025-04-01T17:04:19] INFO    Fibonacci 36: Executing
+[2025-04-01T17:04:19] INFO    Fibonacci 37: Executing
+[2025-04-01T17:04:22] INFO    Fibonacci 36: Ready
+[2025-04-01T17:04:24] INFO    Fibonacci 37: Ready
+[2025-04-01T17:04:24] INFO    Main: Executing
+[2025-04-01T17:04:24] INFO    14930352 24157817
+[2025-04-01T17:04:24] INFO    Main: Ready
+
+real  0m5.105s
+user  0m8.193s
+sys   0m0.061s
+```
+
+The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
+
+```
+$ time iotaa -t 2 fibonacci2.py main 0 37
+[2025-04-01T17:05:21] INFO    Fibonacci 37: Executing
+[2025-04-01T17:05:21] INFO    Fibonacci 0: Executing
+[2025-04-01T17:05:21] INFO    Fibonacci 0: Ready
+[2025-04-01T17:05:26] INFO    Fibonacci 37: Ready
+[2025-04-01T17:05:26] INFO    Main: Executing
+[2025-04-01T17:05:26] INFO    0 24157817
+[2025-04-01T17:05:26] INFO    Main: Ready
+
+real  0m4.998s
+user  0m4.974s
+sys   0m0.030s
+```
+
 ### In-Memory Asset
 
 External state (e.g. files on disk) may be the most common type of `iotaa` asset, but the following technique can be used to represent an in-memory asset (`val`):
@@ -937,159 +1115,4 @@ $ iotaa upstream.py file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.2025021
 [2025-02-17T06:22:22] INFO    Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t00z.wrfnatf00.grib2.idx: Ready
 [2025-02-17T06:22:22] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Executing
 [2025-02-17T06:22:22] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Ready
-```
-
-### CPU-Bound Tasks
-
-Thread-based concurrency as implemented by `iotaa` helps overall execution time for IO-based tasks, but is less helpful (or even detrimental) for CPU-bound tasks. For example, here is a workflow that computes two Fibonacci numbers whose indices are `n1` and `n2`:
-
-`fibonacci1.py`
-
-``` python
-from iotaa import asset, log, logcfg, task
-
-logcfg()
-
-
-def fib(n: int) -> int:
-    return n if n < 2 else fib(n - 2) + fib(n - 1)
-
-
-@task
-def fibonacci(n: int):
-    val: list[int] = []
-    yield "Fibonacci %s" % n
-    yield asset(val, lambda: bool(val))
-    yield None
-    val.append(fib(n))
-
-
-@task
-def main(n1: int, n2: int):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield asset(None, lambda: ran)
-    reqs = [fibonacci(n1), fibonacci(n2)]
-    yield reqs
-    if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.refs[0] for req in reqs])
-    ran = True
-```
-
-Here's a synchronous run:
-
-```
-$ time iotaa fibonacci1.py main 36 37
-[2025-04-01T16:50:21] INFO    Fibonacci 36: Executing
-[2025-04-01T16:50:24] INFO    Fibonacci 36: Ready
-[2025-04-01T16:50:24] INFO    Fibonacci 37: Executing
-[2025-04-01T16:50:28] INFO    Fibonacci 37: Ready
-[2025-04-01T16:50:28] INFO    Main: Executing
-[2025-04-01T16:50:28] INFO    14930352 24157817
-[2025-04-01T16:50:28] INFO    Main: Ready
-
-real  0m6.378s
-user  0m6.362s
-sys   0m0.016s
-```
-
-Unsurprisingly, using threads does not decrease the execution time much:
-
-```
-$ time iotaa -t 2 fibonacci1.py main 36 37
-[2025-04-01T16:50:59] INFO    Fibonacci 36: Executing
-[2025-04-01T16:50:59] INFO    Fibonacci 37: Executing
-[2025-04-01T16:51:04] INFO    Fibonacci 36: Ready
-[2025-04-01T16:51:05] INFO    Fibonacci 37: Ready
-[2025-04-01T16:51:05] INFO    Main: Executing
-[2025-04-01T16:51:05] INFO    14930352 24157817
-[2025-04-01T16:51:05] INFO    Main: Ready
-
-real  0m6.225s
-user  0m6.206s
-sys   0m0.027s
-```
-
-For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
-
-`fibonacci2.py`
-
-``` python
-from __future__ import annotations
-
-from multiprocessing import Process, Value
-from typing import TYPE_CHECKING
-
-from iotaa import asset, log, logcfg, task
-
-if TYPE_CHECKING:
-    from multiprocessing.sharedctypes import Synchronized
-
-logcfg()
-
-
-def fib(n: int, v: Synchronized | None = None) -> int:
-    result = n if n < 2 else fib(n - 2) + fib(n - 1)
-    if v:
-        v.value = result
-    return result
-
-
-@task
-def fibonacci(n: int):
-    val = Value("i", -1)
-    yield "Fibonacci %s" % n
-    yield asset(val, lambda: val.value >= 0)
-    yield None
-    p = Process(target=fib, args=(n, val))
-    p.start()
-    p.join()
-
-
-@task
-def main(n1: int, n2: int):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield asset(None, lambda: ran)
-    reqs = [fibonacci(n1), fibonacci(n2)]
-    yield reqs
-    if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.refs.value for req in reqs])
-    ran = True
-```
-
-This decreases the execution time:
-
-```
-$ time iotaa -t 2 fibonacci2.py main 36 37
-[2025-04-01T17:04:19] INFO    Fibonacci 36: Executing
-[2025-04-01T17:04:19] INFO    Fibonacci 37: Executing
-[2025-04-01T17:04:22] INFO    Fibonacci 36: Ready
-[2025-04-01T17:04:24] INFO    Fibonacci 37: Ready
-[2025-04-01T17:04:24] INFO    Main: Executing
-[2025-04-01T17:04:24] INFO    14930352 24157817
-[2025-04-01T17:04:24] INFO    Main: Ready
-
-real  0m5.105s
-user  0m8.193s
-sys   0m0.061s
-```
-
-The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
-
-```
-$ time iotaa -t 2 fibonacci2.py main 0 37
-[2025-04-01T17:05:21] INFO    Fibonacci 37: Executing
-[2025-04-01T17:05:21] INFO    Fibonacci 0: Executing
-[2025-04-01T17:05:21] INFO    Fibonacci 0: Ready
-[2025-04-01T17:05:26] INFO    Fibonacci 37: Ready
-[2025-04-01T17:05:26] INFO    Main: Executing
-[2025-04-01T17:05:26] INFO    0 24157817
-[2025-04-01T17:05:26] INFO    Main: Ready
-
-real  0m4.998s
-user  0m4.974s
-sys   0m0.030s
 ```
