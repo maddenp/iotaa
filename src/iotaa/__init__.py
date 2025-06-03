@@ -25,6 +25,7 @@ from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast, overload
+from warnings import warn
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -150,8 +151,17 @@ class Node(ABC):
         return all(x.ready() for x in _flatten(self.assets))
 
     @property
+    def ref(self) -> Any:
+        return ref(self.assets)
+
+    @property
     def refs(self) -> Any:
-        return refs(self.assets)
+        warn(
+            "The 'refs' property is deprecated; use 'ref' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.ref
 
     @property
     def requirements(self) -> _ReqsT:
@@ -469,9 +479,9 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def refs(obj: Node | _AssetsT) -> Any:
+def ref(obj: Node | _AssetsT) -> Any:
     """
-    Extract and return asset references.
+    Extract and return asset reference(s).
 
     :param obj: A Node, or an Asset, or a list or dict of Assets.
     :return: Asset reference(s) matching the obj's assets' shape (e.g. dict, list, scalar, None).
@@ -484,6 +494,11 @@ def refs(obj: Node | _AssetsT) -> Any:
     if isinstance(_assets, Asset):
         return _assets.ref
     return None
+
+
+def refs(obj: Node | _AssetsT) -> Any:
+    warn("The 'refs' function is deprecated; use 'ref' instead.", DeprecationWarning, stacklevel=2)
+    return ref(obj)
 
 
 def requirements(node: Node) -> _ReqsT:
