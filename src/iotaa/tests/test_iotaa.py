@@ -139,7 +139,7 @@ def memval(n) -> Iterator:
     yield iotaa.asset(val, lambda: bool(val))
     reqs = [memval_req(1), memval_req(n)]
     yield reqs
-    m = add(*[req.refs[0] for req in reqs])
+    m = add(*[req.ref[0] for req in reqs])
     if m == 0:
         msg = "zero result"
         raise RuntimeError(msg)
@@ -375,7 +375,7 @@ def test_Node__exec(caplog, iotaa_logger, n, threads):  # noqa: ARG001
         ):
             assert logged(caplog, f"a: Task failed: {msg}")
     else:
-        assert iotaa.refs(node)[0] == 3
+        assert iotaa.ref(node)[0] == 3
         assert logged(caplog, f"a: {success}")
 
 
@@ -548,7 +548,7 @@ def test_main__mocked_up_tasknames(fakefs):
 def test_ready(fakefs):
     node_before = t_external_foo_scalar(fakefs)
     assert not iotaa.ready(node_before)
-    iotaa.refs(node_before).touch()
+    iotaa.ref(node_before).touch()
     node_after = t_external_foo_scalar(fakefs)
     ready = iotaa.ready(node_after)
     assert ready
@@ -572,28 +572,31 @@ def test_ready__tasks():
     assert iotaa.ready(tasks())
 
 
-def test_refs():
+@mark.parametrize("name", ["ref", "refs"])
+def test_ref(name):
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
-    refs1 = iotaa.refs(obj=node)
-    assert refs1 is None
-    assert node.refs == refs1
+    func = getattr(iotaa, name)
+    ref1 = func(obj=node)
+    assert ref1 is None
+    assert node.ref == ref1
     node._assets = {"foo": asset}
-    refs2 = iotaa.refs(obj=node)
-    assert refs2["foo"] == expected
-    assert node.refs == refs2
+    ref2 = func(obj=node)
+    assert ref2["foo"] == expected
+    assert node.ref == ref2
     node._assets = [asset]
-    refs3 = iotaa.refs(obj=node)
-    assert refs3[0] == expected
-    assert node.refs == refs3
+    ref3 = func(obj=node)
+    assert ref3[0] == expected
+    assert node.ref == ref3
     node._assets = asset
-    refs4 = iotaa.refs(obj=node)
-    assert refs4 == expected
-    assert node.refs == refs4
-    assert iotaa.refs(asset) == expected
-    assert iotaa.refs([asset, asset]) == [expected, expected]
-    assert iotaa.refs({"a": asset, "b": asset}) == {"a": expected, "b": expected}
+    ref4 = func(obj=node)
+    assert ref4 == expected
+    assert node.ref == ref4
+    assert node.refs == ref4
+    assert func(asset) == expected
+    assert func([asset, asset]) == [expected, expected]
+    assert func({"a": asset, "b": asset}) == {"a": expected, "b": expected}
 
 
 def test_requirements(fakefs):
@@ -619,7 +622,7 @@ def test_external__not_ready(fakefs, iotaa_logger):  # noqa: ARG001
     assert not f.is_file()
     node = t_external_foo_scalar(fakefs)
     node()
-    assert iotaa.refs(node) == f
+    assert iotaa.ref(node) == f
     assert not node.ready
 
 
@@ -629,7 +632,7 @@ def test_external__ready(fakefs, iotaa_logger):  # noqa: ARG001
     assert f.is_file()
     node = t_external_foo_scalar(fakefs)
     node()
-    assert iotaa.refs(node) == f
+    assert iotaa.ref(node) == f
     assert node.ready
 
 
@@ -649,7 +652,7 @@ def test_task__not_ready(caplog, fakefs, func, iotaa_logger, val):
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = func(fakefs, log=iotaa_logger)
     node()
-    assert val(iotaa.refs(node)) == f_bar
+    assert val(iotaa.ref(node)) == f_bar
     assert not val(node._assets).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
@@ -670,7 +673,7 @@ def test_task__ready(caplog, fakefs, func, iotaa_logger, val):
     assert f_foo.is_file()
     assert not f_bar.is_file()
     node = func(fakefs, log=iotaa_logger)
-    assert val(iotaa.refs(node)) == f_bar
+    assert val(iotaa.ref(node)) == f_bar
     assert val(node._assets).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
@@ -707,9 +710,9 @@ def test_tasks__structured():
     node = structured()
     requirements = iotaa.requirements(node)
     assert isinstance(requirements, dict)
-    assert iotaa.refs(requirements["dict"]) == {"foo": "a", "bar": "a"}
-    assert iotaa.refs(requirements["list"]) == ["a", "a"]
-    assert iotaa.refs(requirements["scalar"]) == "a"
+    assert iotaa.ref(requirements["dict"]) == {"foo": "a", "bar": "a"}
+    assert iotaa.ref(requirements["list"]) == ["a", "a"]
+    assert iotaa.ref(requirements["scalar"]) == "a"
 
 
 def test_tasks__not_ready(caplog, fakefs):
@@ -717,8 +720,8 @@ def test_tasks__not_ready(caplog, fakefs):
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = t_tasks_baz(fakefs)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
-    assert iotaa.refs(requirements[0]) == f_foo
-    assert iotaa.refs(requirements[1])["path"] == f_bar
+    assert iotaa.ref(requirements[0]) == f_foo
+    assert iotaa.ref(requirements[1])["path"] == f_bar
     assert not any(
         a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
     )
@@ -740,7 +743,7 @@ def test_tasks__ready(caplog, fakefs, iotaa_logger):
     node = t_tasks_baz(fakefs, log=iotaa_logger)
     requirements = cast(list[iotaa.Node], iotaa.requirements(node))
     assert len(requirements) == 1  # ready requirement foo was filtered out
-    assert iotaa.refs(requirements[0]) == {"path": f_bar}
+    assert iotaa.ref(requirements[0]) == {"path": f_bar}
     assert all(
         a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
     )

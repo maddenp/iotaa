@@ -33,7 +33,7 @@ Following its `yield` statements, a task that readies an asset provides action c
 
 `iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be a single (scalar) item, a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a required task `t`.
 
-For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A useful pattern is to assign a requirement to a variable, yield that variable, then access its assets via its `.refs` property (or by passing it as the argument to the `iotaa.refs()` helper function). For example:
+For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A useful pattern is to assign a requirement to a variable, yield that variable, then access its assets via its `.ref` property (or by passing it as the argument to the `iotaa.ref()` helper function). For example:
 
 ``` python
 @task
@@ -42,7 +42,7 @@ def random_number_file(path: Path):
     yield asset(path, path.is_file)       # Yield task asset
     rn = random_number()                  # Call and save required task
     yield rn                              # Yield required task
-    path.write_text(rn.refs)              # Ready THIS task's asset, using the requirement's asset.
+    path.write_text(rn.ref)               # Ready THIS task's asset, using the requirement's asset.
 ```
 
 ### `@task`
@@ -55,7 +55,7 @@ The essential task type, a `@task` function yields, in order:
 
 A task may have no requirements, in which case `None` can be specified. For example, a task to create a file with static content might not rely on any other tasks. (It could perhaps rely on another task to ready the parent directory, but could also create that directory itself before writing the file.)
 
-Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.refs` properties (or by passing them to the `iotaa.refs()` helper function -- see the demo application below).
+Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.ref` properties (or by passing them to the `iotaa.ref()` helper function -- see the demo application below).
 
 ### `@tasks`
 
@@ -161,11 +161,11 @@ A number of public helper functions are available in the `iotaa` module:
 | `graph()`        | Given the `Node` value returned by a task-function call, return a Graphviz string representation of the task graph. Equivalent to accessing the `.graph` property of the `Node`. |
 | `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
 | `ready()`        | Given the `Node` value returned by a task-function call, return the ready (`bool`) status of the task. Equivalent to accessing the `.ready` property of the `Node`. |
-| `refs()`         | Given the `Node` value returned by a task-function call, a single asset, a `list` of assets, or a `dict` whose values are assets, return the `ref` values of the asset(s) in the corresponding shape (e.g. `dict`, `list`). Accessing the `.refs` property returns the `ref` values for the assets of that `Node`. |
+| `ref()`          | Given the `Node` value returned by a task-function call, a single asset, a `list` of assets, or a `dict` whose values are assets, return the `ref` values of the asset(s) in the corresponding shape (e.g. `dict`, `list`). Accessing the `.ref` property returns the `ref` values for the assets of that `Node`. |
 | `requirements()` | Given the `Node` value returned by a task-function call, return the represented task's requirements, themselves `Node` values. Equivalent to accessing the `.requirements` property of the `Node`. |
 | `tasknames()`    | Given an object (e.g. a module), return a list of names of  `iotaa` task members. Called by the CLI when `-s` / `--show` is specified. Prints each task name followed by, when available, the first line of its docstring. |
 
-Some linters may not recognize the existence of `Node` properties `.assets`, `.graph`, `.ready`, `.refs`, and `.requirements`. In such cases, calling the corresponding helper functions instead may silence complaints.
+Some linters may not recognize the existence of `Node` properties `.assets`, `.graph`, `.ready`, `.ref`, and `.requirements`. In such cases, calling the corresponding helper functions instead may silence complaints.
 
 Additionally, `iotaa.log` provides a reference to the logger in use by `iotaa`. By default this will be the Python root logger, configured by `iotaa`. But, if a custom logger was supplied via the `log=` keyword argument to a task-graph root function, `iotaa.log` will reference that logger. Thus, application code can safely call `iotaa.log.info()`, `iotaa.log.debug()`, etc.
 
@@ -262,7 +262,7 @@ def ingredient(basedir, fn, name, req=None):
     taskname = f"{name} in cup"
     yield taskname
     the_cup = cup(basedir)
-    path = the_cup.refs / fn
+    path = the_cup.ref / fn
     yield {fn: asset(path, path.exists)}
     yield [the_cup] + ([req(basedir)] if req else [])
     log.info("%s: Adding %s to cup", taskname, fn)
@@ -283,7 +283,7 @@ def steeped_tea(basedir):
     """
     taskname = "Steeped tea"
     yield taskname
-    water = steeping_tea(basedir).refs["water"]
+    water = steeping_tea(basedir).ref["water"]
     steep_time = lambda x: asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
@@ -307,10 +307,10 @@ Here, the asset being yielded is abstract: It represents a certain amount of tim
 Note the statement
 
 ``` python
-water = steeping_tea(basedir).refs["water"]
+water = steeping_tea(basedir).ref["water"]
 ```
 
-The path to the `water` file is located by accessing the `.refs` property on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` yields its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `tea-bag`, `water`.) This is a useful way to delegate ownership of knowledge about an asset to the tasks responsible for that asset.
+The path to the `water` file is located by accessing the `.ref` property on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` yields its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `tea-bag`, `water`.) This is a useful way to delegate ownership of knowledge about an asset to the tasks responsible for that asset.
 
 The `steeping_tea()` function is again a straightforward `@task`, leveraging the `ingredient()` helper:
 
@@ -336,7 +336,7 @@ def tea_bag(basedir):
     Requires box of tea bags.
     """
     the_cup = cup(basedir)
-    path = the_cup.refs / "tea-bag"
+    path = the_cup.ref / "tea-bag"
     taskname = "Tea bag in cup"
     yield taskname
     yield asset(path, path.exists)
@@ -767,7 +767,7 @@ def main(n1: int, n2: int):
     reqs = [fibonacci(n1), fibonacci(n2)]
     yield reqs
     if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.refs[0] for req in reqs])
+        log.info("%s %s", *[req.ref[0] for req in reqs])
     ran = True
 ```
 
@@ -850,7 +850,7 @@ def main(n1: int, n2: int):
     reqs = [fibonacci(n1), fibonacci(n2)]
     yield reqs
     if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.refs.value for req in reqs])
+        log.info("%s %s", *[req.ref.value for req in reqs])
     ran = True
 ```
 
@@ -921,7 +921,7 @@ def main(lat: float, lon: float):
     req = json(lat, lon)
     yield req
     city, state = [
-        req.refs[0]["properties"]["relativeLocation"]["properties"][x] for x in ("city", "state")
+        req.ref[0]["properties"]["relativeLocation"]["properties"][x] for x in ("city", "state")
     ]
     log.info("%s: Location: %s, %s", taskname, city, state)
     ran = True
@@ -936,7 +936,7 @@ $ iotaa location1.py main 40.1672 -105.1091
 [2025-04-01T16:36:21] INFO    Main: Ready
 ```
 
-Since `val` is initially empty in `json()`, the second argument to `asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.refs`.
+Since `val` is initially empty in `json()`, the second argument to `asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.ref`.
 
 Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` is mutated with `.append()`. A `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would not be visible outside the lexical scope of `json()`.
 
@@ -951,7 +951,7 @@ from iotaa import asset, log, logcfg, ready, task
 
 logcfg()
 
-get = lambda req, x: req.refs[0]["properties"]["relativeLocation"]["properties"][x]
+get = lambda req, x: req.ref[0]["properties"]["relativeLocation"]["properties"][x]
 
 
 @task
@@ -996,8 +996,8 @@ def main(lat: float, lon: float):
         log.info(
             "%s: Location: %s, %s",
             taskname,
-            reqs["city"].refs[0],
-            reqs["state"].refs[0],
+            reqs["city"].ref[0],
+            reqs["state"].ref[0],
         )
     ran = True
 ```
