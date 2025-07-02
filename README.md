@@ -666,7 +666,7 @@ $ iotaa --verbose iotaa.demo a_cup_of_tea ./teatime
 
 ## Graphing
 
-The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
+The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow task graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
 
 ```
 $ iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T svg)
@@ -694,19 +694,23 @@ The displayed image:
 
 Orange nodes indicate not-ready tasks.
 
-Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of graph images are shown:
+Removing `--dry-run` and following the first phase of the demo tutorial in the previous section, the following succession of workflow task graph images are shown:
 
 - After the first invocation, with cup and spoon added but blocked by missing (external) box of tea bags:
 
 ![teatime-dry-run-image](img/teatime-1.svg)
 
-- After the second invocation, with box of tea bags available, with hot water poured:
+- After the second invocation, with box of tea bags available and hot water poured, the workflow task graph omits completed work:
 
 ![teatime-dry-run-image](img/teatime-2.svg)
 
-- After the third invocation, when the tea has steeped and sugar has been added, showing final workflow state:
+- After the third invocation, when the tea has steeped and sugar has been added, the workflow task graph looks like:
 
 ![teatime-dry-run-image](img/teatime-3.svg)
+
+- And, finally, any subsequent invocations show the final workflow task graph state:
+
+![teatime-dry-run-image](img/teatime-4.svg)
 
 ## Cookbook
 

@@ -75,7 +75,7 @@ class _Graph:
         """
         Returns the task graph in Graphviz DOT format.
         """
-        s = '%s [fillcolor=%s, label="%s", style=filled]'
+        s = '%s [fillcolor=%s, label="%s", shape=box, style=filled]'
         name = lambda node: "_%s" % sha256(str(node.taskname).encode("utf-8")).hexdigest()
         color = lambda node: "palegreen" if node.ready else "orange"
         nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
