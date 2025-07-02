@@ -57,11 +57,11 @@ def graphkit():
     assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
     expected = """
     digraph g {{
-      _{b} [fillcolor=palegreen, label="b", style=filled]
+      _{b} [fillcolor=palegreen, label="b", shape=box, style=filled]
       _{root} -> _{b}
       _{root} -> _{a}
-      _{root} [fillcolor=orange, label="root", style=filled]
-      _{a} [fillcolor=orange, label="a", style=filled]
+      _{root} [fillcolor=orange, label="root", shape=box, style=filled]
+      _{a} [fillcolor=orange, label="a", shape=box, style=filled]
     }}
     """.format(a=name("a"), b=name("b"), root=name("root"))
     return dedent(expected).strip(), graph, root
