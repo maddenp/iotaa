@@ -716,13 +716,15 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 ### Atomic Writes
 
-Since `iotaa` uses assets' `ready` predicate functions to guide execution, and does not rely on e.g. a progress database, it is important that when assets claim to be ready, they really are. A notorious source of error in this regard is partially written files. Given, for example `asset(ref=path, ready=path.is_file)`, if the `@task` function creating `path` opens that file, starts writing to it, then is killed before writing is complete, a future invocation of the workflow will see the asset as ready and will not re-execute the task. To protect against this, consider writing to a temporary file and then renaming the file (an [atomic operation](https://rcrowley.org/2010/01/06/things-unix-can-do-atomically.html)) when the file is complete. A context manager similar to the following may be useful:
+Since `iotaa` uses assets' `ready` predicates to guide execution and does not rely on e.g. a progress database, it is important that when assets claim to be ready, they really are. A notorious source of error in this regard is partially written files. Given, for example `asset(ref=path, ready=path.is_file)`, if the task function creating `path` opens that file, starts writing to it, then is killed before writing is complete, a future invocation of the workflow will see the asset as ready and will not re-execute the task. Worse, a task depending on this one will assume that it can use the incomplete output.
+
+To protect against this, consider writing to a temporary file and then renaming the file (an [atomic operation](https://rcrowley.org/2010/01/06/things-unix-can-do-atomically.html)) when the file is complete. A context manager similar to the following may be useful:
 
 ``` python
 @contextmanager
 def atomic(path: Path) -> Iterator[Path]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path("%s.tmp" % path)
+    tmp = Path(f"{path}.tmp")
     yield tmp
     tmp.rename(path)
 ```
@@ -731,11 +733,10 @@ Example usage:
 
 ``` python
 with atomic(final_file) as temp_file:
-    with temp_file.open("w") as f:
-        f.write(data)
+    temp_file.write_bytes(data)
 ```
 
-If `f.write(data)` is interrupted, `final_file` will not have been created, and a future `iotaa` invocation will re-execute the task responsible for it hopefully succeed in creating it. Without the atomicity, a partially written (or empty) `final_file` would exist and the task responsible for readying it would to be eligible for re-execution.
+If `write_bytes(data)` is interrupted, `final_file` will not yet exist, and a future `iotaa` invocation will re-execute the task, hopefully creating it successfully.
 
 ### CPU-Bound Tasks
 
