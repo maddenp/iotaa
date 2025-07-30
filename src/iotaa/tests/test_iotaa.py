@@ -327,6 +327,24 @@ def test_Node_ready(fakefs):
     assert t_external_foo_scalar(fakefs).ready
 
 
+def test_Node_ready_type_error(caplog):
+    @iotaa.external
+    def t0():
+        yield "t0"
+        yield iotaa.asset(None, lambda: True)
+
+    @iotaa.task
+    def t1():
+        yield "t1"
+        yield t0()
+        yield None
+
+    with raises(TypeError) as e:
+        t1()
+    assert str(e.value) == "'bool' object is not callable"
+    assert logged(caplog, "Has task 't1' mistakenly yielded a task where an asset was expected?")
+
+
 def test_Node_root(fakefs):
     node = t_tasks_baz(fakefs)
     assert node.root

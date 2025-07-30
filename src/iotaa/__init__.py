@@ -148,7 +148,12 @@ class Node(ABC):
         """
         Are the assets represented by this task-graph node ready?
         """
-        return all(x.ready() for x in _flatten(self.assets))
+        try:
+            return all(x.ready() for x in _flatten(self.assets))
+        except TypeError:
+            msg = "Has task '%s' mistakenly yielded a task where an asset was expected?"
+            logging.error(msg, self.taskname)
+            raise
 
     @property
     def ref(self) -> Any:
