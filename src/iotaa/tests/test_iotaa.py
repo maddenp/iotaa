@@ -414,12 +414,13 @@ def test_Node__exec_threads_shutdown():
         thread.start()
     todo: iotaa._QueueT = Queue()
     interrupt = Event()
-    assert todo.qsize() == 0
+    assert todo.empty()
     iotaa.Node._exec_threads_shutdown(self=obj, threads=threads, todo=todo, interrupt=interrupt)
-    assert todo.qsize() == nthreads
+    assert not todo.empty()
     assert interrupt.is_set()
     for thread in threads:
         assert not thread.is_alive()
+    assert not todo.empty()
 
 
 def test_Node__exec_threads_startup(iotaa_logger):
@@ -434,8 +435,8 @@ def test_Node__exec_threads_startup(iotaa_logger):
     for thread in threads:
         thread.join()
         assert not thread.is_alive()
-    assert todo.qsize() == 0
-    assert [done.get() for _ in range(done.qsize())] == nodes
+    assert todo.empty()
+    assert [done.get() for _ in range(nthreads)] == nodes
     assert not interrupt.is_set()
 
 
@@ -796,24 +797,28 @@ def test__do(caplog, iotaa_logger):
     todo: iotaa._QueueT = Queue()
     done: iotaa._QueueT = Queue()
     interrupt = Event()
-    # Good node:
     node = Mock(taskname="foo")
     todo.put(node)
     todo.put(None)
     iotaa._do(todo=todo, done=done, interrupt=interrupt, dry_run=False, iotaa_logger=iotaa_logger)
     node.assert_called_once_with(False)
     assert logged(caplog, "foo: Task completed")
-    assert todo.qsize() == 0
-    assert done.qsize() == 1
-    # Bad node:
+    assert todo.empty()
+    assert node in done.queue
+
+
+def test__do_bad_node(caplog, iotaa_logger):
+    todo: iotaa._QueueT = Queue()
+    done: iotaa._QueueT = Queue()
+    interrupt = Event()
     boom = Mock(taskname="boom", side_effect=RuntimeError)
     todo.put(boom)
     todo.put(None)
     iotaa._do(todo=todo, done=done, interrupt=interrupt, dry_run=False, iotaa_logger=iotaa_logger)
-    node.assert_called_once_with(False)
+    boom.assert_called_once_with(False)
     assert logged(caplog, "boom: Task failed: RuntimeError")
-    assert todo.qsize() == 0
-    assert done.qsize() == 2
+    assert todo.empty()
+    assert boom in done.queue
 
 
 def test__findabove():

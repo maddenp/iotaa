@@ -1,5 +1,5 @@
 {% set info = load_file_data("iotaa/resources/info.json") %}
-{% set minpy = "3.9" %}
+{% set minpy = "3.10" %}
 
 package:
   name: iotaa
