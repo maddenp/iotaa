@@ -9,6 +9,7 @@ from collections import UserDict
 from collections.abc import Iterator
 from graphlib import TopologicalSorter
 from hashlib import sha256
+from importlib import import_module
 from itertools import chain
 from operator import add
 from pathlib import Path
@@ -21,7 +22,7 @@ from unittest.mock import DEFAULT as D
 
 from pytest import fixture, mark, raises
 
-import iotaa
+from iotaa import iotaa
 
 # Fixtures
 
