@@ -25,7 +25,6 @@ from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast, overload
-from warnings import warn
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -121,15 +120,6 @@ class Node(ABC):
     @property
     def ref(self) -> Any:
         return ref(self.assets)
-
-    @property
-    def refs(self) -> Any:
-        warn(
-            "The 'refs' property is deprecated; use 'ref' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.ref
 
     @property
     def requirements(self) -> _ReqsT:
@@ -445,11 +435,6 @@ def ref(obj: Node | _AssetsT) -> Any:
     if isinstance(_assets, Asset):
         return _assets.ref
     return None
-
-
-def refs(obj: Node | _AssetsT) -> Any:
-    warn("The 'refs' function is deprecated; use 'ref' instead.", DeprecationWarning, stacklevel=2)
-    return ref(obj)
 
 
 def requirements(node: Node) -> _ReqsT:

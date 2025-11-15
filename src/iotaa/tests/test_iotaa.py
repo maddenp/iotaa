@@ -592,31 +592,28 @@ def test_ready__tasks():
     assert iotaa.ready(tasks())
 
 
-@mark.parametrize("name", ["ref", "refs"])
-def test_ref(name):
+def test_ref():
     expected = "bar"
     asset = iotaa.asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
-    func = getattr(iotaa, name)
-    ref1 = func(obj=node)
+    ref1 = iotaa.ref(obj=node)
     assert ref1 is None
     assert node.ref == ref1
     node._assets = {"foo": asset}
-    ref2 = func(obj=node)
+    ref2 = iotaa.ref(obj=node)
     assert ref2["foo"] == expected
     assert node.ref == ref2
     node._assets = [asset]
-    ref3 = func(obj=node)
+    ref3 = iotaa.ref(obj=node)
     assert ref3[0] == expected
     assert node.ref == ref3
     node._assets = asset
-    ref4 = func(obj=node)
+    ref4 = iotaa.ref(obj=node)
     assert ref4 == expected
     assert node.ref == ref4
-    assert node.refs == ref4
-    assert func(asset) == expected
-    assert func([asset, asset]) == [expected, expected]
-    assert func({"a": asset, "b": asset}) == {"a": expected, "b": expected}
+    assert iotaa.ref(asset) == expected
+    assert iotaa.ref([asset, asset]) == [expected, expected]
+    assert iotaa.ref({"a": asset, "b": asset}) == {"a": expected, "b": expected}
 
 
 def test_requirements(fakefs):
