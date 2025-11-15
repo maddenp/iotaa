@@ -1,9 +1,6 @@
 from iotaa.iotaa import (
     Asset,
     Node,
-    NodeExternal,
-    NodeTask,
-    NodeTasks,
     asset,
     external,
     graph,
@@ -20,9 +17,6 @@ from iotaa.iotaa import (
 __all__ = [
     "Asset",
     "Node",
-    "NodeExternal",
-    "NodeTask",
-    "NodeTasks",
     "asset",
     "external",
     "graph",
