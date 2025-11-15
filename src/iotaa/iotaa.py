@@ -240,7 +240,7 @@ class Node(ABC):
 
     def _report_readiness(self) -> None:
         """
-        Log readiness status for this task-graph node and its requirements.
+        Log readiness status for this task-graph node and its requirement(s).
         """
         is_external = isinstance(self, NodeExternal)
         extmsg = " [external asset]" if is_external and not self.ready else ""
@@ -429,7 +429,7 @@ def ref(obj: Node | _AssetsT) -> Any:
 
 def req(node: Node) -> _ReqsT:
     """
-    Return the node's requirements.
+    Return the node's requirement(s).
 
     :param node: A node.
     """
