@@ -81,7 +81,7 @@ class Node(ABC):
         self.taskname = taskname
         self._threads = threads
         self._logger = logger
-        self._assets: _AssetsT = None
+        self._asset: _AssetsT = None
         self._first_visit = True
         self._reqs: _ReqsT = None
 
@@ -98,8 +98,8 @@ class Node(ABC):
         return "%s <%s>" % (self.taskname, id(self))
 
     @property
-    def assets(self) -> _AssetsT:
-        return self._assets
+    def asset(self) -> _AssetsT:
+        return self._asset
 
     @property
     def graph(self) -> str:
@@ -111,7 +111,7 @@ class Node(ABC):
         Are the assets represented by this task-graph node ready?
         """
         try:
-            return all(x.ready() for x in _flatten(self.assets))
+            return all(x.ready() for x in _flatten(self.asset))
         except TypeError:
             msg = "Has task '%s' mistakenly yielded a task where an asset was expected?"
             logging.error(msg, self.taskname)
@@ -119,7 +119,7 @@ class Node(ABC):
 
     @property
     def ref(self) -> Any:
-        return ref(self.assets)
+        return ref(self.asset)
 
     @property
     def requirements(self) -> _ReqsT:
@@ -263,7 +263,7 @@ class NodeExternal(Node):
 
     def __init__(self, taskname: str, threads: int, logger: Logger, assets_: _AssetsT) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
-        self._assets = assets_
+        self._asset = assets_
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
@@ -289,7 +289,7 @@ class NodeTask(Node):
         continuation: Callable,
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
-        self._assets = assets_
+        self._asset = assets_
         self._reqs = reqs
         self._continuation = continuation
 
@@ -333,12 +333,12 @@ class NodeTasks(Node):
         return self
 
     @property
-    def _assets(self) -> list[Asset]:
+    def _asset(self) -> list[Asset]:
         reqs = _flatten(self._reqs)
-        return list(chain.from_iterable([_flatten(req.assets) for req in reqs]))
+        return list(chain.from_iterable([_flatten(req.asset) for req in reqs]))
 
-    @_assets.setter
-    def _assets(self, value) -> None:
+    @_asset.setter
+    def _asset(self, value) -> None:
         pass
 
 
@@ -348,7 +348,7 @@ def asset(node: Node | None) -> _AssetsT:
 
     :param node: A node.
     """
-    return node.assets if node else None
+    return node.asset if node else None
 
 
 def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
@@ -764,7 +764,7 @@ def _not_ready_reqs(reqs: _ReqsT, reps: UserDict[str, _NodeT]) -> _ReqsT:
 
     def the(req):
         if req.taskname in reps:
-            req._assets = reps[req.taskname].assets  # noqa: SLF001
+            req._asset = reps[req.taskname].asset  # noqa: SLF001
         else:
             reps[req.taskname] = req
         return reps[req.taskname]

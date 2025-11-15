@@ -474,7 +474,7 @@ def test_asset(fakefs):
     node = t_external_foo_scalar(fakefs)
     assets = cast(iotaa.Asset, iotaa.asset(node))
     assert assets.ref == fakefs / "foo"
-    assert node.assets == assets
+    assert node.asset == assets
 
 
 def test_graph(graphkit):
@@ -592,15 +592,15 @@ def test_ref():
     ref1 = iotaa.ref(obj=node)
     assert ref1 is None
     assert node.ref == ref1
-    node._assets = {"foo": asset}
+    node._asset = {"foo": asset}
     ref2 = iotaa.ref(obj=node)
     assert ref2["foo"] == expected
     assert node.ref == ref2
-    node._assets = [asset]
+    node._asset = [asset]
     ref3 = iotaa.ref(obj=node)
     assert ref3[0] == expected
     assert node.ref == ref3
-    node._assets = asset
+    node._asset = asset
     ref4 = iotaa.ref(obj=node)
     assert ref4 == expected
     assert node.ref == ref4
@@ -663,7 +663,7 @@ def test_task__not_ready(caplog, fakefs, func, iotaa_logger, val):
     node = func(fakefs, log=iotaa_logger)
     node()
     assert val(iotaa.ref(node)) == f_bar
-    assert not val(node._assets).ready()
+    assert not val(node._asset).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in ["Not ready", "Requires:", f"✖ external foo {f_foo}"]:
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
@@ -684,7 +684,7 @@ def test_task__ready(caplog, fakefs, func, iotaa_logger, val):
     assert not f_bar.is_file()
     node = func(fakefs, log=iotaa_logger)
     assert val(iotaa.ref(node)) == f_bar
-    assert val(node._assets).ready()
+    assert val(node._asset).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
@@ -733,7 +733,7 @@ def test_tasks__not_ready(caplog, fakefs):
     assert iotaa.ref(requirements[0]) == f_foo
     assert iotaa.ref(requirements[1])["path"] == f_bar
     assert not any(
-        a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req._asset) for req in requirements)
     )
     assert not any(x.is_file() for x in [f_foo, f_bar])
     for msg in [
@@ -755,7 +755,7 @@ def test_tasks__ready(caplog, fakefs, iotaa_logger):
     assert len(requirements) == 1  # ready requirement foo was filtered out
     assert iotaa.ref(requirements[0]) == {"path": f_bar}
     assert all(
-        a.ready() for a in chain.from_iterable(iotaa._flatten(req._assets) for req in requirements)
+        a.ready() for a in chain.from_iterable(iotaa._flatten(req._asset) for req in requirements)
     )
     assert all(x.is_file() for x in [f_foo, f_bar])
     assert logged(caplog, "tasks baz: Ready")
