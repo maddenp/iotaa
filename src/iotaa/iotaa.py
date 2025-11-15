@@ -83,7 +83,7 @@ class Node(ABC):
         self._logger = logger
         self._asset: _AssetsT = None
         self._first_visit = True
-        self._reqs: _ReqsT = None
+        self._req: _ReqsT = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -122,8 +122,8 @@ class Node(ABC):
         return ref(self.asset)
 
     @property
-    def requirements(self) -> _ReqsT:
-        return self._reqs
+    def req(self) -> _ReqsT:
+        return self._req
 
     @cached_property
     def root(self) -> bool:
@@ -151,7 +151,7 @@ class Node(ABC):
         log.debug("%s%s", "  " * level, str(node.taskname))
         predecessors: list[Node] = []
         if not node.ready:
-            predecessors = _flatten(requirements(node))
+            predecessors = _flatten(req(node))
             for predecessor in predecessors:
                 self._add_node_and_predecessors(g, predecessor, level + 1)
         g.add(node, *predecessors)
@@ -248,7 +248,7 @@ class Node(ABC):
         logfunc("%s: %s%s", self.taskname, readymsg, extmsg)
         if self.ready:
             return
-        reqs = {req: req.ready for req in _flatten(self._reqs)}
+        reqs = {req: req.ready for req in _flatten(self._req)}
         if reqs:
             log.warning("%s: Requires:", self.taskname)
             for req, ready_ in reqs.items():
@@ -290,7 +290,7 @@ class NodeTask(Node):
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
         self._asset = assets_
-        self._reqs = reqs
+        self._req = reqs
         self._continuation = continuation
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -298,7 +298,7 @@ class NodeTask(Node):
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
-            if not self.ready and all(req.ready for req in _flatten(self._reqs)):
+            if not self.ready and all(req.ready for req in _flatten(self._req)):
                 if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
@@ -321,7 +321,7 @@ class NodeTasks(Node):
         reqs: _ReqsT = None,
     ) -> None:
         super().__init__(taskname=taskname, threads=threads, logger=logger)
-        self._reqs = reqs
+        self._req = reqs
 
     def __call__(self, dry_run: bool = False) -> Node:
         iotaa_logger = self._logger  # noqa: F841
@@ -334,8 +334,8 @@ class NodeTasks(Node):
 
     @property
     def _asset(self) -> list[Asset]:
-        reqs = _flatten(self._reqs)
-        return list(chain.from_iterable([_flatten(req.asset) for req in reqs]))
+        req = _flatten(self._req)
+        return list(chain.from_iterable([_flatten(r.asset) for r in req]))
 
     @_asset.setter
     def _asset(self, value) -> None:
@@ -427,13 +427,13 @@ def ref(obj: Node | _AssetsT) -> Any:
     return None
 
 
-def requirements(node: Node) -> _ReqsT:
+def req(node: Node) -> _ReqsT:
     """
     Return the node's requirements.
 
     :param node: A node.
     """
-    return node.requirements
+    return node.req
 
 
 def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
@@ -541,9 +541,9 @@ class _Graph:
         :param node: The root node of the current subgraph.
         """
         self._nodes.add(node)
-        for req in _flatten(requirements(node)):
-            self._edges.add((node, req))
-            self._build(req)
+        for r in _flatten(req(node)):
+            self._edges.add((node, r))
+            self._build(r)
 
     def __repr__(self) -> str:
         """

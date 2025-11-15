@@ -161,10 +161,10 @@ A number of public helper functions are available in the `iotaa` module:
 | `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
 | `ready()`        | Given the `Node` value returned by a task-function call, return the ready (`bool`) status of the task. Equivalent to accessing the `.ready` property of the `Node`. |
 | `ref()`          | Given the `Node` value returned by a task-function call, a single asset, a `list` of assets, or a `dict` whose values are assets, return the `ref` values of the asset(s) in the corresponding shape (e.g. `dict`, `list`). Accessing the `.ref` property returns the `ref` values for the assets of that `Node`. |
-| `requirements()` | Given the `Node` value returned by a task-function call, return the represented task's requirements, themselves `Node` values. Equivalent to accessing the `.requirements` property of the `Node`. |
+| `req()`          | Given the `Node` value returned by a task-function call, return the represented task's requirements, themselves `Node` values. Equivalent to accessing the `.req` property of the `Node`. |
 | `tasknames()`    | Given an object (e.g. a module), return a list of names of  `iotaa` task members. Called by the CLI when `-s` / `--show` is specified. Prints each task name followed by, when available, the first line of its docstring. |
 
-Some linters may not recognize the existence of `Node` properties `.asset`, `.graph`, `.ready`, `.ref`, and `.requirements`. In such cases, calling the corresponding helper functions instead may silence complaints.
+Some linters may not recognize the existence of `Node` properties `.asset`, `.graph`, `.ready`, `.ref`, and `.req`. In such cases, calling the corresponding helper functions instead may silence complaints.
 
 Additionally, `iotaa.log` provides a reference to the logger in use by `iotaa`. By default this will be the Python root logger, configured by `iotaa`. But, if a custom logger was supplied via the `log=` keyword argument to a task-graph root function, `iotaa.log` will reference that logger. Thus, application code can safely call `iotaa.log.info()`, `iotaa.log.debug()`, etc.
 
