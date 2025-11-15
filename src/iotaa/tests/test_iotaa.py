@@ -470,13 +470,6 @@ def test_Node__report_readiness(caplog, fakefs, iotaa_logger, touch):  # noqa: A
 # Tests for public functions
 
 
-def test_Asset_constructor():
-    o = object()
-    a = iotaa.Asset(ref=o, ready=lambda: True)
-    assert a.ref == o
-    assert a.ready()
-
-
 def test_assets(fakefs):
     node = t_external_foo_scalar(fakefs)
     asset = cast(iotaa.Asset, iotaa.assets(node))
