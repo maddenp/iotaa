@@ -95,7 +95,7 @@ Installation via local source, from the `src/` directory of an `iotaa` git clone
 
 Integration into another package:
 
-- Copy the `src/iotaa/__init__.py` module as `iotaa.py` to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
+- Copy the `src/iotaa/iotaa.py` module to another project. No `iotaa` CLI program will be available in this case, but `iotaa.main()` can be used to create one.
 
 ### CLI Use
 
