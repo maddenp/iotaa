@@ -5,7 +5,7 @@ iotaa.demo.
 import datetime as dt
 from pathlib import Path
 
-from iotaa import asset, external, log, task, tasks
+from iotaa import Asset, external, log, task, tasks
 
 
 @tasks
@@ -25,7 +25,7 @@ def cup(basedir):
     path = Path(basedir) / "cup"
     taskname = "The cup"
     yield taskname
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield None
     log.info("%s: Getting cup", taskname)
     path.mkdir(parents=True)
@@ -39,7 +39,7 @@ def spoon(basedir):
     path = Path(basedir) / "spoon"
     taskname = "The spoon"
     yield taskname
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield None
     log.info("%s: Getting spoon", taskname)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ def steeped_tea(basedir):
     taskname = "Steeped tea"
     yield taskname
     water = steeping_tea(basedir).ref["water"]
-    steep_time = lambda x: asset("elapsed time", lambda: x)
+    steep_time = lambda x: Asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
@@ -103,7 +103,7 @@ def tea_bag(basedir):
     path = the_cup.ref / "tea-bag"
     taskname = "Tea bag in cup"
     yield taskname
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield [the_cup, box_of_tea_bags(basedir)]
     log.info("%s: Adding tea bag to cup", taskname)
     path.touch()
@@ -116,7 +116,7 @@ def box_of_tea_bags(basedir):
     """
     path = Path(basedir) / "box-of-tea-bags"
     yield f"Box of tea bags ({path})"
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
 
 
 def ingredient(basedir, fn, name, req=None):
@@ -127,7 +127,7 @@ def ingredient(basedir, fn, name, req=None):
     yield taskname
     the_cup = cup(basedir)
     path = the_cup.ref / fn
-    yield {fn: asset(path, path.exists)}
+    yield {fn: Asset(path, path.exists)}
     yield [the_cup] + ([req(basedir)] if req else [])
     log.info("%s: Adding %s to cup", taskname, fn)
     path.touch()

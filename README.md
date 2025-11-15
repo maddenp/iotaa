@@ -21,7 +21,7 @@ An asset (an instance of class `iotaa.Asset`) has two attributes:
 1. `ref`: A value, of any type, identifying the observable state this asset represents.
 2. `ready`: A 0-arity (no-argument) function that returns a `bool` indicating whether the asset is ready to use. Note that this should be a reference to a callable function, not a function _call_.
 
-Create an asset by calling `iotaa.asset(ref=<ref>, ready=<callable>)`.
+Create an asset by calling `iotaa.Asset(ref=<ref>, ready=<callable>)`.
 
 See the _In-Memory Asset_ topic in the _Cookbook_ section for a strategy for handling in-memory assets.
 
@@ -31,7 +31,7 @@ A task is a decorated Python function that yields to `iotaa` its name and, depen
 
 Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
 
-`iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be a single (scalar) item, a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a required task `t`.
+`iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be a single (scalar) item, a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.Asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a required task `t`.
 
 For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A useful pattern is to assign a requirement to a variable, yield that variable, then access its assets via its `.ref` property (or by passing it as the argument to the `iotaa.ref()` helper function). For example:
 
@@ -39,7 +39,7 @@ For all task types, arbitrary Python statements may appear before and interspers
 @task
 def random_number_file(path: Path):
     yield "Random number file: %s" % path # Yield task name
-    yield asset(path, path.is_file)       # Yield task asset
+    yield Asset(path, path.is_file)       # Yield task asset
     rn = random_number()                  # Call and save required task
     yield rn                              # Yield required task
     path.write_text(rn.ref)               # Ready THIS task's asset, using the requirement's asset.
@@ -156,7 +156,6 @@ A number of public helper functions are available in the `iotaa` module:
 
 | Function         | Description |
 | ---------------- | ----------- |
-| `asset()`        | Instantiate an asset to yield from a task function. |
 | `assets()`       | Given the `Node` value returned by a task-function call, return the asset(s) yielded by the task. Equivalent to accessing the `.assets` property of the `Node`. |
 | `graph()`        | Given the `Node` value returned by a task-function call, return a Graphviz string representation of the task graph. Equivalent to accessing the `.graph` property of the `Node`. |
 | `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
@@ -213,7 +212,7 @@ def cup(basedir):
     path = Path(basedir) / "cup"
     taskname = "The cup"
     yield taskname
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield None
     log.info("%s: Getting cup", taskname)
     path.mkdir(parents=True)
@@ -228,7 +227,7 @@ def spoon(basedir):
     path = Path(basedir) / "spoon"
     taskname = "The spoon"
     yield taskname
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield None
     log.info("%s: Getting spoon", taskname)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -237,7 +236,7 @@ def spoon(basedir):
 
 They yield their names, then the asset each is responsible for readying, then the tasks they require (`None` in this case, since they rely on nothing). Following the final `yield`, they ready their assets: `cup()` creates the `cup` directory that will contain the tea ingredients; `spoon()` ensures that the base directory exists, then creates the `spoon` file in it. The `cup` and `spoon` assets are filesystem entries (a directory and a file, respectively) in the same parent directory, and their task functions are written so that it does not matter which task executes first and creates that parent directory.
 
-Note that in task function `cup()`, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless the `exist_ok=True` argument is supplied, as it is in task function `spoon()`), the workflow need not explicitly guard against this because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `asset()` in `cup()`.
+Note that in task function `cup()`, while `pathlib`'s `Path.mkdir()` would normally raise an exception if the specified directory already exists (unless the `exist_ok=True` argument is supplied, as it is in task function `spoon()`), the workflow need not explicitly guard against this because `iotaa` checks for the readiness of assets before executing code that would ready them. That is, `iotaa` will not execute the `path.mkdir()` statement if it determines that the asset represented by that directory is already ready (i.e. exists). This check is provided by the `path.exists` function supplied as the second argument to `Asset()` in `cup()`.
 
 The `steeped_tea_with_sugar()` `@task` function is next:
 
@@ -263,7 +262,7 @@ def ingredient(basedir, fn, name, req=None):
     yield taskname
     the_cup = cup(basedir)
     path = the_cup.ref / fn
-    yield {fn: asset(path, path.exists)}
+    yield {fn: Asset(path, path.exists)}
     yield [the_cup] + ([req(basedir)] if req else [])
     log.info("%s: Adding %s to cup", taskname, fn)
     path.touch()
@@ -284,7 +283,7 @@ def steeped_tea(basedir):
     taskname = "Steeped tea"
     yield taskname
     water = steeping_tea(basedir).ref["water"]
-    steep_time = lambda x: asset("elapsed time", lambda: x)
+    steep_time = lambda x: Asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
         water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
@@ -310,7 +309,7 @@ Note the statement
 water = steeping_tea(basedir).ref["water"]
 ```
 
-The path to the `water` file is located by accessing the `.ref` property on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` yields its assets as `{fn: asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `tea-bag`, `water`.) This is a useful way to delegate ownership of knowledge about an asset to the tasks responsible for that asset.
+The path to the `water` file is located by accessing the `.ref` property on the return value of `steeping_tea()` and taking the item with key `water` (because `ingredient()` yields its assets as `{fn: Asset(path, path.exists)}`, where `fn` is the filename, e.g. `sugar`, `tea-bag`, `water`.) This is a useful way to delegate ownership of knowledge about an asset to the tasks responsible for that asset.
 
 The `steeping_tea()` function is again a straightforward `@task`, leveraging the `ingredient()` helper:
 
@@ -339,7 +338,7 @@ def tea_bag(basedir):
     path = the_cup.ref / "tea-bag"
     taskname = "Tea bag in cup"
     yield taskname
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
     yield [the_cup, box_of_tea_bags(basedir)]
     log.info("%s: Adding tea bag to cup", taskname)
     path.touch()
@@ -355,7 +354,7 @@ def box_of_tea_bags(basedir):
     """
     path = Path(basedir) / "box-of-tea-bags"
     yield f"Box of tea bags ({path})"
-    yield asset(path, path.exists)
+    yield Asset(path, path.exists)
 ```
 
 Let's run this workflow with the `iotaa` CLI, requesting that the workflow start with the `a_cup_of_tea` task:
@@ -716,7 +715,7 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 ### Atomic Writes
 
-Since `iotaa` uses assets' `ready` predicates to guide execution and does not rely on e.g. a progress database, it is important that when assets claim to be ready, they really are. A notorious source of error in this regard is partially written files. Given, for example `asset(ref=path, ready=path.is_file)`, if the task function creating `path` opens that file, starts writing to it, then is killed before writing is complete, a future invocation of the workflow will see the asset as ready and will not re-execute the task. Worse, a task depending on this one will assume that it can use the incomplete output.
+Since `iotaa` uses assets' `ready` predicates to guide execution and does not rely on e.g. a progress database, it is important that when assets claim to be ready, they really are. A notorious source of error in this regard is partially written files. Given, for example `Asset(ref=path, ready=path.is_file)`, if the task function creating `path` opens that file, starts writing to it, then is killed before writing is complete, a future invocation of the workflow will see the asset as ready and will not re-execute the task. Worse, a task depending on this one will assume that it can use the incomplete output.
 
 To protect against this, consider writing to a temporary file and then renaming the file (an [atomic operation](https://rcrowley.org/2010/01/06/things-unix-can-do-atomically.html)) when the file is complete. A context manager similar to the following may be useful:
 
@@ -758,7 +757,7 @@ def fib(n: int) -> int:
 def fibonacci(n: int):
     val: list[int] = []
     yield "Fibonacci %s" % n
-    yield asset(val, lambda: bool(val))
+    yield Asset(val, lambda: bool(val))
     yield None
     val.append(fib(n))
 
@@ -768,7 +767,7 @@ def main(n1: int, n2: int):
     ran = False
     taskname = "Main"
     yield taskname
-    yield asset(None, lambda: ran)
+    yield Asset(None, lambda: ran)
     reqs = [fibonacci(n1), fibonacci(n2)]
     yield reqs
     if all(req.ready for req in reqs):
@@ -820,7 +819,7 @@ from __future__ import annotations
 from multiprocessing import Process, Value
 from typing import TYPE_CHECKING
 
-from iotaa import asset, log, logcfg, task
+from iotaa import Asset, log, logcfg, task
 
 if TYPE_CHECKING:
     from multiprocessing.sharedctypes import Synchronized
@@ -839,7 +838,7 @@ def fib(n: int, v: Synchronized | None = None) -> int:
 def fibonacci(n: int):
     val = Value("i", -1)
     yield "Fibonacci %s" % n
-    yield asset(val, lambda: val.value >= 0)
+    yield Asset(val, lambda: val.value >= 0)
     yield None
     p = Process(target=fib, args=(n, val))
     p.start()
@@ -851,7 +850,7 @@ def main(n1: int, n2: int):
     ran = False
     taskname = "Main"
     yield taskname
-    yield asset(None, lambda: ran)
+    yield Asset(None, lambda: ran)
     reqs = [fibonacci(n1), fibonacci(n2)]
     yield reqs
     if all(req.ready for req in reqs):
@@ -911,7 +910,7 @@ logcfg()
 def json(lat: float, lon: float):
     val: list[str] = []
     yield "JSON for lat %s lon %s" % (lat, lon)
-    yield asset(val, lambda: bool(val))
+    yield Asset(val, lambda: bool(val))
     yield None
     url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
     val.append(requests.get(url, timeout=3).json())
@@ -922,7 +921,7 @@ def main(lat: float, lon: float):
     ran = False
     taskname = "Main"
     yield taskname
-    yield asset(None, lambda: ran)
+    yield Asset(None, lambda: ran)
     req = json(lat, lon)
     yield req
     city, state = [
@@ -941,9 +940,9 @@ $ iotaa location1.py main 40.1672 -105.1091
 [2025-04-01T16:36:21] INFO    Main: Ready
 ```
 
-Since `val` is initially empty in `json()`, the second argument to `asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.ref`.
+Since `val` is initially empty in `json()`, the second argument to `Asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.ref`.
 
-Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` is mutated with `.append()`. A `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would not be visible outside the lexical scope of `json()`.
+Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` is mutated with `.append()`. A `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `Asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would not be visible outside the lexical scope of `json()`.
 
 In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, depulication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
 
@@ -952,7 +951,7 @@ In this simple example, there's no obvious benefit to `json()` being a `@task` i
 ``` python
 import requests
 
-from iotaa import asset, log, logcfg, ready, task
+from iotaa import Asset, log, logcfg, ready, task
 
 logcfg()
 
@@ -963,7 +962,7 @@ get = lambda req, x: req.ref[0]["properties"]["relativeLocation"]["properties"][
 def json(lat: float, lon: float):
     val: list[str] = []
     yield "JSON for lat %s lon %s" % (lat, lon)
-    yield asset(val, lambda: bool(val))
+    yield Asset(val, lambda: bool(val))
     yield None
     url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
     val.append(requests.get(url, timeout=3).json())
@@ -973,7 +972,7 @@ def json(lat: float, lon: float):
 def city(lat: float, lon: float):
     val: list[str] = []
     yield "City for lat %s lon %s" % (lat, lon)
-    yield asset(val, lambda: bool(val))
+    yield Asset(val, lambda: bool(val))
     req = json(lat, lon)
     yield req
     val.append(get(req, "city"))
@@ -983,7 +982,7 @@ def city(lat: float, lon: float):
 def state(lat: float, lon: float):
     val: list[str] = []
     yield "State for lat %s lon %s" % (lat, lon)
-    yield asset(val, lambda: bool(val))
+    yield Asset(val, lambda: bool(val))
     req = json(lat, lon)
     yield req
     val.append(get(req, "state"))
@@ -994,7 +993,7 @@ def main(lat: float, lon: float):
     ran = False
     taskname = "Main"
     yield taskname
-    yield asset(None, lambda: ran)
+    yield Asset(None, lambda: ran)
     reqs = {"city": city(lat, lon), "state": state(lat, lon)}
     yield reqs
     if all(ready(req) for req in reqs.values()):
@@ -1038,14 +1037,14 @@ from iotaa import asset, external, task
 @external
 def wait(gotime: datetime):
     yield "Time %s" % gotime
-    yield asset(None, lambda: datetime.now(timezone.utc) >= gotime)
+    yield Asset(None, lambda: datetime.now(timezone.utc) >= gotime)
 
 
 @task
 def file(gotime: str):
     path = Path("file")
     yield "Touch %s" % path
-    yield asset(path, path.is_file)
+    yield Asset(path, path.is_file)
     yield wait(datetime.fromisoformat(f"{gotime}+00:00"))
     path.touch()
 ```
@@ -1091,14 +1090,14 @@ from iotaa import asset, external, task
 @external
 def upstream(url: str):
     yield "Upstream resource %s" % url
-    yield asset(None, lambda: head(url, timeout=3).status_code == 200)
+    yield Asset(None, lambda: head(url, timeout=3).status_code == 200)
 
 
 @task
 def file(url: str):
     path = Path(Path(urlparse(url).path).name)
     yield "Local resource %s" % path
-    yield asset(path, path.is_file)
+    yield Asset(path, path.is_file)
     yield upstream(url)
     path.write_bytes(get(url, timeout=3).content)
 ```

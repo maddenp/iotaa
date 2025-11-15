@@ -342,16 +342,6 @@ class NodeTasks(Node):
         pass
 
 
-def asset(ref: Any, ready: Callable[..., bool]) -> Asset:
-    """
-    Returns an Asset object.
-
-    :param ref: An object uniquely identifying the asset (e.g. a filesystem path).
-    :param ready: A function that, when called, indicates whether the asset is ready to use.
-    """
-    return Asset(ref, ready)
-
-
 def assets(node: Node | None) -> _AssetsT:
     """
     Return the node's assets.

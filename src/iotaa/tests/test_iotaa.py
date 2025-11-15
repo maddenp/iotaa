@@ -38,13 +38,13 @@ def graphkit():
         taskname="a",
         threads=0,
         logger=logging.getLogger(),
-        assets_=iotaa.asset(None, lambda: False),
+        assets_=iotaa.Asset(None, lambda: False),
     )
     b = iotaa.NodeExternal(
         taskname="b",
         threads=0,
         logger=logging.getLogger(),
-        assets_=iotaa.asset(None, lambda: True),
+        assets_=iotaa.Asset(None, lambda: True),
     )
     root = iotaa.NodeTasks(
         taskname="root",
@@ -83,11 +83,11 @@ def iotaa_logger(caplog):
 @fixture(scope="session")
 def module_for_main(tmpdir_factory):
     func = """
-    from iotaa import asset, task
+    from iotaa import Asset, task
     @task
     def hi(x):
         yield("test")
-        yield asset(None, lambda: False)
+        yield Asset(None, lambda: False)
         yield None
         print(f"hello {x}!")
     """
@@ -137,7 +137,7 @@ def memval(n) -> Iterator:
     assert n != 1
     val: list[int] = []
     yield "a"
-    yield iotaa.asset(val, lambda: bool(val))
+    yield iotaa.Asset(val, lambda: bool(val))
     reqs = [memval_req(1), memval_req(n)]
     yield reqs
     m = add(*[req.ref[0] for req in reqs])
@@ -151,7 +151,7 @@ def memval(n) -> Iterator:
 def memval_req(n) -> Iterator:
     val: list[int] = []
     yield "b %s" % n
-    yield iotaa.asset(val, lambda: bool(val))
+    yield iotaa.Asset(val, lambda: bool(val))
     yield None
     val.append(n)
 
@@ -164,9 +164,9 @@ def logged(caplog, msg, escape=True):
 def simple_assets():
     return [
         None,
-        iotaa.asset("foo", lambda: True),
-        [iotaa.asset("foo", lambda: True), iotaa.asset("bar", lambda: True)],
-        {"baz": iotaa.asset("foo", lambda: True), "qux": iotaa.asset("bar", lambda: True)},
+        iotaa.Asset("foo", lambda: True),
+        [iotaa.Asset("foo", lambda: True), iotaa.Asset("bar", lambda: True)],
+        {"baz": iotaa.Asset("foo", lambda: True), "qux": iotaa.Asset("bar", lambda: True)},
     ]
 
 
@@ -177,14 +177,14 @@ def t_external_foo_scalar(path) -> Iterator:
     """
     f = path / "foo"
     yield f"external foo {f}"
-    yield iotaa.asset(f, f.is_file)
+    yield iotaa.Asset(f, f.is_file)
 
 
 @iotaa.task
 def t_task_bar_dict(path) -> Iterator:
     f = path / "bar"
     yield f"task bar dict {f}"
-    yield {"path": iotaa.asset(f, f.is_file)}
+    yield {"path": iotaa.Asset(f, f.is_file)}
     yield t_external_foo_scalar(path)
     f.touch()
 
@@ -193,7 +193,7 @@ def t_task_bar_dict(path) -> Iterator:
 def t_task_bar_list(path) -> Iterator:
     f = path / "bar"
     yield f"task bar list {f}"
-    yield [iotaa.asset(f, f.is_file)]
+    yield [iotaa.Asset(f, f.is_file)]
     yield t_external_foo_scalar(path)
     f.touch()
 
@@ -205,7 +205,7 @@ def t_task_bar_scalar(path) -> Iterator:
     """
     f = path / "bar"
     yield f"task bar scalar {f}"
-    yield iotaa.asset(f, f.is_file)
+    yield iotaa.Asset(f, f.is_file)
     yield None
     f.touch()
 
@@ -275,7 +275,7 @@ class TaskClass:
 @mark.parametrize(
     # One without kwargs, one with:
     "asset",
-    [iotaa.asset("foo", lambda: True), iotaa.asset(ref="foo", ready=lambda: True)],
+    [iotaa.Asset("foo", lambda: True), iotaa.Asset(ref="foo", ready=lambda: True)],
 )
 def test_Asset(asset):
     assert asset.ref == "foo"
@@ -332,7 +332,7 @@ def test_Node_ready_type_error(caplog):
     @iotaa.external
     def t0():
         yield "t0"
-        yield iotaa.asset(None, lambda: True)
+        yield iotaa.Asset(None, lambda: True)
 
     @iotaa.task
     def t1():
@@ -470,9 +470,9 @@ def test_Node__report_readiness(caplog, fakefs, iotaa_logger, touch):  # noqa: A
 # Tests for public functions
 
 
-def test_asset():
+def test_Asset_constructor():
     o = object()
-    a = iotaa.asset(ref=o, ready=lambda: True)
+    a = iotaa.Asset(ref=o, ready=lambda: True)
     assert a.ref == o
     assert a.ready()
 
@@ -580,7 +580,7 @@ def test_ready__tasks():
     def shared() -> Iterator:
         val: list[bool] = []
         yield "shared"
-        yield iotaa.asset(val, lambda: bool(val))
+        yield iotaa.Asset(val, lambda: bool(val))
         yield None
         val.append(True)
 
@@ -594,7 +594,7 @@ def test_ready__tasks():
 
 def test_ref():
     expected = "bar"
-    asset = iotaa.asset(ref="bar", ready=lambda: True)
+    asset = iotaa.Asset(ref="bar", ready=lambda: True)
     node = iotaa.NodeExternal(taskname="test", threads=0, logger=logging.getLogger(), assets_=None)
     ref1 = iotaa.ref(obj=node)
     assert ref1 is None
@@ -702,7 +702,7 @@ def test_tasks__docstring():
 
 
 def test_tasks__structured():
-    a = iotaa.asset(ref="a", ready=lambda: False)
+    a = iotaa.Asset(ref="a", ready=lambda: False)
 
     @iotaa.external
     def tdict() -> Iterator:
@@ -833,7 +833,7 @@ def test__findabove():
 
 
 def test__flatten():
-    a = iotaa.asset(ref=None, ready=lambda: True)
+    a = iotaa.Asset(ref=None, ready=lambda: True)
     assert iotaa._flatten(None) == []
     assert iotaa._flatten([]) == []
     assert iotaa._flatten({}) == []
@@ -873,7 +873,7 @@ def test__next():
 def test__not_ready_reqs():
     logger = logging.getLogger()
     kwargs = lambda name, ready: dict(
-        taskname=name, threads=0, logger=logger, assets_=iotaa.asset(None, lambda: ready)
+        taskname=name, threads=0, logger=logger, assets_=iotaa.Asset(None, lambda: ready)
     )
     n = iotaa.NodeExternal(**kwargs("n", False))  # a not-ready node
     d = iotaa.NodeExternal(**kwargs("n", False))  # a duplicate not-ready node
