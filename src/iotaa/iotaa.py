@@ -483,7 +483,7 @@ def tasknames(obj: object) -> list[str]:
 
 def tasks(func: Callable[..., Iterator]) -> Callable[..., NodeTasks]:
     """
-    The @tasks decorator for collections tasks.
+    The @tasks decorator for a collection of tasks.
 
     :param func: The function being decorated.
     :return: A decorated function.
