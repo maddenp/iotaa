@@ -47,69 +47,6 @@ class Asset:
     ready: Callable[..., bool]
 
 
-class _Graph:
-    """
-    Graphviz digraph support.
-    """
-
-    def __init__(self, root: Node) -> None:
-        """
-        :param root: The task-graph root node.
-        """
-        self._nodes: set = set()
-        self._edges: set = set()
-        self._build(root)
-
-    def _build(self, node: Node) -> None:
-        """
-        Recursively add task nodes with edges to nodes they require.
-
-        :param node: The root node of the current subgraph.
-        """
-        self._nodes.add(node)
-        for req in _flatten(requirements(node)):
-            self._edges.add((node, req))
-            self._build(req)
-
-    def __repr__(self) -> str:
-        """
-        Returns the task graph in Graphviz DOT format.
-        """
-        s = '%s [fillcolor=%s, label="%s", shape=box, style=filled]'
-        name = lambda node: "_%s" % sha256(str(node.taskname).encode("utf-8")).hexdigest()
-        color = lambda node: "palegreen" if node.ready else "orange"
-        nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
-        edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
-        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
-
-
-class IotaaError(Exception):
-    """
-    A custom exception type for iotaa-specific errors.
-    """
-
-
-class _LoggerProxy:
-    """
-    A proxy for the logger currently in use by iotaa.
-    """
-
-    def __getattr__(self, name):
-        return getattr(self.logger(), name)
-
-    @staticmethod
-    def logger() -> Logger:
-        """
-        Search the stack for the logger, which will exist for calls made from iotaa task functions.
-
-        :raises: IotaaError is no logger is found.
-        """
-        if not (found := _findabove(name="iotaa_logger")):
-            msg = "No logger found: Ensure this call originated in an iotaa task function."
-            raise IotaaError(msg)
-        return cast(Logger, found)
-
-
 class Node(ABC):
     """
     The base class for task-graph nodes.
@@ -389,10 +326,72 @@ class NodeTasks(Node):
         pass
 
 
+class _Graph:
+    """
+    Graphviz digraph support.
+    """
+
+    def __init__(self, root: Node) -> None:
+        """
+        :param root: The task-graph root node.
+        """
+        self._nodes: set = set()
+        self._edges: set = set()
+        self._build(root)
+
+    def _build(self, node: Node) -> None:
+        """
+        Recursively add task nodes with edges to nodes they require.
+
+        :param node: The root node of the current subgraph.
+        """
+        self._nodes.add(node)
+        for req in _flatten(requirements(node)):
+            self._edges.add((node, req))
+            self._build(req)
+
+    def __repr__(self) -> str:
+        """
+        Returns the task graph in Graphviz DOT format.
+        """
+        s = '%s [fillcolor=%s, label="%s", shape=box, style=filled]'
+        name = lambda node: "_%s" % sha256(str(node.taskname).encode("utf-8")).hexdigest()
+        color = lambda node: "palegreen" if node.ready else "orange"
+        nodes = [s % (name(n), color(n), n.taskname) for n in self._nodes]
+        edges = ["%s -> %s" % (name(a), name(b)) for a, b in self._edges]
+        return "digraph g {\n  %s\n}" % "\n  ".join(sorted(nodes + edges))
+
+
+class _IotaaError(Exception):
+    """
+    A custom exception type for iotaa-specific errors.
+    """
+
+
+class _LoggerProxy:
+    """
+    A proxy for the logger currently in use by iotaa.
+    """
+
+    def __getattr__(self, name):
+        return getattr(self.logger(), name)
+
+    @staticmethod
+    def logger() -> Logger:
+        """
+        Search the stack for the logger, which will exist for calls made from iotaa task functions.
+
+        :raises: _IotaaError is no logger is found.
+        """
+        if not (found := _findabove(name="iotaa_logger")):
+            msg = "No logger found: Ensure this call originated in an iotaa task function."
+            raise _IotaaError(msg)
+        return cast(Logger, found)
+
+
 # Globals
 
 _MARKER = "__IOTAA__"
-log = _LoggerProxy()
 
 # Types
 
@@ -403,6 +402,10 @@ _NodeT = TypeVar("_NodeT", bound=Node)
 _QueueT = Queue[Optional[Node]]
 _ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
 _T = TypeVar("_T")
+
+# Public members:
+
+log = _LoggerProxy()
 
 # Public functions:
 
@@ -468,7 +471,7 @@ def main() -> None:
     task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
     try:
         root = task_func(*task_args, **task_kwargs)
-    except IotaaError as e:
+    except _IotaaError as e:
         logging.error(str(e))
         sys.exit(1)
     if args.graph:
@@ -686,7 +689,7 @@ def _findabove(name: str) -> Any:
     Search the stack for a specially-named and iotaa-marked frame-local object with the given name.
 
     :param name: The name of the object to be found in an ancestor stack frame.
-    :raises: IotaaError is no such object is found.
+    :raises: _IotaaError is no such object is found.
     """
     frame = inspect.currentframe()
     while frame is not None:
@@ -773,7 +776,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
         return next(iterator)
     except StopIteration as e:
         msg = f"Failed to get {desc}: Check yield statements."
-        raise IotaaError(msg) from e
+        raise _IotaaError(msg) from e
 
 
 def _not_ready_reqs(reqs: _ReqsT, reps: UserDict[str, _NodeT]) -> _ReqsT:

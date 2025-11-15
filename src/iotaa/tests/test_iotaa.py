@@ -289,7 +289,7 @@ def test__Graph(graphkit):
 
 def test__LoggerProxy():
     lp = iotaa._LoggerProxy()
-    with raises(iotaa.IotaaError) as e:
+    with raises(iotaa._IotaaError) as e:
         lp.info("fail")
     expected = "No logger found: Ensure this call originated in an iotaa task function."
     assert str(e.value) == expected
@@ -862,13 +862,13 @@ def test__mark():
 
 
 def test__modobj():
-    assert iotaa._modobj("iotaa") == iotaa
+    assert iotaa._modobj("iotaa") == import_module("iotaa")
     with raises(ModuleNotFoundError):
         assert iotaa._modobj("$")
 
 
 def test__next():
-    with raises(iotaa.IotaaError) as e:
+    with raises(iotaa._IotaaError) as e:
         iotaa._next(iter([]), "foo")
     assert str(e.value) == "Failed to get foo: Check yield statements."
 
