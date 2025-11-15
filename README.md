@@ -156,7 +156,7 @@ A number of public helper functions are available in the `iotaa` module:
 
 | Function         | Description |
 | ---------------- | ----------- |
-| `assets()`       | Given the `Node` value returned by a task-function call, return the asset(s) yielded by the task. Equivalent to accessing the `.assets` property of the `Node`. |
+| `asset()`        | Given the `Node` value returned by a task-function call, return the asset(s) yielded by the task. Equivalent to accessing the `.assets` property of the `Node`. |
 | `graph()`        | Given the `Node` value returned by a task-function call, return a Graphviz string representation of the task graph. Equivalent to accessing the `.graph` property of the `Node`. |
 | `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
 | `ready()`        | Given the `Node` value returned by a task-function call, return the ready (`bool`) status of the task. Equivalent to accessing the `.ready` property of the `Node`. |

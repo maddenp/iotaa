@@ -470,11 +470,11 @@ def test_Node__report_readiness(caplog, fakefs, iotaa_logger, touch):  # noqa: A
 # Tests for public functions
 
 
-def test_assets(fakefs):
+def test_asset(fakefs):
     node = t_external_foo_scalar(fakefs)
-    asset = cast(iotaa.Asset, iotaa.assets(node))
-    assert asset.ref == fakefs / "foo"
-    assert node.assets == asset
+    assets = cast(iotaa.Asset, iotaa.asset(node))
+    assert assets.ref == fakefs / "foo"
+    assert node.assets == assets
 
 
 def test_graph(graphkit):

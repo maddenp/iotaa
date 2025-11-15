@@ -342,7 +342,7 @@ class NodeTasks(Node):
         pass
 
 
-def assets(node: Node | None) -> _AssetsT:
+def asset(node: Node | None) -> _AssetsT:
     """
     Return the node's assets.
 
@@ -417,7 +417,7 @@ def ref(obj: Node | _AssetsT) -> Any:
     :param obj: A Node, or an Asset, or a list or dict of Assets.
     :return: Asset reference(s) matching the obj's assets' shape (e.g. dict, list, scalar, None).
     """
-    _assets = assets(obj) if isinstance(obj, Node) else obj
+    _assets = asset(obj) if isinstance(obj, Node) else obj
     if isinstance(_assets, dict):
         return {k: v.ref for k, v in _assets.items()}
     if isinstance(_assets, list):
