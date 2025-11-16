@@ -24,10 +24,10 @@ from logging import Logger, getLogger
 from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from types import ModuleType
 
 
@@ -386,9 +386,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
 
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
-            func, *args, **kwargs
-        )
+        taskname, threads, dry_run, iotaa_logger, _, iterator = _task_common(func, *args, **kwargs)
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
@@ -512,12 +510,12 @@ _MARKER = "__IOTAA__"
 
 # Types
 
-_AssetsT = Optional[Union[Asset, dict[str, Asset], list[Asset]]]
-_JSONValT = Union[bool, dict, float, int, list, str]
-_LoggerT = Union[Logger, _LoggerProxy]
+_AssetsT = Asset | dict[str, Asset] | list[Asset] | None
+_JSONValT = bool | dict | float | int | list | str
+_LoggerT = Logger | _LoggerProxy
 _NodeT = TypeVar("_NodeT", bound=Node)
-_QueueT = Queue[Optional[Node]]
-_ReqsT = Optional[Union[Node, dict[str, Node], list[Node]]]
+_QueueT = Queue[Node | None]
+_ReqsT = Node | dict[str, Node] | list[Node] | None
 _T = TypeVar("_T")
 
 
