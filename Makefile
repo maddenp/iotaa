@@ -20,26 +20,26 @@ devshell:
 env: package
 	conda create -y -n $(call spec,buildnum,-) $(CHANNELS) $(call spec,build,=)
 
-format:
+format: $(DEMO)
 	@./format
 
-lint:
+lint: $(DEMO)
 	recipe/run_test.sh lint
 
 meta: $(METAJSON)
 
-package: meta
+package: meta $(DEMO)
 	conda build $(CHANNELS) --error-overlinking --override-channels $(RECIPE_DIR)
 
 render: $(DEMO)
 
-test:
+test: $(DEMO)
 	recipe/run_test.sh
 
-typecheck:
+typecheck: $(DEMO)
 	recipe/run_test.sh typecheck
 
-unittest:
+unittest: $(DEMO)
 	recipe/run_test.sh unittest
 
 $(METAJSON): $(METADEPS)
