@@ -5,10 +5,10 @@ iotaa.demo.
 import datetime as dt
 from pathlib import Path
 
-from iotaa import Asset, external, log, task, tasks
+from iotaa import Asset, collection, external, log, task
 
 
-@tasks
+@collection
 def a_cup_of_tea(basedir):
     """
     The cup of steeped tea with sugar, and a spoon.

@@ -2,6 +2,7 @@ from iotaa.iotaa import (
     Asset,
     Node,
     asset,
+    collection,
     external,
     graph,
     log,
@@ -11,13 +12,13 @@ from iotaa.iotaa import (
     req,
     task,
     tasknames,
-    tasks,
 )
 
 __all__ = [
     "Asset",
     "Node",
     "asset",
+    "collection",
     "external",
     "graph",
     "log",
@@ -27,5 +28,4 @@ __all__ = [
     "req",
     "task",
     "tasknames",
-    "tasks",
 ]

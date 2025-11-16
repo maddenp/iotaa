@@ -256,6 +256,40 @@ class Node(ABC):
                 log.warning("%s: %s %s", self.taskname, status, req.taskname)
 
 
+class NodeCollection(Node):
+    """
+    A node encapsulating a @collection-decorated function/method.
+    """
+
+    def __init__(
+        self,
+        taskname: str,
+        threads: int,
+        logger: Logger,
+        reqs: _ReqsT = None,
+    ) -> None:
+        super().__init__(taskname=taskname, threads=threads, logger=logger)
+        self._req = reqs
+
+    def __call__(self, dry_run: bool = False) -> Node:
+        iotaa_logger = self._logger  # noqa: F841
+        if self.root and self._first_visit:
+            self._exec(dry_run)
+        else:
+            del self.ready  # reset cached property
+            self._report_readiness()
+        return self
+
+    @property
+    def _asset(self) -> list[Asset]:
+        req = _flatten(self._req)
+        return list(chain.from_iterable([_flatten(r.asset) for r in req]))
+
+    @_asset.setter
+    def _asset(self, value) -> None:
+        pass
+
+
 class NodeExternal(Node):
     """
     A node encapsulating an @external-decorated function/method.
@@ -308,40 +342,6 @@ class NodeTask(Node):
         return self
 
 
-class NodeTasks(Node):
-    """
-    A node encapsulating a @tasks-decorated function/method.
-    """
-
-    def __init__(
-        self,
-        taskname: str,
-        threads: int,
-        logger: Logger,
-        reqs: _ReqsT = None,
-    ) -> None:
-        super().__init__(taskname=taskname, threads=threads, logger=logger)
-        self._req = reqs
-
-    def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # noqa: F841
-        if self.root and self._first_visit:
-            self._exec(dry_run)
-        else:
-            del self.ready  # reset cached property
-            self._report_readiness()
-        return self
-
-    @property
-    def _asset(self) -> list[Asset]:
-        req = _flatten(self._req)
-        return list(chain.from_iterable([_flatten(r.asset) for r in req]))
-
-    @_asset.setter
-    def _asset(self, value) -> None:
-        pass
-
-
 def asset(node: Node | None) -> _AssetsT:
     """
     Return the node's assets.
@@ -349,6 +349,31 @@ def asset(node: Node | None) -> _AssetsT:
     :param node: A node.
     """
     return node.asset if node else None
+
+
+def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
+    """
+    The @collection decorator for a collection of other tasks.
+
+    :param func: The function being decorated.
+    :return: A decorated function.
+    """
+
+    @wraps(func)
+    def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
+        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
+            func, *args, **kwargs
+        )
+        return _construct_and_if_root_call(
+            node_class=NodeCollection,
+            taskname=taskname,
+            threads=threads,
+            logger=iotaa_logger,
+            dry_run=dry_run,
+            reqs=_not_ready_reqs(_next(iterator, "requirements"), iotaa_reps),
+        )
+
+    return _mark(_iotaa_wrapper_collection)
 
 
 def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
@@ -479,31 +504,6 @@ def tasknames(obj: object) -> list[str]:
         )
 
     return sorted(name for name in dir(obj) if pred(getattr(obj, name)))
-
-
-def tasks(func: Callable[..., Iterator]) -> Callable[..., NodeTasks]:
-    """
-    The @tasks decorator for a collection of tasks.
-
-    :param func: The function being decorated.
-    :return: A decorated function.
-    """
-
-    @wraps(func)
-    def _iotaa_wrapper_tasks(*args, **kwargs) -> NodeTasks:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
-            func, *args, **kwargs
-        )
-        return _construct_and_if_root_call(
-            node_class=NodeTasks,
-            taskname=taskname,
-            threads=threads,
-            logger=iotaa_logger,
-            dry_run=dry_run,
-            reqs=_not_ready_reqs(_next(iterator, "requirements"), iotaa_reps),
-        )
-
-    return _mark(_iotaa_wrapper_tasks)
 
 
 # Private

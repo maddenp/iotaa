@@ -57,12 +57,12 @@ A task may have no requirements, in which case `None` can be specified. For exam
 
 Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.ref` properties (or by passing them to the `iotaa.ref()` helper function -- see the demo application below).
 
-### `@tasks`
+### `@collection`
 
-A collection of other tasks, a `@tasks` task is ready when all of its required tasks are ready. It yields, in order:
+A collection of other tasks, a `@collection` task is ready when all of its required tasks are ready. It yields, in order:
 
 1. Its name.
-2. The collection of required tasks: A `list` of task-function calls, or a `dict` mapping `str` keys to task-function-call values. A `@tasks` function could yield a scalar requirement (or even `None`) but this probably makes no sense in practice.
+2. The collection of required tasks: A `list` of task-function calls, or a `dict` mapping `str` keys to task-function-call values. A `@collection` task could yield a scalar requirement (or even `None`) but this probably makes no sense in practice.
 
 No action code should follow the final `yield`: It will never be executed.
 
@@ -177,8 +177,8 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 - Tasks yielding the same task name are deemed equivalent by `iotaa`, which will add a single representative to the task graph for execution and patch the rest with references to the representative's assets . Be sure that distinct tasks yield distinct names. If it appears that `iotaa` is not executing all expected tasks, too-general task names may be the cause.
 - For efficient task-graph execution, if `iotaa` finds that a task's assets are ready, it will ignore all that task's requirements, adding no child nodes for them to the task graph. Furthermore, when it _does_ process a task's requirement(s), it will discard any that are themselves ready. For this reason, yielding assets as soon as possible, before doing any work constructing requirements, may speed up workflow execution.
 - Tasks with all their assets ready will not be re-executed, nor their requirements revisited. So, in order to force re-execution (for example, after a configuration change that would produce different assets) it is necessary to externally make them _not ready_, e.g. by deleting on-disk files for filesystem-based assets.
-- The following keyword arguments to task functions are reserved. They need only be provided when calling the root function of a task graph from outside `iotaa`, not when calling a task function as a requirement inside a decorated `@task`, `@tasks`, or `@external` function. They are consumed by `iotaa`, not passed on to task functions, and should not appear in task functions' argument lists. Since they do not appear in argument lists, linter complaints may need to be suppressed at some call sites.
-    - `dry_run`: Instructs `iotaa` not to run the action code in `@task` functions. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting state appear only after the final `yield` statement in `@task` functions, and that `@tasks` and `@external` tasks perform no state-affecting actions.
+- The following keyword arguments to task functions are reserved. They need only be provided when calling the root function of a task graph from outside `iotaa`, not when calling a task function as a requirement inside a decorated `@task`, `@collection`, or `@external` task. They are consumed by `iotaa`, not passed on to task functions, and should not appear in task functions' argument lists. Since they do not appear in argument lists, linter complaints may need to be suppressed at some call sites.
+    - `dry_run`: Instructs `iotaa` not to run the action code in `@task` functions. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting state appear only after the final `yield` statement in `@task` functions, and that `@collection` and `@external` tasks perform no state-affecting actions.
     - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger as configured by `iotaa`. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object.
     - `threads`: Specifies the number of concurrent threads to use. Defaults to 1. When interrupted for example by CTRL-C, `iotaa` waits for outstanding tasks to complete before exiting; terminating `iotaa` forcefully may leave the workflow in an inconsistent state requiring manual recovery.
 - Workflows may be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never repeated. That is, correctly designed tasks are idempotent, unless their assets become not-ready by external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
@@ -187,10 +187,10 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 Consider the source code of the [demo application](src/iotaa/demo.py), which simulates making a cup of tea (according to [the official recipe](https://www.google.com/search?q=masters+of+reality+t.u.s.a.+lyrics)).
 
-The first `@tasks` method defines the end result: A cup of tea, steeped, with sugar, and a spoon for stirring:
+The first `@collection` task defines the end result: A cup of tea, steeped, with sugar, and a spoon for stirring:
 
 ``` python
-@tasks
+@collection
 def a_cup_of_tea(basedir):
     """
     The cup of steeped tea with sugar, and a spoon.
@@ -199,7 +199,7 @@ def a_cup_of_tea(basedir):
     yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
 ```
 
-As described above, a `@tasks` function is just a collection of other tasks, and must yield its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@tasks` collection, no executable statements follow the final `yield`.
+As described above, a `@collection` task is just a collection of other tasks, and must yield its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@collection` task, no executable statements follow the final `yield`.
 
 The `cup()` and `spoon()` `@task` functions are straightforward:
 

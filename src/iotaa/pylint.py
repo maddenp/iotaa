@@ -46,7 +46,7 @@ def _looks_like_iotaa_task_call(node: astroid.Call) -> bool:
             (node := safe_infer(decorator))
             and node is not astroid.Uninferable
             and getattr(node.root(), "name", None) == "iotaa"
-            and getattr(node, "name", None) in ("external", "task", "tasks")
+            and getattr(node, "name", None) in ("collection", "external", "task")
         ):
             return True
     return False

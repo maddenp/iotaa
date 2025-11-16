@@ -46,7 +46,7 @@ def graphkit():
         logger=logging.getLogger(),
         assets_=iotaa.Asset(None, lambda: True),
     )
-    root = iotaa.NodeTasks(
+    root = iotaa.NodeCollection(
         taskname="root",
         threads=0,
         logger=logging.getLogger(),
@@ -170,6 +170,24 @@ def simple_assets():
     ]
 
 
+@iotaa.collection
+def t_collection_baz(path) -> Iterator:
+    """
+    TASKS!
+    """
+    yield "collection baz"
+    yield [t_external_foo_scalar(path), t_task_bar_dict(path)]
+
+
+@iotaa.collection
+def t_collection_qux(path) -> Iterator:
+    """
+    TASKS!
+    """
+    yield "collection qux"
+    yield [t_external_foo_scalar(path), t_task_bar_scalar(path)]
+
+
 @iotaa.external
 def t_external_foo_scalar(path) -> Iterator:
     """
@@ -210,24 +228,6 @@ def t_task_bar_scalar(path) -> Iterator:
     f.touch()
 
 
-@iotaa.tasks
-def t_tasks_baz(path) -> Iterator:
-    """
-    TASKS!
-    """
-    yield "tasks baz"
-    yield [t_external_foo_scalar(path), t_task_bar_dict(path)]
-
-
-@iotaa.tasks
-def t_tasks_qux(path) -> Iterator:
-    """
-    TASKS!
-    """
-    yield "tasks qux"
-    yield [t_external_foo_scalar(path), t_task_bar_scalar(path)]
-
-
 class TaskClass:
     """
     Class TaskClass.
@@ -249,7 +249,7 @@ class TaskClass:
     def bar(self) -> Iterator:
         yield
 
-    @iotaa.tasks
+    @iotaa.collection
     def baz(self) -> Iterator:
         yield
 
@@ -261,7 +261,7 @@ class TaskClass:
     def _bar(self) -> Iterator:
         yield
 
-    @iotaa.tasks
+    @iotaa.collection
     def _baz(self) -> Iterator:
         yield
 
@@ -347,7 +347,7 @@ def test_Node_ready_type_error(caplog):
 
 
 def test_Node_root(fakefs):
-    node = t_tasks_baz(fakefs)
+    node = t_collection_baz(fakefs)
     assert node.root
     children = cast(list[iotaa.Node], node._req)
     assert not any(child.root for child in children)
@@ -355,21 +355,21 @@ def test_Node_root(fakefs):
 
 def test_Node__add_node_and_predecessors(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     g: TopologicalSorter = TopologicalSorter()
-    node = t_tasks_baz(fakefs)
+    node = t_collection_baz(fakefs)
     node._add_node_and_predecessors(g=g, node=node)
     tasknames = [
         "external foo %s" % Path(fakefs, "foo"),
         "task bar dict %s" % Path(fakefs, "bar"),
-        "tasks baz",
+        "collection baz",
     ]
     assert [x.taskname for x in g.static_order()] == tasknames
-    assert logged(caplog, "tasks baz")
+    assert logged(caplog, "collection baz")
     assert logged(caplog, "  external foo %s" % Path(fakefs, "foo"))
     assert logged(caplog, "  task bar dict %s" % Path(fakefs, "bar"))
 
 
 def test_Node__assemble(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    node = t_tasks_baz(fakefs)
+    node = t_collection_baz(fakefs)
     with patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors:
         g = node._assemble()
     assert logged(caplog, "Task Graph")
@@ -442,7 +442,7 @@ def test_Node__exec_threads_startup(iotaa_logger):
 
 
 def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    node = t_tasks_baz(fakefs)
+    node = t_collection_baz(fakefs)
     node._debug_header("foo")
     expected = """
     ───
@@ -458,13 +458,13 @@ def test_Node__report_readiness(caplog, fakefs, iotaa_logger, touch):  # noqa: A
     path = fakefs / "foo"
     if touch:
         path.touch()
-    node = t_tasks_qux(fakefs)
+    node = t_collection_qux(fakefs)
     node._report_readiness()
-    assert logged(caplog, "tasks qux: %s" % ("Ready" if touch else "Not ready"))
+    assert logged(caplog, "collection qux: %s" % ("Ready" if touch else "Not ready"))
     if not touch:
-        assert logged(caplog, "tasks qux: Requires:")
-        assert logged(caplog, "tasks qux: ✖ external foo %s" % path)
-        assert logged(caplog, "tasks qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
+        assert logged(caplog, "collection qux: Requires:")
+        assert logged(caplog, "collection qux: ✖ external foo %s" % path)
+        assert logged(caplog, "collection qux: ✔ task bar scalar %s" % Path(fakefs, "bar"))
 
 
 # Tests for public functions
@@ -475,6 +475,73 @@ def test_asset(fakefs):
     assets = cast(iotaa.Asset, iotaa.asset(node))
     assert assets.ref == fakefs / "foo"
     assert node.asset == assets
+
+
+def test_collection__docstring():
+    assert t_collection_baz.__doc__.strip() == "TASKS!"  # type: ignore[union-attr]
+
+
+def test_collection__structured():
+    a = iotaa.Asset(ref="a", ready=lambda: False)
+
+    @iotaa.external
+    def tdict() -> Iterator:
+        yield "dict"
+        yield {"foo": a, "bar": a}
+
+    @iotaa.external
+    def tlist() -> Iterator:
+        yield "list"
+        yield [a, a]
+
+    @iotaa.external
+    def tscalar() -> Iterator:
+        yield "scalar"
+        yield a
+
+    @iotaa.collection
+    def structured() -> Iterator:
+        yield "structured"
+        yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
+
+    node = structured()
+    req = iotaa.req(node)
+    assert isinstance(req, dict)
+    assert iotaa.ref(req["dict"]) == {"foo": "a", "bar": "a"}
+    assert iotaa.ref(req["list"]) == ["a", "a"]
+    assert iotaa.ref(req["scalar"]) == "a"
+
+
+def test_collection__not_ready(caplog, fakefs):
+    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+    node = t_collection_baz(fakefs)
+    req = cast(list[iotaa.Node], iotaa.req(node))
+    assert iotaa.ref(req[0]) == f_foo
+    assert iotaa.ref(req[1])["path"] == f_bar
+    assert not any(a.ready() for a in chain.from_iterable(iotaa._flatten(r._asset) for r in req))
+    assert not any(x.is_file() for x in [f_foo, f_bar])
+    for msg in [
+        "Not ready",
+        "Requires:",
+        "✖ external foo %s" % Path(fakefs / "foo"),
+        "✖ task bar dict %s" % Path(fakefs / "bar"),
+    ]:
+        assert logged(caplog, f"collection baz: {msg}")
+
+
+def test_collection__ready(caplog, fakefs, iotaa_logger):
+    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
+    f_foo.touch()
+    assert f_foo.is_file()
+    assert not f_bar.is_file()
+    node = t_collection_baz(fakefs, log=iotaa_logger)
+    req = cast(list[iotaa.Node], iotaa.req(node))
+    assert len(req) == 1  # ready requirement foo was filtered out
+    assert iotaa.ref(req[0]) == {"path": f_bar}
+    assert all(a.ready() for a in chain.from_iterable(iotaa._flatten(r._asset) for r in req))
+    assert all(x.is_file() for x in [f_foo, f_bar])
+    assert logged(caplog, "collection baz: Ready")
 
 
 def test_graph(graphkit):
@@ -568,7 +635,7 @@ def test_ready(fakefs):
     assert node_after.ready == ready
 
 
-def test_ready__tasks():
+def test_ready__collection():
     @iotaa.task
     def shared() -> Iterator:
         val: list[bool] = []
@@ -577,12 +644,12 @@ def test_ready__tasks():
         yield None
         val.append(True)
 
-    @iotaa.tasks
-    def tasks() -> Iterator:
-        yield "tasks"
+    @iotaa.collection
+    def collection() -> Iterator:
+        yield "collection"
         yield [shared(), shared()]
 
-    assert iotaa.ready(tasks())
+    assert iotaa.ready(collection())
 
 
 def test_ref():
@@ -688,73 +755,6 @@ def test_task__ready(caplog, fakefs, func, iotaa_logger, val):
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
-
-
-def test_tasks__docstring():
-    assert t_tasks_baz.__doc__.strip() == "TASKS!"  # type: ignore[union-attr]
-
-
-def test_tasks__structured():
-    a = iotaa.Asset(ref="a", ready=lambda: False)
-
-    @iotaa.external
-    def tdict() -> Iterator:
-        yield "dict"
-        yield {"foo": a, "bar": a}
-
-    @iotaa.external
-    def tlist() -> Iterator:
-        yield "list"
-        yield [a, a]
-
-    @iotaa.external
-    def tscalar() -> Iterator:
-        yield "scalar"
-        yield a
-
-    @iotaa.tasks
-    def structured() -> Iterator:
-        yield "structured"
-        yield {"dict": tdict(), "list": tlist(), "scalar": tscalar()}
-
-    node = structured()
-    req = iotaa.req(node)
-    assert isinstance(req, dict)
-    assert iotaa.ref(req["dict"]) == {"foo": "a", "bar": "a"}
-    assert iotaa.ref(req["list"]) == ["a", "a"]
-    assert iotaa.ref(req["scalar"]) == "a"
-
-
-def test_tasks__not_ready(caplog, fakefs):
-    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
-    assert not any(x.is_file() for x in [f_foo, f_bar])
-    node = t_tasks_baz(fakefs)
-    req = cast(list[iotaa.Node], iotaa.req(node))
-    assert iotaa.ref(req[0]) == f_foo
-    assert iotaa.ref(req[1])["path"] == f_bar
-    assert not any(a.ready() for a in chain.from_iterable(iotaa._flatten(r._asset) for r in req))
-    assert not any(x.is_file() for x in [f_foo, f_bar])
-    for msg in [
-        "Not ready",
-        "Requires:",
-        "✖ external foo %s" % Path(fakefs / "foo"),
-        "✖ task bar dict %s" % Path(fakefs / "bar"),
-    ]:
-        assert logged(caplog, f"tasks baz: {msg}")
-
-
-def test_tasks__ready(caplog, fakefs, iotaa_logger):
-    f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
-    f_foo.touch()
-    assert f_foo.is_file()
-    assert not f_bar.is_file()
-    node = t_tasks_baz(fakefs, log=iotaa_logger)
-    req = cast(list[iotaa.Node], iotaa.req(node))
-    assert len(req) == 1  # ready requirement foo was filtered out
-    assert iotaa.ref(req[0]) == {"path": f_bar}
-    assert all(a.ready() for a in chain.from_iterable(iotaa._flatten(r._asset) for r in req))
-    assert all(x.is_file() for x in [f_foo, f_bar])
-    assert logged(caplog, "tasks baz: Ready")
 
 
 # Tests for private functions
