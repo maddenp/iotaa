@@ -49,5 +49,5 @@ $(DEMO): m4/demo.m4 m4/include/*.py
 	m4 -I m4/include $< >$@
 
 README.md: m4/README.m4 m4/include/*.py $(DEMO)
-	$(info SLEEP CALLS FOLLOW, PLEASE BE PATIENT)
+	$(info MACROS INCLUDE EXPLICIT SLEEPS, PLEASE BE PATIENT)
 	m4 -I m4/include $< >$@

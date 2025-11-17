@@ -583,7 +583,7 @@ When run before the specified time:
 ```
 define(«CMD», «iotaa timegate file $(date -d@$(( $(date +%s) + 3600 )) +%Y-%m-%dT%H)»)dnl
 $ CMD
-esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1»)dnl
+esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1 && rm -f file»)dnl
 ```
 
 When run after the specified time:
@@ -591,7 +591,7 @@ When run after the specified time:
 ```
 define(«CMD», «iotaa timegate file $(date -d@$(( $(date +%s) - 3600 )) +%Y-%m-%dT%H)»)dnl
 $ CMD
-esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1»)dnl
+esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1 && rm -f file»)dnl
 ```
 
 ### Upstream Resource
