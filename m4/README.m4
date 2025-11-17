@@ -539,45 +539,13 @@ External state (e.g. files on disk) may be the most common type of `iotaa` asset
 `location1.py`
 
 ``` python
-import requests
-
-from iotaa import asset, log, logcfg, task
-
-logcfg()
-
-
-@task
-def json(lat: float, lon: float):
-    val: list[str] = []
-    yield "JSON for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    yield None
-    url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
-    val.append(requests.get(url, timeout=3).json())
-
-
-@task
-def main(lat: float, lon: float):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    req = json(lat, lon)
-    yield req
-    city, state = [
-        req.ref[0]["properties"]["relativeLocation"]["properties"][x] for x in ("city", "state")
-    ]
-    log.info("%s: Location: %s, %s", taskname, city, state)
-    ran = True
+include(«location1.py»)dnl
 ```
 
 ```
-$ iotaa location1.py main 40.1672 -105.1091
-[2025-04-01T16:36:20] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-04-01T16:36:21] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-04-01T16:36:21] INFO    Main: Executing
-[2025-04-01T16:36:21] INFO    Main: Location: Longmont, CO
-[2025-04-01T16:36:21] INFO    Main: Ready
+define(«CMD», «iotaa location1 main 40.1672 -105.1091»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 Since `val` is initially empty in `json()`, the second argument to `Asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.ref`.
@@ -589,74 +557,13 @@ In this simple example, there's no obvious benefit to `json()` being a `@task` i
 `location2.py`
 
 ``` python
-import requests
-
-from iotaa import Asset, log, logcfg, ready, task
-
-logcfg()
-
-get = lambda req, x: req.ref[0]["properties"]["relativeLocation"]["properties"][x]
-
-
-@task
-def json(lat: float, lon: float):
-    val: list[str] = []
-    yield "JSON for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    yield None
-    url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
-    val.append(requests.get(url, timeout=3).json())
-
-
-@task
-def city(lat: float, lon: float):
-    val: list[str] = []
-    yield "City for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    req = json(lat, lon)
-    yield req
-    val.append(get(req, "city"))
-
-
-@task
-def state(lat: float, lon: float):
-    val: list[str] = []
-    yield "State for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    req = json(lat, lon)
-    yield req
-    val.append(get(req, "state"))
-
-
-@task
-def main(lat: float, lon: float):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    reqs = {"city": city(lat, lon), "state": state(lat, lon)}
-    yield reqs
-    if all(ready(req) for req in reqs.values()):
-        log.info(
-            "%s: Location: %s, %s",
-            taskname,
-            reqs["city"].ref[0],
-            reqs["state"].ref[0],
-        )
-    ran = True
+include(«location2.py»)dnl
 ```
 
 ```
-$ iotaa location2.py main 40.1672 -105.1091
-[2025-04-01T16:43:59] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-04-01T16:43:59] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-04-01T16:43:59] INFO    City for lat 40.1672 lon -105.1091: Executing
-[2025-04-01T16:43:59] INFO    City for lat 40.1672 lon -105.1091: Ready
-[2025-04-01T16:43:59] INFO    State for lat 40.1672 lon -105.1091: Executing
-[2025-04-01T16:43:59] INFO    State for lat 40.1672 lon -105.1091: Ready
-[2025-04-01T16:43:59] INFO    Main: Executing
-[2025-04-01T16:43:59] INFO    Main: Location: Longmont, CO
-[2025-04-01T16:43:59] INFO    Main: Ready
+define(«CMD», «iotaa location2 main 40.1672 -105.1091»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 Here, both `city()` and `state()` yield `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers. This avoids pointless duplicate network requests.
