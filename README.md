@@ -355,32 +355,32 @@ Let's run this workflow with the `iotaa` CLI, requesting that the workflow start
 
 ```
 $ iotaa src/iotaa/demo.py a_cup_of_tea teatime
-[2025-11-17T00:19:29] INFO    The cup: Executing
-[2025-11-17T00:19:29] INFO    The cup: Getting cup
-[2025-11-17T00:19:29] INFO    The cup: Ready
-[2025-11-17T00:19:29] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2025-11-17T00:19:29] INFO    The spoon: Executing
-[2025-11-17T00:19:29] INFO    The spoon: Getting spoon
-[2025-11-17T00:19:29] INFO    The spoon: Ready
-[2025-11-17T00:19:29] WARNING Tea bag in cup: Not ready
-[2025-11-17T00:19:29] WARNING Tea bag in cup: Requires:
-[2025-11-17T00:19:29] WARNING Tea bag in cup: ✔ The cup
-[2025-11-17T00:19:29] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2025-11-17T00:19:29] WARNING Boiling water in cup: Not ready
-[2025-11-17T00:19:29] WARNING Boiling water in cup: Requires:
-[2025-11-17T00:19:29] WARNING Boiling water in cup: ✔ The cup
-[2025-11-17T00:19:29] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2025-11-17T00:19:29] WARNING Steeped tea: Not ready
-[2025-11-17T00:19:29] WARNING Steeped tea: Requires:
-[2025-11-17T00:19:29] WARNING Steeped tea: ✖ Boiling water in cup
-[2025-11-17T00:19:29] WARNING Sugar in cup: Not ready
-[2025-11-17T00:19:29] WARNING Sugar in cup: Requires:
-[2025-11-17T00:19:29] WARNING Sugar in cup: ✔ The cup
-[2025-11-17T00:19:29] WARNING Sugar in cup: ✖ Steeped tea
-[2025-11-17T00:19:29] WARNING The perfect cup of tea: Not ready
-[2025-11-17T00:19:29] WARNING The perfect cup of tea: Requires:
-[2025-11-17T00:19:29] WARNING The perfect cup of tea: ✖ Sugar in cup
-[2025-11-17T00:19:29] WARNING The perfect cup of tea: ✔ The spoon
+[2025-11-17T00:30:37] INFO    The cup: Executing
+[2025-11-17T00:30:37] INFO    The cup: Getting cup
+[2025-11-17T00:30:37] INFO    The cup: Ready
+[2025-11-17T00:30:37] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
+[2025-11-17T00:30:37] INFO    The spoon: Executing
+[2025-11-17T00:30:37] INFO    The spoon: Getting spoon
+[2025-11-17T00:30:37] INFO    The spoon: Ready
+[2025-11-17T00:30:37] WARNING Tea bag in cup: Not ready
+[2025-11-17T00:30:37] WARNING Tea bag in cup: Requires:
+[2025-11-17T00:30:37] WARNING Tea bag in cup: ✔ The cup
+[2025-11-17T00:30:37] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
+[2025-11-17T00:30:37] WARNING Boiling water in cup: Not ready
+[2025-11-17T00:30:37] WARNING Boiling water in cup: Requires:
+[2025-11-17T00:30:37] WARNING Boiling water in cup: ✔ The cup
+[2025-11-17T00:30:37] WARNING Boiling water in cup: ✖ Tea bag in cup
+[2025-11-17T00:30:37] WARNING Steeped tea: Not ready
+[2025-11-17T00:30:37] WARNING Steeped tea: Requires:
+[2025-11-17T00:30:37] WARNING Steeped tea: ✖ Boiling water in cup
+[2025-11-17T00:30:37] WARNING Sugar in cup: Not ready
+[2025-11-17T00:30:37] WARNING Sugar in cup: Requires:
+[2025-11-17T00:30:37] WARNING Sugar in cup: ✔ The cup
+[2025-11-17T00:30:37] WARNING Sugar in cup: ✖ Steeped tea
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: Not ready
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: Requires:
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: ✖ Sugar in cup
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: ✔ The spoon
 ```
 
 There's lots to see during the first invocation. Most of the tasks cannot run due to not-ready requirements and so are themselves left in a not-ready state. Only the `cup()` and `spoon()` tasks, which have no requirements, execute and end in the `Ready` state. We will see in subsequent workflow invocations that these tasks are not executed again, as their assets will be found to be ready.
@@ -396,21 +396,15 @@ teatime
 1 directory, 1 file
 ```
 
-Note the blocker:
-
-```
-[2025-04-01T14:44:23] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-```
-
-The external asset (file) `teatime/box-of-tea-bags` cannot be created by the workflow, as it is declared `@external`. But we can create it manually:
+Note the blocker marked `WARNING`: The external asset (file) `teatime/box-of-tea-bags` is not ready and cannot be created by the workflow, as it is declared `@external`. But we can create it manually:
 
 ```
 $ touch teatime/box-of-tea-bags
 ```
 
 ```
-$ tree teatime/
-teatime/
+$ tree teatime
+teatime
 ├── box-of-tea-bags
 ├── cup
 └── spoon
@@ -421,31 +415,31 @@ teatime/
 Iterate the workflow:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea ./teatime
-[2025-04-01T14:47:08] INFO    Tea bag in cup: Executing
-[2025-04-01T14:47:08] INFO    Tea bag in cup: Adding tea bag to cup
-[2025-04-01T14:47:08] INFO    Tea bag in cup: Ready
-[2025-04-01T14:47:08] INFO    Boiling water in cup: Executing
-[2025-04-01T14:47:08] INFO    Boiling water in cup: Adding water to cup
-[2025-04-01T14:47:08] INFO    Boiling water in cup: Ready
-[2025-04-01T14:47:08] INFO    Steeped tea: Executing
-[2025-04-01T14:47:08] WARNING Steeped tea: Tea needs to steep for 10s
-[2025-04-01T14:47:08] WARNING Steeped tea: Not ready
-[2025-04-01T14:47:08] WARNING Steeped tea: Requires:
-[2025-04-01T14:47:08] WARNING Steeped tea: ✔ Boiling water in cup
-[2025-04-01T14:47:08] WARNING Sugar in cup: Not ready
-[2025-04-01T14:47:08] WARNING Sugar in cup: Requires:
-[2025-04-01T14:47:08] WARNING Sugar in cup: ✖ Steeped tea
-[2025-04-01T14:47:08] WARNING The perfect cup of tea: Not ready
-[2025-04-01T14:47:08] WARNING The perfect cup of tea: Requires:
-[2025-04-01T14:47:08] WARNING The perfect cup of tea: ✖ Sugar in cup
+$ iotaa src/iotaa/demo.py a_cup_of_tea teatime
+[2025-11-17T00:30:37] INFO    Tea bag in cup: Executing
+[2025-11-17T00:30:37] INFO    Tea bag in cup: Adding tea bag to cup
+[2025-11-17T00:30:37] INFO    Tea bag in cup: Ready
+[2025-11-17T00:30:37] INFO    Boiling water in cup: Executing
+[2025-11-17T00:30:37] INFO    Boiling water in cup: Adding water to cup
+[2025-11-17T00:30:37] INFO    Boiling water in cup: Ready
+[2025-11-17T00:30:37] INFO    Steeped tea: Executing
+[2025-11-17T00:30:37] WARNING Steeped tea: Tea needs to steep for 10s
+[2025-11-17T00:30:37] WARNING Steeped tea: Not ready
+[2025-11-17T00:30:37] WARNING Steeped tea: Requires:
+[2025-11-17T00:30:37] WARNING Steeped tea: ✔ Boiling water in cup
+[2025-11-17T00:30:37] WARNING Sugar in cup: Not ready
+[2025-11-17T00:30:37] WARNING Sugar in cup: Requires:
+[2025-11-17T00:30:37] WARNING Sugar in cup: ✖ Steeped tea
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: Not ready
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: Requires:
+[2025-11-17T00:30:37] WARNING The perfect cup of tea: ✖ Sugar in cup
 ```
 
 On-disk workflow state now:
 
 ```
-$ tree teatime/
-teatime/
+$ tree teatime
+teatime
 ├── box-of-tea-bags
 ├── cup
 │   ├── tea-bag
@@ -458,8 +452,9 @@ teatime/
 Since the box of tea bags became available, the workflow was able to add a tea bag to the cup and pour boiling water over it. Note the message `Tea needs to steep for 10s`. If we iterate the workflow again after a few seconds, we can see the steep time decreasing:
 
 ```
+$ iotaa src/iotaa/demo.py a_cup_of_tea teatime
 ...
-[2025-04-01T14:47:15] WARNING Steeped tea: Tea needs to steep for 3s
+[2025-11-17T00:30:42] WARNING Steeped tea: Tea needs to steep for 4s
 ...
 ```
 

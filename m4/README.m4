@@ -272,70 +272,43 @@ $ CMD
 esyscmd(CMD)dnl
 ```
 
-Note the blocker:
+Note the blocker marked `WARNING`: The external asset (file) `teatime/box-of-tea-bags` is not ready and cannot be created by the workflow, as it is declared `@external`. But we can create it manually:
 
 ```
-[2025-04-01T14:44:23] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-```
-
-The external asset (file) `teatime/box-of-tea-bags` cannot be created by the workflow, as it is declared `@external`. But we can create it manually:
-
-```
-$ touch teatime/box-of-tea-bags
+define(«CMD», «touch teatime/box-of-tea-bags»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-└── spoon
-
-1 directory, 2 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Iterate the workflow:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea ./teatime
-[2025-04-01T14:47:08] INFO    Tea bag in cup: Executing
-[2025-04-01T14:47:08] INFO    Tea bag in cup: Adding tea bag to cup
-[2025-04-01T14:47:08] INFO    Tea bag in cup: Ready
-[2025-04-01T14:47:08] INFO    Boiling water in cup: Executing
-[2025-04-01T14:47:08] INFO    Boiling water in cup: Adding water to cup
-[2025-04-01T14:47:08] INFO    Boiling water in cup: Ready
-[2025-04-01T14:47:08] INFO    Steeped tea: Executing
-[2025-04-01T14:47:08] WARNING Steeped tea: Tea needs to steep for 10s
-[2025-04-01T14:47:08] WARNING Steeped tea: Not ready
-[2025-04-01T14:47:08] WARNING Steeped tea: Requires:
-[2025-04-01T14:47:08] WARNING Steeped tea: ✔ Boiling water in cup
-[2025-04-01T14:47:08] WARNING Sugar in cup: Not ready
-[2025-04-01T14:47:08] WARNING Sugar in cup: Requires:
-[2025-04-01T14:47:08] WARNING Sugar in cup: ✖ Steeped tea
-[2025-04-01T14:47:08] WARNING The perfect cup of tea: Not ready
-[2025-04-01T14:47:08] WARNING The perfect cup of tea: Requires:
-[2025-04-01T14:47:08] WARNING The perfect cup of tea: ✖ Sugar in cup
+define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 On-disk workflow state now:
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 4 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Since the box of tea bags became available, the workflow was able to add a tea bag to the cup and pour boiling water over it. Note the message `Tea needs to steep for 10s`. If we iterate the workflow again after a few seconds, we can see the steep time decreasing:
 
 ```
+define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+$ CMD
 ...
-[2025-04-01T14:47:15] WARNING Steeped tea: Tea needs to steep for 3s
+esyscmd(«sleep 5 && » CMD« 2>&1 | grep 'Tea needs to steep for'»)dnl
 ...
 ```
 
