@@ -1,10 +1,12 @@
 #!/bin/bash -eu
 
+srcdirs=( src m4/include )
+
 echo "=> Formatting code"
-ruff format src
+ruff format ${srcdirs[*]}
 
 echo "=> Sorting imports"
-ruff check --select I --fix src
+ruff check --select I --fix ${srcdirs[*]}
 
 echo "=> Formatting docstrings"
 (cd src && docformatter . || test $? -eq 3)
