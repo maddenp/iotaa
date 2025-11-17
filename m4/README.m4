@@ -489,69 +489,23 @@ Thread-based concurrency as implemented by `iotaa` helps overall execution time 
 `fibonacci1.py`
 
 ``` python
-from iotaa import asset, log, logcfg, task
-
-logcfg()
-
-
-def fib(n: int) -> int:
-    return n if n < 2 else fib(n - 2) + fib(n - 1)
-
-
-@task
-def fibonacci(n: int):
-    val: list[int] = []
-    yield "Fibonacci %s" % n
-    yield Asset(val, lambda: bool(val))
-    yield None
-    val.append(fib(n))
-
-
-@task
-def main(n1: int, n2: int):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    reqs = [fibonacci(n1), fibonacci(n2)]
-    yield reqs
-    if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.ref[0] for req in reqs])
-    ran = True
+include(«fibonacci1.py»)dnl
 ```
 
 Here's a synchronous run:
 
 ```
-$ time iotaa fibonacci1.py main 36 37
-[2025-04-01T16:50:21] INFO    Fibonacci 36: Executing
-[2025-04-01T16:50:24] INFO    Fibonacci 36: Ready
-[2025-04-01T16:50:24] INFO    Fibonacci 37: Executing
-[2025-04-01T16:50:28] INFO    Fibonacci 37: Ready
-[2025-04-01T16:50:28] INFO    Main: Executing
-[2025-04-01T16:50:28] INFO    14930352 24157817
-[2025-04-01T16:50:28] INFO    Main: Ready
-
-real  0m6.378s
-user  0m6.362s
-sys   0m0.016s
+define(«CMD», «bash -c "time iotaa fibonacci1 main 36 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 Unsurprisingly, using threads does not decrease the execution time much:
 
 ```
-$ time iotaa -t 2 fibonacci1.py main 36 37
-[2025-04-01T16:50:59] INFO    Fibonacci 36: Executing
-[2025-04-01T16:50:59] INFO    Fibonacci 37: Executing
-[2025-04-01T16:51:04] INFO    Fibonacci 36: Ready
-[2025-04-01T16:51:05] INFO    Fibonacci 37: Ready
-[2025-04-01T16:51:05] INFO    Main: Executing
-[2025-04-01T16:51:05] INFO    14930352 24157817
-[2025-04-01T16:51:05] INFO    Main: Ready
-
-real  0m6.225s
-user  0m6.206s
-sys   0m0.027s
+define(«CMD», «bash -c "time iotaa --threads 2 fibonacci1 main 36 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
@@ -559,82 +513,23 @@ For CPU-bound tasks, use `multiprocessing` from the Python standard library to o
 `fibonacci2.py`
 
 ``` python
-from __future__ import annotations
-
-from multiprocessing import Process, Value
-from typing import TYPE_CHECKING
-
-from iotaa import Asset, log, logcfg, task
-
-if TYPE_CHECKING:
-    from multiprocessing.sharedctypes import Synchronized
-
-logcfg()
-
-
-def fib(n: int, v: Synchronized | None = None) -> int:
-    result = n if n < 2 else fib(n - 2) + fib(n - 1)
-    if v:
-        v.value = result
-    return result
-
-
-@task
-def fibonacci(n: int):
-    val = Value("i", -1)
-    yield "Fibonacci %s" % n
-    yield Asset(val, lambda: val.value >= 0)
-    yield None
-    p = Process(target=fib, args=(n, val))
-    p.start()
-    p.join()
-
-
-@task
-def main(n1: int, n2: int):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    reqs = [fibonacci(n1), fibonacci(n2)]
-    yield reqs
-    if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.ref.value for req in reqs])
-    ran = True
+include(«fibonacci2.py»)dnl
 ```
 
 This decreases the execution time:
 
 ```
-$ time iotaa -t 2 fibonacci2.py main 36 37
-[2025-04-01T17:04:19] INFO    Fibonacci 36: Executing
-[2025-04-01T17:04:19] INFO    Fibonacci 37: Executing
-[2025-04-01T17:04:22] INFO    Fibonacci 36: Ready
-[2025-04-01T17:04:24] INFO    Fibonacci 37: Ready
-[2025-04-01T17:04:24] INFO    Main: Executing
-[2025-04-01T17:04:24] INFO    14930352 24157817
-[2025-04-01T17:04:24] INFO    Main: Ready
-
-real  0m5.105s
-user  0m8.193s
-sys   0m0.061s
+define(«CMD», «bash -c "time iotaa --threads 2 fibonacci2 main 36 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
 
 ```
-$ time iotaa -t 2 fibonacci2.py main 0 37
-[2025-04-01T17:05:21] INFO    Fibonacci 37: Executing
-[2025-04-01T17:05:21] INFO    Fibonacci 0: Executing
-[2025-04-01T17:05:21] INFO    Fibonacci 0: Ready
-[2025-04-01T17:05:26] INFO    Fibonacci 37: Ready
-[2025-04-01T17:05:26] INFO    Main: Executing
-[2025-04-01T17:05:26] INFO    0 24157817
-[2025-04-01T17:05:26] INFO    Main: Ready
-
-real  0m4.998s
-user  0m4.974s
-sys   0m0.030s
+define(«CMD», «bash -c "time iotaa --threads 2 fibonacci2 main 0 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 ### In-Memory Asset
