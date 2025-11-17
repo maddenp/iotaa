@@ -24,7 +24,8 @@ def main(lat: float, lon: float):
     req = json(lat, lon)
     yield req
     city, state = [
-        req.ref[0]["properties"]["relativeLocation"]["properties"][x] for x in ("city", "state")
+        req.ref[0]["properties"]["relativeLocation"]["properties"][x]
+        for x in ("city", "state")
     ]
     log.info("%s: Location: %s, %s", taskname, city, state)
     ran = True
