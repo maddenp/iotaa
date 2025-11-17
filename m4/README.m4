@@ -315,75 +315,53 @@ esyscmd(«sleep 5 && » CMD« 2>&1 | grep 'Tea needs to steep for'»)dnl
 Wait a bit and iterate again:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea ./teatime
-[2025-04-01T14:47:57] INFO    Sugar in cup: Executing
-[2025-04-01T14:47:57] INFO    Sugar in cup: Adding sugar to cup
-[2025-04-01T14:47:57] INFO    Sugar in cup: Ready
-[2025-04-01T14:47:57] INFO    The perfect cup of tea: Ready
+define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(«sleep 5 && »CMD« 2>&1»)dnl
 ```
 
 Now that the tea has steeped long enough, the sugar has been added:
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-│   ├── sugar
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 5 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 One more iteration and we see that the workflow has reached its final state and takes no more action:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea ./teatime
-[2025-04-01T14:48:32] INFO    The perfect cup of tea: Ready
+define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
 ```
-$ rm -v teatime/cup/sugar
-removed 'teatime/cup/sugar'
+define(«CMD», «rm -v teatime/cup/sugar»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 4 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Note how the workflow detects the change to the readiness of its assets and recovers:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea ./teatime
-[2025-04-01T14:49:48] INFO    Sugar in cup: Executing
-[2025-04-01T14:49:48] INFO    Sugar in cup: Adding sugar to cup
-[2025-04-01T14:49:48] INFO    Sugar in cup: Ready
-[2025-04-01T14:49:48] INFO    The perfect cup of tea: Ready
+define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-│   ├── sugar
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 5 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Another useful feature is the ability to enter the workflow's task graph at an arbitrary point and process a subgraph to obtain only a subset of the assets. For example, if we'd like a cup of tea _without_ sugar, we can start with the `steeped_tea` task rather than the higher-level `a_cup_of_tea` task.
@@ -391,119 +369,53 @@ Another useful feature is the ability to enter the workflow's task graph at an a
 First, let's empty the cup:
 
 ```
-$ rm -v teatime/cup/*
-removed 'teatime/cup/sugar'
-removed 'teatime/cup/tea-bag'
-removed 'teatime/cup/water'
+define(«CMD», «rm -v teatime/cup/*»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-└── spoon
-
-1 directory, 2 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Now request tea without sugar:
 
 ```
-$ iotaa iotaa.demo steeped_tea ./teatime
-[2025-04-01T14:50:52] INFO    Tea bag in cup: Executing
-[2025-04-01T14:50:52] INFO    Tea bag in cup: Adding tea bag to cup
-[2025-04-01T14:50:52] INFO    Tea bag in cup: Ready
-[2025-04-01T14:50:52] INFO    Boiling water in cup: Executing
-[2025-04-01T14:50:52] INFO    Boiling water in cup: Adding water to cup
-[2025-04-01T14:50:52] INFO    Boiling water in cup: Ready
-[2025-04-01T14:50:52] INFO    Steeped tea: Executing
-[2025-04-01T14:50:52] WARNING Steeped tea: Tea needs to steep for 10s
-[2025-04-01T14:50:52] WARNING Steeped tea: Not ready
-[2025-04-01T14:50:52] WARNING Steeped tea: Requires:
-[2025-04-01T14:50:52] WARNING Steeped tea: ✔ Boiling water in cup
+define(«CMD», «iotaa src/iotaa/demo.py steeped_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 After waiting for the tea to steep:
 
 ```
-$ iotaa iotaa.demo steeped_tea ./teatime
-[2025-04-01T14:51:11] INFO    Steeped tea: Ready
+define(«CMD», «iotaa src/iotaa/demo.py steeped_tea teatime»)dnl
+$ CMD
+esyscmd(«sleep 10 && »CMD« 2>&1»)dnl
 ```
 
 On-disk state:
 
 ```
-$ tree teatime/
-teatime/
-├── box-of-tea-bags
-├── cup
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 4 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 The `-v` / `--verbose` switch can be used for additional logging. Here, for example, is the verbose log output of a fresh run:
 
 ```
-$ rm -rf teatime/
+define(«CMD», «rm -rf teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ iotaa --verbose iotaa.demo a_cup_of_tea ./teatime
-[2025-04-01T16:29:52] DEBUG   Deduplicating task-graph nodes
-[2025-04-01T16:29:52] DEBUG   ──────────
-[2025-04-01T16:29:52] DEBUG   Task Graph
-[2025-04-01T16:29:52] DEBUG   ──────────
-[2025-04-01T16:29:52] DEBUG   The perfect cup of tea
-[2025-04-01T16:29:52] DEBUG     Sugar in cup
-[2025-04-01T16:29:52] DEBUG       The cup
-[2025-04-01T16:29:52] DEBUG       Steeped tea
-[2025-04-01T16:29:52] DEBUG         Boiling water in cup
-[2025-04-01T16:29:52] DEBUG           The cup
-[2025-04-01T16:29:52] DEBUG           Tea bag in cup
-[2025-04-01T16:29:52] DEBUG             The cup
-[2025-04-01T16:29:52] DEBUG             Box of tea bags (teatime/box-of-tea-bags)
-[2025-04-01T16:29:52] DEBUG     The spoon
-[2025-04-01T16:29:52] DEBUG   ─────────
-[2025-04-01T16:29:52] DEBUG   Execution
-[2025-04-01T16:29:52] DEBUG   ─────────
-[2025-04-01T16:29:52] INFO    The cup: Executing
-[2025-04-01T16:29:52] INFO    The cup: Getting cup
-[2025-04-01T16:29:52] INFO    The cup: Ready
-[2025-04-01T16:29:52] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2025-04-01T16:29:52] DEBUG   The cup: Task completed
-[2025-04-01T16:29:52] INFO    The spoon: Executing
-[2025-04-01T16:29:52] DEBUG   Box of tea bags (teatime/box-of-tea-bags): Task completed
-[2025-04-01T16:29:52] INFO    The spoon: Getting spoon
-[2025-04-01T16:29:52] INFO    The spoon: Ready
-[2025-04-01T16:29:52] WARNING Tea bag in cup: Not ready
-[2025-04-01T16:29:52] DEBUG   The spoon: Task completed
-[2025-04-01T16:29:52] WARNING Tea bag in cup: Requires:
-[2025-04-01T16:29:52] WARNING Tea bag in cup: ✔ The cup
-[2025-04-01T16:29:52] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2025-04-01T16:29:52] DEBUG   Tea bag in cup: Task completed
-[2025-04-01T16:29:52] WARNING Boiling water in cup: Not ready
-[2025-04-01T16:29:52] WARNING Boiling water in cup: Requires:
-[2025-04-01T16:29:52] WARNING Boiling water in cup: ✔ The cup
-[2025-04-01T16:29:52] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2025-04-01T16:29:52] DEBUG   Boiling water in cup: Task completed
-[2025-04-01T16:29:52] WARNING Steeped tea: Not ready
-[2025-04-01T16:29:52] WARNING Steeped tea: Requires:
-[2025-04-01T16:29:52] WARNING Steeped tea: ✖ Boiling water in cup
-[2025-04-01T16:29:52] DEBUG   Steeped tea: Task completed
-[2025-04-01T16:29:52] WARNING Sugar in cup: Not ready
-[2025-04-01T16:29:52] WARNING Sugar in cup: Requires:
-[2025-04-01T16:29:52] WARNING Sugar in cup: ✔ The cup
-[2025-04-01T16:29:52] WARNING Sugar in cup: ✖ Steeped tea
-[2025-04-01T16:29:52] DEBUG   Sugar in cup: Task completed
-[2025-04-01T16:29:52] WARNING The perfect cup of tea: Not ready
-[2025-04-01T16:29:52] WARNING The perfect cup of tea: Requires:
-[2025-04-01T16:29:52] WARNING The perfect cup of tea: ✖ Sugar in cup
-[2025-04-01T16:29:52] WARNING The perfect cup of tea: ✔ The spoon
-[2025-04-01T16:29:52] DEBUG   The perfect cup of tea: Task completed
+define(«CMD», «iotaa --verbose src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 ## Graphing
