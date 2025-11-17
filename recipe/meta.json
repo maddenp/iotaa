@@ -4,17 +4,18 @@
   "name": "iotaa",
   "packages": {
     "dev": [
-      "docformatter",
-      "jq",
+      "docformatter ==1.7.*",
+      "jq ==1.8.*",
       "m4 ==1.4.*",
-      "mypy",
+      "mypy ==1.18.*",
       "pip",
-      "pyfakefs",
-      "pytest",
-      "pytest-cov",
-      "pytest-xdist",
+      "pyfakefs ==5.10.*",
+      "pytest ==9.0.*",
+      "pytest-cov ==7.0.*",
+      "pytest-xdist ==3.8.*",
       "python ==3.10,>=3.10",
-      "ruff",
+      "requests ==2.32.*",
+      "ruff ==0.14.*",
       "setuptools"
     ],
     "run": [
