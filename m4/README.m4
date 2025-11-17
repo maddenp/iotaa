@@ -575,48 +575,23 @@ An `@xternal` task can serve as a time gate, such that a dependent task cannot e
 `timegate.py`
 
 ``` python
-from datetime import datetime, timezone
-from pathlib import Path
-
-from iotaa import asset, external, task
-
-
-@external
-def wait(gotime: datetime):
-    yield "Time %s" % gotime
-    yield Asset(None, lambda: datetime.now(timezone.utc) >= gotime)
-
-
-@task
-def file(gotime: str):
-    path = Path("file")
-    yield "Touch %s" % path
-    yield Asset(path, path.is_file)
-    yield wait(datetime.fromisoformat(f"{gotime}+00:00"))
-    path.touch()
+include(«timegate.py»)dnl
 ```
 
-A few seconds before the specified time:
+When run before the specified time:
 
 ```
-$ date --utc
-Mon Feb 17 06:02:54 AM UTC 2025
-$ iotaa timegate.py file 2025-02-17T06:03:00
-[2025-02-17T06:02:56] WARNING Time 2025-02-17 06:03:00+00:00: Not ready [external asset]
-[2025-02-17T06:02:56] WARNING Touch file: Not ready
-[2025-02-17T06:02:56] WARNING Touch file: Requires:
-[2025-02-17T06:02:56] WARNING Touch file: ✖ Time 2025-02-17 06:03:00+00:00
+define(«CMD», «iotaa timegate file $(date -d@$(( $(date +%s) + 3600 )) +%Y-%m-%dT%H)»)dnl
+$ CMD
+esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
-A few seconds later:
+When run after the specified time:
 
 ```
-$ date --utc
-Mon Feb 17 06:03:01 AM UTC 2025
-$ iotaa timegate.py file 2025-02-17T06:03:00
-[2025-02-17T06:03:04] INFO    Time 2025-02-17 06:03:00+00:00: Ready
-[2025-02-17T06:03:04] INFO    Touch file: Executing
-[2025-02-17T06:03:04] INFO    Touch file: Ready
+define(«CMD», «iotaa timegate file $(date -d@$(( $(date +%s) - 3600 )) +%Y-%m-%dT%H)»)dnl
+$ CMD
+esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 ### Upstream Resource
@@ -626,44 +601,21 @@ An `@external` task can be used to represent availability of an upstream resourc
 `upstream.py`
 
 ``` python
-from pathlib import Path
-from urllib.parse import urlparse
-
-from requests import get, head
-
-from iotaa import asset, external, task
-
-
-@external
-def upstream(url: str):
-    yield "Upstream resource %s" % url
-    yield Asset(None, lambda: head(url, timeout=3).status_code == 200)
-
-
-@task
-def file(url: str):
-    path = Path(Path(urlparse(url).path).name)
-    yield "Local resource %s" % path
-    yield Asset(path, path.is_file)
-    yield upstream(url)
-    path.write_bytes(get(url, timeout=3).content)
+include(«upstream.py»)dnl
 ```
 
-An attempt to download data related to today's 06:00 UTC weather corecast, which is not yet available:
+An attempt to download data related to tomorrow's 00:00 UTC weather corecast, which is not yet available:
 
 ```
-$ iotaa upstream.py file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t06z.wrfnatf00.grib2.idx
-[2025-02-17T06:22:02] WARNING Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t06z.wrfnatf00.grib2.idx: Not ready [external asset]
-[2025-02-17T06:22:02] WARNING Local resource hrrr.t06z.wrfnatf00.grib2.idx: Not ready
-[2025-02-17T06:22:02] WARNING Local resource hrrr.t06z.wrfnatf00.grib2.idx: Requires:
-[2025-02-17T06:22:02] WARNING Local resource hrrr.t06z.wrfnatf00.grib2.idx: ✖ Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t06z.wrfnatf00.grib2.idx
+define(«CMD», «iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "tomorrow 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
-A successful download of data from the earlier 00:00 UTC forecast, which is available:
+A successful download of data from yesterday's 00:00 UTC forecast, which is available:
 
 ```
-$ iotaa upstream.py file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t00z.wrfnatf00.grib2.idx
-[2025-02-17T06:22:22] INFO    Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20250217/conus/hrrr.t00z.wrfnatf00.grib2.idx: Ready
-[2025-02-17T06:22:22] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Executing
-[2025-02-17T06:22:22] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Ready
+define(«CMD», «iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "yesterday 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1 && rm -f hrrr.*.idx»)dnl
 ```
