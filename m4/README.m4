@@ -420,26 +420,12 @@ esyscmd(CMD« 2>&1»)dnl
 
 ## Graphing
 
-The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow task graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot` and displayed by the Linux utility `display`:
+The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow task graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot`:
 
 ```
-$ iotaa --dry-run --graph iotaa.demo a_cup_of_tea ./teatime | display <(dot -T svg)
-[2025-04-01T14:52:54] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2025-04-01T14:52:54] WARNING Tea bag in cup: Not ready
-[2025-04-01T14:52:54] WARNING Tea bag in cup: Requires:
-[2025-04-01T14:52:54] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2025-04-01T14:52:54] WARNING Boiling water in cup: Not ready
-[2025-04-01T14:52:54] WARNING Boiling water in cup: Requires:
-[2025-04-01T14:52:54] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2025-04-01T14:52:54] WARNING Steeped tea: Not ready
-[2025-04-01T14:52:54] WARNING Steeped tea: Requires:
-[2025-04-01T14:52:54] WARNING Steeped tea: ✖ Boiling water in cup
-[2025-04-01T14:52:54] WARNING Sugar in cup: Not ready
-[2025-04-01T14:52:54] WARNING Sugar in cup: Requires:
-[2025-04-01T14:52:54] WARNING Sugar in cup: ✖ Steeped tea
-[2025-04-01T14:52:54] WARNING The perfect cup of tea: Not ready
-[2025-04-01T14:52:54] WARNING The perfect cup of tea: Requires:
-[2025-04-01T14:52:54] WARNING The perfect cup of tea: ✖ Sugar in cup
+define(«CMD», «iotaa --dry-run --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-0.svg»)dnl
+$ CMD
+esyscmd(«rm -rf teatime && »CMD)dnl
 ```
 
 The displayed image:
@@ -452,18 +438,22 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 - After the first invocation, with cup and spoon added but blocked by missing (external) box of tea bags:
 
+esyscmd(«iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-1.svg»)dnl
 ![teatime-dry-run-image](img/teatime-1.svg)
 
 - After the second invocation, with box of tea bags available and hot water poured, the workflow task graph omits completed work:
 
+esyscmd(«touch teatime/box-of-tea-bags && iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-2.svg»)dnl
 ![teatime-dry-run-image](img/teatime-2.svg)
 
 - After the third invocation, when the tea has steeped and sugar has been added, the workflow task graph looks like:
 
+esyscmd(«sleep 10 && iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-3.svg»)dnl
 ![teatime-dry-run-image](img/teatime-3.svg)
 
 - And, finally, any subsequent invocations show the final workflow task graph state:
 
+esyscmd(«iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-4.svg»)dnl
 ![teatime-dry-run-image](img/teatime-4.svg)
 
 ## Cookbook
