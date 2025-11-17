@@ -257,7 +257,7 @@ include(«box_of_tea_bags.py»)dnl
 Let's run this workflow with the `iotaa` CLI, requesting that the workflow start with the `a_cup_of_tea` task:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 esyscmd(«rm -rf teatime && »CMD« 2>&1»)dnl
 ```
@@ -289,7 +289,7 @@ esyscmd(CMD)dnl
 Iterate the workflow:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 esyscmd(CMD« 2>&1»)dnl
 ```
@@ -305,7 +305,7 @@ esyscmd(CMD)dnl
 Since the box of tea bags became available, the workflow was able to add a tea bag to the cup and pour boiling water over it. Note the message `Tea needs to steep for 10s`. If we iterate the workflow again after a few seconds, we can see the steep time decreasing:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 ...
 esyscmd(«sleep 5 && » CMD« 2>&1 | grep 'Tea needs to steep for'»)dnl
@@ -315,7 +315,7 @@ esyscmd(«sleep 5 && » CMD« 2>&1 | grep 'Tea needs to steep for'»)dnl
 Wait a bit and iterate again:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 esyscmd(«sleep 5 && »CMD« 2>&1»)dnl
 ```
@@ -331,7 +331,7 @@ esyscmd(CMD)dnl
 One more iteration and we see that the workflow has reached its final state and takes no more action:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 esyscmd(CMD« 2>&1»)dnl
 ```
@@ -353,7 +353,7 @@ esyscmd(CMD)dnl
 Note how the workflow detects the change to the readiness of its assets and recovers:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 esyscmd(CMD« 2>&1»)dnl
 ```
@@ -383,7 +383,7 @@ esyscmd(CMD)dnl
 Now request tea without sugar:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py steeped_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo steeped_tea teatime»)dnl
 $ CMD
 esyscmd(CMD« 2>&1»)dnl
 ```
@@ -391,7 +391,7 @@ esyscmd(CMD« 2>&1»)dnl
 After waiting for the tea to steep:
 
 ```
-define(«CMD», «iotaa src/iotaa/demo.py steeped_tea teatime»)dnl
+define(«CMD», «iotaa iotaa.demo steeped_tea teatime»)dnl
 $ CMD
 esyscmd(«sleep 10 && »CMD« 2>&1»)dnl
 ```
@@ -413,7 +413,7 @@ esyscmd(CMD)dnl
 ```
 
 ```
-define(«CMD», «iotaa --verbose src/iotaa/demo.py a_cup_of_tea teatime»)dnl
+define(«CMD», «iotaa --verbose iotaa.demo a_cup_of_tea teatime»)dnl
 $ CMD
 esyscmd(CMD« 2>&1»)dnl
 ```
@@ -423,7 +423,7 @@ esyscmd(CMD« 2>&1»)dnl
 The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow task graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot`:
 
 ```
-define(«CMD», «iotaa --dry-run --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-0.svg»)dnl
+define(«CMD», «iotaa --dry-run --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-0.svg»)dnl
 $ CMD
 esyscmd(«rm -rf teatime && »CMD)dnl
 ```
@@ -438,22 +438,22 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 - After the first invocation, with cup and spoon added but blocked by missing (external) box of tea bags:
 
-esyscmd(«iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-1.svg»)dnl
+esyscmd(«iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-1.svg»)dnl
 ![teatime-dry-run-image](img/teatime-1.svg)
 
 - After the second invocation, with box of tea bags available and hot water poured, the workflow task graph omits completed work:
 
-esyscmd(«touch teatime/box-of-tea-bags && iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-2.svg»)dnl
+esyscmd(«touch teatime/box-of-tea-bags && iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-2.svg»)dnl
 ![teatime-dry-run-image](img/teatime-2.svg)
 
 - After the third invocation, when the tea has steeped and sugar has been added, the workflow task graph looks like:
 
-esyscmd(«sleep 10 && iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-3.svg»)dnl
+esyscmd(«sleep 10 && iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-3.svg»)dnl
 ![teatime-dry-run-image](img/teatime-3.svg)
 
 - And, finally, any subsequent invocations show the final workflow task graph state:
 
-esyscmd(«iotaa --graph src/iotaa/demo.py a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-4.svg»)dnl
+esyscmd(«iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-4.svg»)dnl
 ![teatime-dry-run-image](img/teatime-4.svg)
 
 ## Cookbook
