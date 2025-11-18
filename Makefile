@@ -4,7 +4,7 @@ METADEPS = $(RECIPE_DIR)/meta.yaml src/*/resources/info.json
 METAJSON = $(RECIPE_DIR)/meta.json
 PYSRCS   = $(shell find $(SRCDIR) -type f -name "*.py" | grep -v $(DEMO))
 SRCDIR   = src/iotaa
-TARGETS  = devshell env format lint meta package render test typecheck unittest
+TARGETS  = demo devshell env format lint meta package render test typecheck unittest
 
 export RECIPE_DIR := $(shell cd ./recipe && pwd)
 
@@ -15,6 +15,8 @@ val  = $(shell jq -r .$(1) $(METAJSON))
 
 all:
 	$(error Valid targets are: $(TARGETS))
+
+demo: $(DEMO)
 
 devshell:
 	condev-shell || true
