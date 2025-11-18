@@ -1,4 +1,3 @@
-# PM# Should dry_run, threads be part of ctx, too?
 """
 iotaa.
 """
