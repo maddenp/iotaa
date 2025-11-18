@@ -981,12 +981,12 @@ def test__taskprops(test_logger):
         yield n
 
     tn = "task"
-    taskname, threads, dry_run, ctx, g = iotaa._taskprops(f, tn, n=42, threads=1)
+    ctx, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, threads=1)
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
     assert ctx[iotaa._REPS] == {}
-    assert next(g) == 42
+    assert next(iterator) == 42
     logger = ctx[iotaa._LOGGER]
     assert isinstance(logger, logging.Logger)
     assert logger is not test_logger
@@ -999,14 +999,14 @@ def test__taskprops__extras(test_logger):
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, threads, dry_run, ctx, g = iotaa._taskprops(
+    ctx, iterator, taskname, dry_run, threads = iotaa._taskprops(
         f, tn, n=42, dry_run=True, log=test_logger
     )
     assert taskname == tn
     assert threads == 1
     assert dry_run is True
     assert ctx[iotaa._REPS] == {}
-    assert next(g) == 42
+    assert next(iterator) == 42
     assert ctx[iotaa._LOGGER] is test_logger
 
 

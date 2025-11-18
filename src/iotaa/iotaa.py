@@ -327,8 +327,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
 
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
-        props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, ctx, iterator = props
+        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         reps = ctx.run(lambda: _REPS.get())
         assert reps is not None
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
@@ -354,8 +353,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
 
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, ctx, iterator = props
+        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         assets = ctx.run(_next, iterator, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -466,8 +464,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
 
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
-        props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, ctx, iterator = props
+        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         assets = ctx.run(_next, iterator, "assets")
         reps = ctx.run(lambda: _REPS.get())
         assert reps is not None
@@ -808,7 +805,7 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
     sys.exit(0)
 
 
-def _taskprops(func: Callable, *args, **kwargs) -> tuple[str, int, bool, Context, Iterator]:
+def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str, bool, int]:
     """
     Collect and return info about the task.
 
@@ -824,9 +821,9 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[str, int, bool, Context
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     iterator = ctx.run(func, *args, **task_kwargs)
     taskname = str(ctx.run(_next, iterator, "task name"))
-    threads = int(kwargs.get("threads") or 1)
     dry_run = bool(kwargs.get("dry_run"))
-    return taskname, threads, dry_run, ctx, iterator
+    threads = int(kwargs.get("threads") or 1)
+    return ctx, iterator, taskname, dry_run, threads
 
 
 def _version() -> str:
