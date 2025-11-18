@@ -104,17 +104,18 @@ class Node(ABC):
     @cached_property
     def root(self) -> bool:
         """
-        Is this the root node (i.e. is it not a requirement of another task)?
+        Is this the root task node, i.e. not a requirement of another task?
         """
-        n = 0
+        nodes_in_call_stack = 0
         frame = inspect.currentframe()
         while frame is not None:
-            if frame.f_code.co_filename == __file__ and frame.f_code.co_name.startswith(
-                "_iotaa_wrapper_"
-            ):
-                n += 1
+            code = frame.f_code
+            if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
+                if nodes_in_call_stack > 0:  # previously seen node must not be the root
+                    return False
+                nodes_in_call_stack += 1
             frame = frame.f_back
-        return n == 1
+        return True
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
