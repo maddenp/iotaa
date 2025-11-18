@@ -4,7 +4,6 @@ iotaa.
 
 from __future__ import annotations
 
-import inspect
 import json
 import logging
 import sys
@@ -19,6 +18,7 @@ from graphlib import TopologicalSorter
 from hashlib import sha256
 from importlib import import_module
 from importlib import resources as _resources
+from inspect import currentframe
 from itertools import chain
 from json import JSONDecodeError, loads
 from logging import Logger, getLogger
@@ -107,7 +107,7 @@ class Node(ABC):
         Is this the root task node, i.e. not a requirement of another task?
         """
         nodes_in_call_stack = 0
-        frame = inspect.currentframe()
+        frame = currentframe()
         while frame is not None:
             code = frame.f_code
             if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
