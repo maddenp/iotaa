@@ -16,8 +16,7 @@ from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
 from hashlib import sha256
-from importlib import import_module
-from importlib import resources as _resources
+from importlib import import_module, resources
 from inspect import currentframe
 from itertools import chain
 from json import JSONDecodeError, loads
@@ -830,7 +829,7 @@ def _version() -> str:
     """
     Return version information.
     """
-    with _resources.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
+    with resources.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
         return "version %s build %s" % (info["version"], info["buildnum"])
 
