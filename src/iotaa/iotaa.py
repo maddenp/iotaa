@@ -361,9 +361,8 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
 
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
-            func, *args, **kwargs
-        )
+        props = _task_common(func, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = props
         return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
@@ -386,7 +385,8 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
 
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        taskname, threads, dry_run, iotaa_logger, _, iterator = _task_common(func, *args, **kwargs)
+        props = _task_common(func, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, _, iterator = props
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
@@ -469,9 +469,8 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
 
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = _task_common(
-            func, *args, **kwargs
-        )
+        props = _task_common(func, *args, **kwargs)
+        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = props
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
