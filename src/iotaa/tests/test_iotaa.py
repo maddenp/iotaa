@@ -269,7 +269,7 @@ class TaskClass:
         pass
 
 
-# Tests for classes
+# Tests for public classes
 
 
 @mark.parametrize(
@@ -280,19 +280,6 @@ class TaskClass:
 def test_Asset(asset):
     assert asset.ref == "foo"
     assert asset.ready()
-
-
-def test__Graph(graphkit):
-    expected, graph, _ = graphkit
-    assert str(graph).strip() == expected
-
-
-def test__LoggerProxy():
-    lp = iotaa._LoggerProxy()
-    with raises(iotaa._IotaaError) as e:
-        lp.info("fail")
-    expected = "No logger found: Ensure this call originated in an iotaa task function."
-    assert str(e.value) == expected
 
 
 def test_Node___call___dry_run(caplog, fakefs):
@@ -328,7 +315,7 @@ def test_Node_ready(fakefs):
     assert t_external_foo_scalar(fakefs).ready
 
 
-def test_Node_ready_type_error(caplog):
+def test_Node_ready__type_error(caplog):
     @iotaa.external
     def t0():
         yield "t0"
@@ -377,6 +364,18 @@ def test_Node__assemble(caplog, fakefs, iotaa_logger):  # noqa: ARG001
     assert logged(caplog, "Execution")
     assert node._first_visit is False
     assert isinstance(g, TopologicalSorter)
+
+
+def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
+    node = t_collection_baz(fakefs)
+    node._debug_header("foo")
+    expected = """
+    ───
+    foo
+    ───
+    """
+    actual = "\n".join(caplog.messages[-3:])
+    assert actual.strip() == dedent(expected).strip()
 
 
 @mark.parametrize("n", [2, -1])
@@ -439,18 +438,6 @@ def test_Node__exec_threads_startup(iotaa_logger):
     assert todo.empty()
     assert [done.get() for _ in range(nthreads)] == nodes
     assert not interrupt.is_set()
-
-
-def test_Node__debug_header(caplog, fakefs, iotaa_logger):  # noqa: ARG001
-    node = t_collection_baz(fakefs)
-    node._debug_header("foo")
-    expected = """
-    ───
-    foo
-    ───
-    """
-    actual = "\n".join(caplog.messages[-3:])
-    assert actual.strip() == dedent(expected).strip()
 
 
 @mark.parametrize("touch", [False, True])
@@ -542,6 +529,29 @@ def test_collection__ready(caplog, fakefs, iotaa_logger):
     assert all(a.ready() for a in chain.from_iterable(iotaa._flatten(r._asset) for r in req))
     assert all(x.is_file() for x in [f_foo, f_bar])
     assert logged(caplog, "collection baz: Ready")
+
+
+def test_external__docstring():
+    assert t_external_foo_scalar.__doc__.strip() == "EXTERNAL!"  # type: ignore[union-attr]
+
+
+def test_external__not_ready(fakefs, iotaa_logger):  # noqa: ARG001
+    f = fakefs / "foo"
+    assert not f.is_file()
+    node = t_external_foo_scalar(fakefs)
+    node()
+    assert iotaa.ref(node) == f
+    assert not node.ready
+
+
+def test_external__ready(fakefs, iotaa_logger):  # noqa: ARG001
+    f = fakefs / "foo"
+    f.touch()
+    assert f.is_file()
+    node = t_external_foo_scalar(fakefs)
+    node()
+    assert iotaa.ref(node) == f
+    assert node.ready
 
 
 def test_graph(graphkit):
@@ -683,36 +693,6 @@ def test_req(fakefs):
     assert node.req == req
 
 
-def test_tasknames():
-    assert iotaa.tasknames(TaskClass) == ["bar", "baz", "foo"]
-
-
-# Tests for decorators.
-
-
-def test_external__docstring():
-    assert t_external_foo_scalar.__doc__.strip() == "EXTERNAL!"  # type: ignore[union-attr]
-
-
-def test_external__not_ready(fakefs, iotaa_logger):  # noqa: ARG001
-    f = fakefs / "foo"
-    assert not f.is_file()
-    node = t_external_foo_scalar(fakefs)
-    node()
-    assert iotaa.ref(node) == f
-    assert not node.ready
-
-
-def test_external__ready(fakefs, iotaa_logger):  # noqa: ARG001
-    f = fakefs / "foo"
-    f.touch()
-    assert f.is_file()
-    node = t_external_foo_scalar(fakefs)
-    node()
-    assert iotaa.ref(node) == f
-    assert node.ready
-
-
 def test_task__docstring():
     assert t_task_bar_scalar.__doc__.strip() == "TASK!"  # type: ignore[union-attr]
 
@@ -757,6 +737,30 @@ def test_task__ready(caplog, fakefs, func, iotaa_logger, val):
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
 
 
+def test_tasknames():
+    assert iotaa.tasknames(TaskClass) == ["bar", "baz", "foo"]
+
+
+# Tests for private classes
+
+
+def test__Graph(graphkit):
+    expected, graph, _ = graphkit
+    assert str(graph).strip() == expected
+
+
+def test__LoggerProxy():
+    lp = iotaa._LoggerProxy()
+    with raises(iotaa._IotaaError) as e:
+        lp.info("fail")
+    expected = "No logger found: Ensure this call originated in an iotaa task function."
+    assert str(e.value) == expected
+
+
+def test_log():
+    assert isinstance(iotaa.log, iotaa._LoggerProxy)
+
+
 # Tests for private functions
 
 
@@ -794,7 +798,7 @@ def test__do(caplog, iotaa_logger):
     assert node in done.queue
 
 
-def test__do_bad_node(caplog, iotaa_logger):
+def test__do__bad_node(caplog, iotaa_logger):
     todo: iotaa._QueueT = Queue()
     done: iotaa._QueueT = Queue()
     interrupt = Event()
