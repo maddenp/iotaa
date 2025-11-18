@@ -110,7 +110,7 @@ class Node(ABC):
         while frame is not None:
             code = frame.f_code
             if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
-                if nodes_in_call_stack > 0:  # previously seen node must not be the root
+                if nodes_in_call_stack > 0:
                     return False
                 nodes_in_call_stack += 1
             frame = frame.f_back
