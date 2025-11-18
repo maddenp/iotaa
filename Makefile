@@ -1,7 +1,9 @@
 CHANNELS = $(addprefix -c ,$(shell tr '\n' ' ' <$(RECIPE_DIR)/channels)) -c local
-DEMO     = src/iotaa/demo.py
+DEMO     = $(SRCDIR)/demo.py
 METADEPS = $(RECIPE_DIR)/meta.yaml src/*/resources/info.json
 METAJSON = $(RECIPE_DIR)/meta.json
+PYSRCS   = $(shell find $(SRCDIR) -type f -name "*.py" | grep -v $(DEMO))
+SRCDIR   = src/iotaa
 TARGETS  = devshell env format lint meta package render test typecheck unittest
 
 export RECIPE_DIR := $(shell cd ./recipe && pwd)
@@ -45,9 +47,9 @@ unittest: $(DEMO)
 $(METAJSON): $(METADEPS)
 	condev-meta
 
-$(DEMO): m4/demo.m4 m4/include/*.py
+$(DEMO): m4/demo.m4 m4/include/*.py $(PYSRCS)
 	m4 -I m4/include $< >$@
 
-README.md: m4/README.m4 m4/include/*.py $(DEMO)
+README.md: m4/README.m4 m4/include/*.py $(DEMO) $(PYSRCS)
 	$(info MACROS INCLUDE EXPLICIT SLEEPS, PLEASE BE PATIENT)
 	m4 -I m4/include $< >$@
