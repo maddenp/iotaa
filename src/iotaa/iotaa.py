@@ -327,8 +327,9 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, ctx, iotaa_reps, iterator = props
-        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), iotaa_reps)
+        taskname, threads, dry_run, ctx, iterator = props
+        reps = ctx.run(lambda: _REPS.get())
+        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
@@ -352,7 +353,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, ctx, _, iterator = props
+        taskname, threads, dry_run, ctx, iterator = props
         assets = ctx.run(_next, iterator, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -464,9 +465,10 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, ctx, iotaa_reps, iterator = props
+        taskname, threads, dry_run, ctx, iterator = props
         assets = ctx.run(_next, iterator, "assets")
-        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), iotaa_reps)
+        reps = ctx.run(lambda: _REPS.get())
+        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
             node_class=NodeTask,
@@ -630,23 +632,6 @@ def _do(todo: _QueueT, done: _QueueT, interrupt: Event, dry_run: bool):
         done.put(node)
 
 
-def _findabove(name: str) -> Any:
-    """
-    Search the stack for a specially-named and iotaa-marked frame-local object with the given name.
-
-    :param name: The name of the object to be found in an ancestor stack frame.
-    :raises: _IotaaError is no such object is found.
-    """
-    frame = inspect.currentframe()
-    while frame is not None:
-        if name in frame.f_locals:
-            obj = frame.f_locals[name]
-            if hasattr(obj, _MARKER):
-                return obj
-        frame = frame.f_back
-    return frame
-
-
 @overload
 def _flatten(o: dict[str, _T]) -> list[_T]: ...
 
@@ -725,7 +710,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
         raise _IotaaError(msg) from e
 
 
-def _not_ready_reqs(reqs: _ReqsT, reps: UserDict[str, _NodeT]) -> _ReqsT:
+def _not_ready_reqs(reqs: _ReqsT, reps: _RepsT) -> _ReqsT:
     """
     Return only not-ready requirements.
 
@@ -821,9 +806,7 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
     sys.exit(0)
 
 
-def _taskprops(
-    func: Callable, *args, **kwargs
-) -> tuple[str, int, bool, Context, UserDict[str, Node], Iterator]:
+def _taskprops(func: Callable, *args, **kwargs) -> tuple[str, int, bool, Context, Iterator]:
     """
     Collect and return info about the task.
 
@@ -839,9 +822,11 @@ def _taskprops(
     ctx.run(lambda: _LOGGER.set(logger))
     iterator = ctx.run(func, *args, **task_kwargs)
     taskname = str(ctx.run(_next, iterator, "task name"))
-    if (reps := _findabove("iotaa_reps")) is None:
-        reps = _mark(UserDict())
-    return taskname, threads, dry_run, ctx, reps, iterator
+    try:
+        ctx[_REPS]
+    except LookupError:
+        ctx.run(lambda: _REPS.set(UserDict()))
+    return taskname, threads, dry_run, ctx, iterator
 
 
 def _version() -> str:
@@ -859,6 +844,7 @@ _AssetsT = Asset | dict[str, Asset] | list[Asset] | None
 _JSONValT = bool | dict | float | int | list | str
 _NodeT = TypeVar("_NodeT", bound=Node)
 _QueueT = Queue[Node | None]
+_RepsT = UserDict[str, _NodeT]
 _ReqsT = Node | dict[str, Node] | list[Node] | None
 _T = TypeVar("_T")
 
@@ -866,3 +852,4 @@ _T = TypeVar("_T")
 
 _LOGGER: ContextVar[Logger] = ContextVar("_LOGGER")
 _MARKER = "__IOTAA__"
+_REPS: ContextVar[_RepsT] = ContextVar("_REPS")

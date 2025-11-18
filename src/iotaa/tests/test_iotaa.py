@@ -835,19 +835,6 @@ def test__do__bad_node(caplog, test_ctx):
     assert boom in done.queue
 
 
-def test__findabove():
-    def inner(name: str):
-        return iotaa._findabove(name=name)
-
-    def outer(name: str):
-        foo = iotaa._mark(m)  # noqa: F841
-        return inner(name)
-
-    m = Mock()
-    assert outer("foo") is m
-    assert outer("bar") is None
-
-
 def test__flatten():
     a = iotaa.Asset(ref=None, ready=lambda: True)
     assert iotaa._flatten(None) == []
@@ -994,11 +981,11 @@ def test__taskprops(test_logger):
         yield n
 
     tn = "task"
-    taskname, threads, dry_run, ctx, nodes, g = iotaa._taskprops(f, tn, n=42, threads=1)
+    taskname, threads, dry_run, ctx, g = iotaa._taskprops(f, tn, n=42, threads=1)
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
-    assert nodes == {}
+    assert ctx[iotaa._REPS] == {}
     assert next(g) == 42
     logger = ctx[iotaa._LOGGER]
     assert isinstance(logger, logging.Logger)
@@ -1012,13 +999,13 @@ def test__taskprops__extras(test_logger):
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, threads, dry_run, ctx, nodes, g = iotaa._taskprops(
+    taskname, threads, dry_run, ctx, g = iotaa._taskprops(
         f, tn, n=42, dry_run=True, log=test_logger
     )
     assert taskname == tn
     assert threads == 1
     assert dry_run is True
-    assert nodes == {}
+    assert ctx[iotaa._REPS] == {}
     assert next(g) == 42
     assert ctx[iotaa._LOGGER] is test_logger
 
