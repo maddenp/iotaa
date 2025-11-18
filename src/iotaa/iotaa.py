@@ -330,6 +330,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
         props = _taskprops(func, *args, **kwargs)
         taskname, threads, dry_run, ctx, iterator = props
         reps = ctx.run(lambda: _REPS.get())
+        assert reps is not None
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
@@ -469,6 +470,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
         taskname, threads, dry_run, ctx, iterator = props
         assets = ctx.run(_next, iterator, "assets")
         reps = ctx.run(lambda: _REPS.get())
+        assert reps is not None
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
@@ -558,11 +560,10 @@ class _LoggerProxy:
 
     @staticmethod
     def logger() -> Logger:
-        try:
-            return _LOGGER.get()
-        except LookupError as e:
+        if not (it := _LOGGER.get()):
             msg = "No logger found: Ensure this call originated in an iotaa task function."
-            raise _IotaaError(msg) from e
+            raise _IotaaError(msg)
+        return it
 
 
 log = _LoggerProxy()
@@ -814,19 +815,17 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[str, int, bool, Context
     :param func: A task function (receives the provided args & kwargs).
     :return: Information needed for task execution.
     """
-    dry_run = bool(kwargs.get("dry_run"))
-    threads = int(kwargs.get("threads") or 1)
+    ctx = copy_context()
+    if ctx.get(_LOGGER) is None:
+        ctx.run(lambda: _LOGGER.set(kwargs.get("log") or getLogger()))
+    if ctx.get(_REPS) is None:
+        ctx.run(lambda: _REPS.set(UserDict()))
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
-    logger = kwargs.get("log") or getLogger()
-    ctx = copy_context()
-    ctx.run(lambda: _LOGGER.set(logger))
     iterator = ctx.run(func, *args, **task_kwargs)
     taskname = str(ctx.run(_next, iterator, "task name"))
-    try:
-        ctx[_REPS]
-    except LookupError:
-        ctx.run(lambda: _REPS.set(UserDict()))
+    threads = int(kwargs.get("threads") or 1)
+    dry_run = bool(kwargs.get("dry_run"))
     return taskname, threads, dry_run, ctx, iterator
 
 
@@ -851,6 +850,6 @@ _T = TypeVar("_T")
 
 # Private variables
 
-_LOGGER: ContextVar[Logger] = ContextVar("_LOGGER")
+_LOGGER: ContextVar[Logger | None] = ContextVar("_LOGGER", default=None)
 _MARKER = uuid4().hex
-_REPS: ContextVar[_RepsT] = ContextVar("_REPS")
+_REPS: ContextVar[_RepsT | None] = ContextVar("_REPS", default=None)
