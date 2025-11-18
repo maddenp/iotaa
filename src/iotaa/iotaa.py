@@ -27,6 +27,7 @@ from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, TypeVar, overload
+from uuid import uuid4
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -851,5 +852,5 @@ _T = TypeVar("_T")
 # Private variables
 
 _LOGGER: ContextVar[Logger] = ContextVar("_LOGGER")
-_MARKER = "__IOTAA__"
+_MARKER = uuid4().hex
 _REPS: ContextVar[_RepsT] = ContextVar("_REPS")
