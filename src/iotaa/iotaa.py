@@ -847,7 +847,7 @@ def _taskprops(
     :return: Information needed for task execution.
     """
     dry_run = bool(kwargs.get("dry_run"))
-    logger = cast(_LoggerT, _mark(kwargs.get("log") or getLogger()))
+    iotaa_logger = cast(_LoggerT, _mark(kwargs.get("log") or getLogger()))
     threads = int(kwargs.get("threads") or 1)
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
@@ -855,7 +855,7 @@ def _taskprops(
     taskname = str(_next(iterator, "task name"))
     if (reps := _findabove("iotaa_reps")) is None:
         reps = _mark(UserDict())
-    return taskname, threads, dry_run, logger, reps, iterator
+    return taskname, threads, dry_run, iotaa_logger, reps, iterator
 
 
 def _version() -> str:

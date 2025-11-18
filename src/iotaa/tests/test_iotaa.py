@@ -535,6 +535,20 @@ def test_external__docstring():
     assert t_external_foo_scalar.__doc__.strip() == "EXTERNAL!"  # type: ignore[union-attr]
 
 
+def test_external__early_logging(caplog):
+    caplog.set_level(logging.DEBUG)
+    msg = "SHOULD BE LOGGED"
+
+    @iotaa.external
+    def foo():
+        iotaa.log.info(msg)
+        yield "foo"
+        yield iotaa.Asset(None, lambda: True)
+
+    foo()
+    assert logged(caplog, msg)
+
+
 def test_external__not_ready(fakefs, iotaa_logger):  # noqa: ARG001
     f = fakefs / "foo"
     assert not f.is_file()
