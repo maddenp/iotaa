@@ -787,23 +787,18 @@ def test_log():
 # Tests for private functions
 
 
-# def test__construct_and_call_if_root(test_logger):
-#     node = Mock(_root=True)
-#     node_class = Mock(return_value=node)
-#     taskname = "test"
-#     threads = 0
-#     dry_run = True
-#     logger = logging.getLogger()
-#     val: Mock = iotaa._construct_and_if_root_call(
-#         node_class=node_class,
-#         taskname=taskname,
-#         threads=threads,
-#         logger=logger,
-#         dry_run=dry_run,
-#     )
-#     node_class.assert_called_once_with(taskname=taskname, threads=threads)
-#     node.assert_called_once_with(dry_run)
-#     assert val is node
+def test__construct_and_call_if_root(test_ctx):
+    node = Mock(_root=True)
+    node_class = Mock(return_value=node)
+    taskname = "test"
+    threads = 0
+    dry_run = True
+    val: Mock = iotaa._construct_and_if_root_call(
+        node_class=node_class, taskname=taskname, threads=threads, ctx=test_ctx, dry_run=dry_run
+    )
+    node_class.assert_called_once_with(taskname=taskname, threads=threads)
+    node.assert_called_once_with(dry_run)
+    assert val is node
 
 
 def test__continuation(caplog, rungen, test_ctx):
