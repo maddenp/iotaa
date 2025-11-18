@@ -962,13 +962,13 @@ def test__show_tasks_and_exit(capsys):
     assert capsys.readouterr().out.strip() == dedent(expected).strip()
 
 
-def test__task_common():
+def test__taskprops():
     def f(taskname, n):
         yield taskname
         yield n
 
     tn = "task"
-    taskname, threads, dry_run, logger, nodes, g = iotaa._task_common(f, tn, n=42, threads=1)
+    taskname, threads, dry_run, logger, nodes, g = iotaa._taskprops(f, tn, n=42, threads=1)
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
@@ -977,14 +977,14 @@ def test__task_common():
     assert next(g) == 42
 
 
-def test__task_common__extras():
+def test__taskprops__extras():
     def f(taskname, n):
         yield taskname
         yield n
         iotaa.log.info("testing")
 
     tn = "task"
-    taskname, threads, dry_run, logger, nodes, g = iotaa._task_common(f, tn, n=42, dry_run=True)
+    taskname, threads, dry_run, logger, nodes, g = iotaa._taskprops(f, tn, n=42, dry_run=True)
     assert taskname == tn
     assert threads == 1
     assert dry_run is True
