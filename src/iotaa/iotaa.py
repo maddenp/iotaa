@@ -31,32 +31,7 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 
-class _LoggerProxy:
-    """
-    A proxy for the logger currently in use by iotaa.
-    """
-
-    # NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-
-    # marked logger local variable in each wrapper function below and will use it when logging via
-    # log().
-
-    def __getattr__(self, name):
-        return getattr(self.logger(), name)
-
-    @staticmethod
-    def logger() -> Logger:
-        """
-        Search the stack for the logger, which will exist for calls made from iotaa task functions.
-
-        :raises: _IotaaError is no logger is found.
-        """
-        if not (found := _findabove(name="iotaa_logger")):
-            msg = "No logger found: Ensure this call originated in an iotaa task function."
-            raise _IotaaError(msg)
-        return cast(Logger, found)
-
-
-# Public API
+# Public classes
 
 
 @dataclass
@@ -342,6 +317,9 @@ class NodeTask(Node):
         return self
 
 
+# Public functions
+
+
 def asset(node: Node | None) -> _AssetsT:
     """
     Return the node's assets.
@@ -408,7 +386,7 @@ def graph(node: Node) -> str:
     return node.graph
 
 
-log = _LoggerProxy()
+# NB: 'log' should go here, but is defined after class _LoggerProxy, below.
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -422,6 +400,33 @@ def logcfg(verbose: bool = False) -> None:
         format="[%(asctime)s] %(levelname)-7s %(message)s",
         level=logging.DEBUG if verbose else logging.INFO,
     )
+
+
+def main() -> None:
+    """
+    Main CLI entry point.
+    """
+    # Parse the command-line arguments, set up logging, then: If the module-name argument represents
+    # a file, append its parent directory to sys.path and remove any extension (presumably .py) so
+    # that it can be imported. If it does not represent a file, assume that it names a module that
+    # can be imported via standard means, maybe via PYTHONPATH. Trailing positional command-line
+    # arguments are then JSON-parsed to Python objects and passed to the specified function.
+
+    args = _parse_args(sys.argv[1:])
+    logcfg(verbose=args.verbose)
+    modobj = _modobj(args.module)
+    if args.show:
+        _show_tasks_and_exit(args.module, modobj)
+    task_func = getattr(modobj, args.function)
+    task_args = [_reify(arg) for arg in args.args]
+    task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
+    try:
+        root = task_func(*task_args, **task_kwargs)
+    except _IotaaError as e:
+        logging.error(str(e))
+        sys.exit(1)
+    if args.graph:
+        print(graph(root))
 
 
 def ready(node: Node) -> bool:
@@ -503,19 +508,7 @@ def tasknames(obj: object) -> list[str]:
     return sorted(name for name in dir(obj) if pred(getattr(obj, name)))
 
 
-# Private
-
-_MARKER = "__IOTAA__"
-
-# Types
-
-_AssetsT = Asset | dict[str, Asset] | list[Asset] | None
-_JSONValT = bool | dict | float | int | list | str
-_LoggerT = Logger | _LoggerProxy
-_NodeT = TypeVar("_NodeT", bound=Node)
-_QueueT = Queue[Node | None]
-_ReqsT = Node | dict[str, Node] | list[Node] | None
-_T = TypeVar("_T")
+# Private classes
 
 
 class _Graph:
@@ -560,31 +553,35 @@ class _IotaaError(Exception):
     """
 
 
-def main() -> None:
+class _LoggerProxy:
     """
-    Main CLI entry point.
+    A proxy for the logger currently in use by iotaa.
     """
-    # Parse the command-line arguments, set up logging, then: If the module-name argument represents
-    # a file, append its parent directory to sys.path and remove any extension (presumably .py) so
-    # that it can be imported. If it does not represent a file, assume that it names a module that
-    # can be imported via standard means, maybe via PYTHONPATH. Trailing positional command-line
-    # arguments are then JSON-parsed to Python objects and passed to the specified function.
 
-    args = _parse_args(sys.argv[1:])
-    logcfg(verbose=args.verbose)
-    modobj = _modobj(args.module)
-    if args.show:
-        _show_tasks_and_exit(args.module, modobj)
-    task_func = getattr(modobj, args.function)
-    task_args = [_reify(arg) for arg in args.args]
-    task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
-    try:
-        root = task_func(*task_args, **task_kwargs)
-    except _IotaaError as e:
-        logging.error(str(e))
-        sys.exit(1)
-    if args.graph:
-        print(graph(root))
+    # NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-
+    # marked logger local variable in each wrapper function below and will use it when logging via
+    # log().
+
+    def __getattr__(self, name):
+        return getattr(self.logger(), name)
+
+    @staticmethod
+    def logger() -> Logger:
+        """
+        Search the stack for the logger, which will exist for calls made from iotaa task functions.
+
+        :raises: _IotaaError is no logger is found.
+        """
+        if not (found := _findabove(name="iotaa_logger")):
+            msg = "No logger found: Ensure this call originated in an iotaa task function."
+            raise _IotaaError(msg)
+        return cast(Logger, found)
+
+
+log = _LoggerProxy()
+
+
+# Private functions
 
 
 def _construct_and_if_root_call(
@@ -868,3 +865,18 @@ def _version() -> str:
     with _resources.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
         return "version %s build %s" % (info["version"], info["buildnum"])
+
+
+# Private types
+
+_AssetsT = Asset | dict[str, Asset] | list[Asset] | None
+_JSONValT = bool | dict | float | int | list | str
+_LoggerT = Logger | _LoggerProxy
+_NodeT = TypeVar("_NodeT", bound=Node)
+_QueueT = Queue[Node | None]
+_ReqsT = Node | dict[str, Node] | list[Node] | None
+_T = TypeVar("_T")
+
+# Private variables
+
+_MARKER = "__IOTAA__"
