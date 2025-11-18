@@ -1,3 +1,4 @@
+# PM# Should dry_run, threads be part of ctx, too?
 """
 iotaa.
 """
@@ -12,6 +13,7 @@ import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import UserDict
+from contextvars import Context, ContextVar, copy_context
 from dataclasses import dataclass
 from functools import cached_property, wraps
 from graphlib import TopologicalSorter
@@ -24,7 +26,7 @@ from logging import Logger, getLogger
 from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -52,10 +54,9 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    def __init__(self, taskname: str, threads: int, logger: Logger) -> None:
+    def __init__(self, taskname: str, threads: int) -> None:
         self.taskname = taskname
         self._threads = threads
-        self._logger = logger
         self._asset: _AssetsT = None
         self._first_visit = True
         self._req: _ReqsT = None
@@ -208,7 +209,8 @@ class Node(ABC):
         interrupt = Event()
         threads = []
         for _ in range(self._threads):
-            thread = Thread(target=_do, args=(todo, done, interrupt, dry_run, self._logger))
+            ctx = copy_context()
+            thread = Thread(target=ctx.run, args=(_do, todo, done, interrupt, dry_run))
             threads.append(thread)
             thread.start()
         return threads, todo, done, interrupt
@@ -236,18 +238,11 @@ class NodeCollection(Node):
     A node encapsulating a @collection-decorated function/method.
     """
 
-    def __init__(
-        self,
-        taskname: str,
-        threads: int,
-        logger: Logger,
-        reqs: _ReqsT = None,
-    ) -> None:
-        super().__init__(taskname=taskname, threads=threads, logger=logger)
+    def __init__(self, taskname: str, threads: int, reqs: _ReqsT = None) -> None:
+        super().__init__(taskname=taskname, threads=threads)
         self._req = reqs
 
     def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # noqa: F841
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
@@ -270,12 +265,11 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    def __init__(self, taskname: str, threads: int, logger: Logger, assets_: _AssetsT) -> None:
-        super().__init__(taskname=taskname, threads=threads, logger=logger)
-        self._asset = assets_
+    def __init__(self, taskname: str, threads: int, assets: _AssetsT) -> None:
+        super().__init__(taskname=taskname, threads=threads)
+        self._asset = assets
 
     def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # noqa: F841
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
@@ -289,21 +283,14 @@ class NodeTask(Node):
     """
 
     def __init__(
-        self,
-        taskname: str,
-        threads: int,
-        logger: Logger,
-        assets_: _AssetsT,
-        reqs: _ReqsT,
-        continuation: Callable,
+        self, taskname: str, threads: int, assets: _AssetsT, reqs: _ReqsT, continuation: Callable
     ) -> None:
-        super().__init__(taskname=taskname, threads=threads, logger=logger)
-        self._asset = assets_
+        super().__init__(taskname=taskname, threads=threads)
+        self._asset = assets
         self._req = reqs
         self._continuation = continuation
 
     def __call__(self, dry_run: bool = False) -> Node:
-        iotaa_logger = self._logger  # noqa: F841
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
@@ -340,14 +327,15 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = props
+        taskname, threads, dry_run, ctx, iotaa_reps, iterator = props
+        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), iotaa_reps)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
             threads=threads,
-            logger=iotaa_logger,
+            ctx=ctx,
             dry_run=dry_run,
-            reqs=_not_ready_reqs(_next(iterator, "requirements"), iotaa_reps),
+            reqs=reqs,
         )
 
     return _mark(_iotaa_wrapper_collection)
@@ -364,14 +352,15 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, iotaa_logger, _, iterator = props
+        taskname, threads, dry_run, ctx, _, iterator = props
+        assets = ctx.run(_next, iterator, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
             threads=threads,
-            logger=iotaa_logger,
+            ctx=ctx,
             dry_run=dry_run,
-            assets_=_next(iterator, "assets"),
+            assets=assets,
         )
 
     return _mark(_iotaa_wrapper_external)
@@ -386,7 +375,7 @@ def graph(node: Node) -> str:
     return node.graph
 
 
-# NB: 'log' should go here, but is defined after class _LoggerProxy, below.
+# NB: 'log' would go here, but is defined after class _LoggerProxy, below.
 
 
 def logcfg(verbose: bool = False) -> None:
@@ -445,13 +434,13 @@ def ref(obj: Node | _AssetsT) -> Any:
     :param obj: A Node, or an Asset, or a list or dict of Assets.
     :return: Asset reference(s) matching the obj's assets' shape (e.g. dict, list, scalar, None).
     """
-    _assets = asset(obj) if isinstance(obj, Node) else obj
-    if isinstance(_assets, dict):
-        return {k: v.ref for k, v in _assets.items()}
-    if isinstance(_assets, list):
-        return [a.ref for a in _assets]
-    if isinstance(_assets, Asset):
-        return _assets.ref
+    assets = asset(obj) if isinstance(obj, Node) else obj
+    if isinstance(assets, dict):
+        return {k: v.ref for k, v in assets.items()}
+    if isinstance(assets, list):
+        return [a.ref for a in assets]
+    if isinstance(assets, Asset):
+        return assets.ref
     return None
 
 
@@ -475,16 +464,19 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         props = _taskprops(func, *args, **kwargs)
-        taskname, threads, dry_run, iotaa_logger, iotaa_reps, iterator = props
+        taskname, threads, dry_run, ctx, iotaa_reps, iterator = props
+        assets = ctx.run(_next, iterator, "assets")
+        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), iotaa_reps)
+        continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
             threads=threads,
-            logger=iotaa_logger,
+            ctx=ctx,
             dry_run=dry_run,
-            assets_=_next(iterator, "assets"),
-            reqs=_not_ready_reqs(_next(iterator, "requirements"), iotaa_reps),
-            continuation=_continuation(iterator, taskname),
+            assets=assets,
+            reqs=reqs,
+            continuation=continuation,
         )
 
     return _mark(_iotaa_wrapper_task)
@@ -555,27 +547,19 @@ class _IotaaError(Exception):
 
 class _LoggerProxy:
     """
-    A proxy for the logger currently in use by iotaa.
+    A proxy for the in-context logger.
     """
-
-    # NB: When inspecting the call stack, _LoggerProxy will find the specially-named and iotaa-
-    # marked logger local variable in each wrapper function below and will use it when logging via
-    # log().
 
     def __getattr__(self, name):
         return getattr(self.logger(), name)
 
     @staticmethod
     def logger() -> Logger:
-        """
-        Search the stack for the logger, which will exist for calls made from iotaa task functions.
-
-        :raises: _IotaaError is no logger is found.
-        """
-        if not (found := _findabove(name="iotaa_logger")):
+        try:
+            return _LOGGER.get()
+        except LookupError as e:
             msg = "No logger found: Ensure this call originated in an iotaa task function."
-            raise _IotaaError(msg)
-        return cast(Logger, found)
+            raise _IotaaError(msg) from e
 
 
 log = _LoggerProxy()
@@ -585,7 +569,7 @@ log = _LoggerProxy()
 
 
 def _construct_and_if_root_call(
-    node_class: type[_NodeT], taskname: str, threads: int, dry_run: bool, **kwargs
+    node_class: type[_NodeT], taskname: str, threads: int, ctx: Context, dry_run: bool, **kwargs
 ) -> _NodeT:
     """
     Construct a Node object and, if it is the root node, call it.
@@ -593,12 +577,13 @@ def _construct_and_if_root_call(
     :param node_class: The type of Node to construct.
     :param taskname: The current task's name.
     :param threads: Number of concurrent threads.
+    :param ctx: The execution context.
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
     node = node_class(taskname=taskname, threads=threads, **kwargs)
     if node.root:
-        node(dry_run)
+        ctx.run(node, dry_run)
     return node
 
 
@@ -620,7 +605,7 @@ def _continuation(iterator: Iterator, taskname: str) -> Callable:
     return continuation
 
 
-def _do(todo: _QueueT, done: _QueueT, interrupt: Event, dry_run: bool, iotaa_logger: Logger):  # noqa: ARG001
+def _do(todo: _QueueT, done: _QueueT, interrupt: Event, dry_run: bool):
     """
     The worker-thread function.
 
@@ -628,7 +613,6 @@ def _do(todo: _QueueT, done: _QueueT, interrupt: Event, dry_run: bool, iotaa_log
     :param done: The completed-work queue.
     :param interrupt: Signal threads to exit even if outstanding work exists.
     :param dry_run: Avoid executing state-affecting code?
-    :param iotaa_logger: The loger to use.
     """
     while not interrupt.is_set():
         node = todo.get()
@@ -839,7 +823,7 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
 
 def _taskprops(
     func: Callable, *args, **kwargs
-) -> tuple[str, int, bool, _LoggerT, UserDict[str, Node], Iterator]:
+) -> tuple[str, int, bool, Context, UserDict[str, Node], Iterator]:
     """
     Collect and return info about the task.
 
@@ -847,15 +831,17 @@ def _taskprops(
     :return: Information needed for task execution.
     """
     dry_run = bool(kwargs.get("dry_run"))
-    iotaa_logger = cast(_LoggerT, _mark(kwargs.get("log") or getLogger()))
     threads = int(kwargs.get("threads") or 1)
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
-    iterator = func(*args, **task_kwargs)
-    taskname = str(_next(iterator, "task name"))
+    logger = kwargs.get("log") or getLogger()
+    ctx = copy_context()
+    ctx.run(lambda: _LOGGER.set(logger))
+    iterator = ctx.run(func, *args, **task_kwargs)
+    taskname = str(ctx.run(_next, iterator, "task name"))
     if (reps := _findabove("iotaa_reps")) is None:
         reps = _mark(UserDict())
-    return taskname, threads, dry_run, iotaa_logger, reps, iterator
+    return taskname, threads, dry_run, ctx, reps, iterator
 
 
 def _version() -> str:
@@ -871,7 +857,6 @@ def _version() -> str:
 
 _AssetsT = Asset | dict[str, Asset] | list[Asset] | None
 _JSONValT = bool | dict | float | int | list | str
-_LoggerT = Logger | _LoggerProxy
 _NodeT = TypeVar("_NodeT", bound=Node)
 _QueueT = Queue[Node | None]
 _ReqsT = Node | dict[str, Node] | list[Node] | None
@@ -879,4 +864,5 @@ _T = TypeVar("_T")
 
 # Private variables
 
+_LOGGER: ContextVar[Logger] = ContextVar("_LOGGER")
 _MARKER = "__IOTAA__"
