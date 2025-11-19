@@ -495,6 +495,7 @@ def tasknames(obj: object) -> list[str]:
         return (
             getattr(o, _MARKER, False)
             and not hasattr(o, "__isabstractmethod__")
+            and hasattr(o, "__name__")
             and not o.__name__.startswith("_")
         )
 
