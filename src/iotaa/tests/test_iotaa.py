@@ -431,12 +431,12 @@ def test_Node__exec_threads_shutdown():
 
 
 def test_Node__exec_threads_startup(test_ctx):
-    nthreads = 2
+    nthreads = 100
     obj = Mock(_threads=nthreads)
     threads, todo, done, interrupt = test_ctx.run(
         iotaa.Node._exec_threads_startup, self=obj, dry_run=False
     )
-    nodes = [Mock(), Mock()]
+    nodes = [Mock() for _ in range(nthreads)]
     for node in nodes:
         todo.put(node)
     for _ in range(nthreads):
@@ -445,7 +445,7 @@ def test_Node__exec_threads_startup(test_ctx):
         thread.join()
         assert not thread.is_alive()
     assert todo.empty()
-    assert [done.get() for _ in range(nthreads)] == nodes
+    assert {done.get() for _ in range(nthreads)} == set(nodes)
     assert not interrupt.is_set()
 
 
