@@ -1,7 +1,10 @@
 CHANNELS = $(addprefix -c ,$(shell tr '\n' ' ' <$(RECIPE_DIR)/channels)) -c local
+DEMO     = $(SRCDIR)/demo.py
 METADEPS = $(RECIPE_DIR)/meta.yaml src/*/resources/info.json
 METAJSON = $(RECIPE_DIR)/meta.json
-TARGETS  = devshell env format lint meta package test typecheck unittest
+PYSRCS   = $(shell find $(SRCDIR) -type f -name "*.py" | grep -v $(DEMO))
+SRCDIR   = src/iotaa
+TARGETS  = demo devshell env format lint meta package render test typecheck unittest
 
 export RECIPE_DIR := $(shell cd ./recipe && pwd)
 
@@ -13,31 +16,42 @@ val  = $(shell jq -r .$(1) $(METAJSON))
 all:
 	$(error Valid targets are: $(TARGETS))
 
+demo: $(DEMO)
+
 devshell:
 	condev-shell || true
 
 env: package
 	conda create -y -n $(call spec,buildnum,-) $(CHANNELS) $(call spec,build,=)
 
-format:
+format: $(DEMO)
 	@./format
 
-lint:
+lint: $(DEMO)
 	recipe/run_test.sh lint
 
 meta: $(METAJSON)
 
-package: meta
+package: meta $(DEMO)
 	conda build $(CHANNELS) --error-overlinking --override-channels $(RECIPE_DIR)
 
-test:
+render: $(DEMO) README.md
+
+test: $(DEMO)
 	recipe/run_test.sh
 
-typecheck:
+typecheck: $(DEMO)
 	recipe/run_test.sh typecheck
 
-unittest:
+unittest: $(DEMO)
 	recipe/run_test.sh unittest
 
 $(METAJSON): $(METADEPS)
 	condev-meta
+
+$(DEMO): m4/demo.m4 m4/include/*.py $(PYSRCS)
+	m4 -I m4/include $< >$@
+
+README.md: m4/README.m4 m4/include/*.py $(DEMO) $(PYSRCS)
+	$(info MACROS INCLUDE EXPLICIT SLEEPS, PLEASE BE PATIENT)
+	m4 -I m4/include $< >$@

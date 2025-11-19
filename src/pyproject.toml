@@ -21,11 +21,6 @@ check_untyped_defs = true
 pretty = true
 warn_return_any = true
 
-[tool.pytest.ini_options]
-filterwarnings = [
-  "ignore:^.*The 'refs' .* is deprecated:DeprecationWarning"
-]
-
 [tool.ruff]
 line-length = 100
 
@@ -53,6 +48,7 @@ ignore = [
   "D400",    # missing-trailing-period
   "D401",    # non-imperative-mood
   "E731",    # lambda-assignment
+  "ERA001",  # commented-out-code
   "FBT001",  # boolean-type-hint-positional-argument
   "FBT002",  # boolean-default-value-positional-argument
   "FBT003",  # boolean-positional-value-in-call
@@ -63,6 +59,7 @@ ignore = [
   "TC006",   # runtime-cast-value
   "TRY400",  # error-instead-of-exception
   "UP031",   # printf-string-formatting
+  "UP032",   # f-string
 ]
 
 [tool.ruff.lint.per-file-ignores]

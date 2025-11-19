@@ -1,3 +1,4 @@
+changequote(`«', `»')dnl
 # iotaa
 
 **It's One Thing After Another**
@@ -190,13 +191,7 @@ Consider the source code of the [demo application](src/iotaa/demo.py), which sim
 The first `@collection` task defines the end result: A cup of tea, steeped, with sugar, and a spoon for stirring:
 
 ``` python
-@collection
-def a_cup_of_tea(basedir):
-    """
-    The cup of steeped tea with sugar, and a spoon.
-    """
-    yield "The perfect cup of tea"
-    yield [steeped_tea_with_sugar(basedir), spoon(basedir)]
+include(«a_cup_of_tea.py»)dnl
 ```
 
 As described above, a `@collection` task is just a collection of other tasks, and must yield its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@collection` task, no executable statements follow the final `yield`.
@@ -204,34 +199,11 @@ As described above, a `@collection` task is just a collection of other tasks, an
 The `cup()` and `spoon()` `@task` functions are straightforward:
 
 ``` python
-@task
-def cup(basedir):
-    """
-    The cup for the tea.
-    """
-    path = Path(basedir) / "cup"
-    taskname = "The cup"
-    yield taskname
-    yield Asset(path, path.exists)
-    yield None
-    log.info("%s: Getting cup", taskname)
-    path.mkdir(parents=True)
+include(«cup.py»)dnl
 ```
 
 ``` python
-@task
-def spoon(basedir):
-    """
-    The spoon to stir the tea.
-    """
-    path = Path(basedir) / "spoon"
-    taskname = "The spoon"
-    yield taskname
-    yield Asset(path, path.exists)
-    yield None
-    log.info("%s: Getting spoon", taskname)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.touch()
+include(«spoon.py»)dnl
 ```
 
 They yield their names, then the asset each is responsible for readying, then the tasks they require (`None` in this case, since they rely on nothing). Following the final `yield`, they ready their assets: `cup()` creates the `cup` directory that will contain the tea ingredients; `spoon()` ensures that the base directory exists, then creates the `spoon` file in it. The `cup` and `spoon` assets are filesystem entries (a directory and a file, respectively) in the same parent directory, and their task functions are written so that it does not matter which task executes first and creates that parent directory.
@@ -241,31 +213,13 @@ Note that in task function `cup()`, while `pathlib`'s `Path.mkdir()` would norma
 The `steeped_tea_with_sugar()` `@task` function is next:
 
 ``` python
-@task
-def steeped_tea_with_sugar(basedir):
-    """
-    Add sugar to the steeped tea.
-
-    Requires tea to have steeped.
-    """
-    yield from ingredient(basedir, "sugar", "Sugar", steeped_tea)
+include(«steeped_tea_with_sugar.py»)dnl
 ```
 
 Two new ideas are demonstrated here. First, a task function can call arbitrary logic to help it carry out its duties. In this case, it calls the `ingredient()` helper function:
 
 ``` python
-def ingredient(basedir, fn, name, req=None):
-    """
-    Add an ingredient to the cup.
-    """
-    taskname = f"{name} in cup"
-    yield taskname
-    the_cup = cup(basedir)
-    path = the_cup.ref / fn
-    yield {fn: Asset(path, path.exists)}
-    yield [the_cup] + ([req(basedir)] if req else [])
-    log.info("%s: Adding %s to cup", taskname, fn)
-    path.touch()
+include(«ingredient.py»)dnl
 ```
 
 This helper is also called by other task functions in the workflow, and simulates adding an ingredient (tea, water, sugar) to the tea cup, yielding values that the caller can re-yield to `iotaa`.
@@ -275,30 +229,7 @@ Second, `steeped_tea_with_sugar()` yields (indirectly, by passing it to `ingredi
 Next up, the `steeped_tea()` function, which is more complex:
 
 ``` python
-@task
-def steeped_tea(basedir):
-    """
-    Give tea time to steep.
-    """
-    taskname = "Steeped tea"
-    yield taskname
-    water = steeping_tea(basedir).ref["water"]
-    steep_time = lambda x: Asset("elapsed time", lambda: x)
-    t = 10  # seconds
-    if water.exists():
-        water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
-        ready_time = water_poured_time + dt.timedelta(seconds=t)
-        now = dt.datetime.now()
-        ready = now >= ready_time
-        remaining = int((ready_time - now).total_seconds())
-        yield steep_time(ready)
-    else:
-        ready = False
-        remaining = t
-        yield steep_time(False)
-    yield steeping_tea(basedir)
-    if not ready:
-        log.warning("%s: Tea needs to steep for %ss", taskname, remaining)
+include(«steeped_tea.py»)dnl
 ```
 
 Here, the asset being yielded is abstract: It represents a certain amount of time having passed since the boiling water was poured over the tea. (The observant reader will note that 10 seconds is insufficient, but handy for a demo. Try 3 minutes for black tea IRL.) If the water was poured long enough ago, `steeped_tea` is ready; if not, it should become ready during some future execution of the workflow. Note that the executable statements following the final `yield` only logs information: There's nothing this task can do to ready its asset (time passed): It can only wait.
@@ -308,79 +239,27 @@ Note that the path to the `water` file is located by accessing the `.ref` proper
 The `steeping_tea()` function is again a straightforward `@task`, leveraging the `ingredient()` helper:
 
 ``` python
-@task
-def steeping_tea(basedir):
-    """
-    Pour boiling water over the tea.
-
-    Requires tea bag in cup.
-    """
-    yield from ingredient(basedir, "water", "Boiling water", tea_bag)
+include(«steeping_tea.py»)dnl
 ```
 
 The `tea_bag()` function should be self-explanatory at this point. It requires `the_cup`, and extracts that task's reference (a path to a directory) to construct its own path:
 
 ``` python
-@task
-def tea_bag(basedir):
-    """
-    Place tea bag in the cup.
-
-    Requires box of tea bags.
-    """
-    the_cup = cup(basedir)
-    path = the_cup.ref / "tea-bag"
-    taskname = "Tea bag in cup"
-    yield taskname
-    yield Asset(path, path.exists)
-    yield [the_cup, box_of_tea_bags(basedir)]
-    log.info("%s: Adding tea bag to cup", taskname)
-    path.touch()
+include(«tea_bag.py»)dnl
 ```
 
 Finally, we have this workflow's only `@external` task, `box_of_tea_bags()`. The idea here is that this is something that just must exist (think: someone must have simply bought the box of tea bags at the store), and no action by the workflow can create it. Unlike other task types, an `@external` task yields, after its name, only the _assets_ it represents. It yields no requirements, and provides no action code to ready the asset:
 
 ``` python
-@external
-def box_of_tea_bags(basedir):
-    """
-    A box of tea bags.
-    """
-    path = Path(basedir) / "box-of-tea-bags"
-    yield f"Box of tea bags ({path})"
-    yield Asset(path, path.exists)
+include(«box_of_tea_bags.py»)dnl
 ```
 
 Let's run this workflow with the `iotaa` CLI, requesting that the workflow start with the `a_cup_of_tea` task:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea teatime
-[2025-11-18T20:41:35] INFO    The cup: Executing
-[2025-11-18T20:41:35] INFO    The cup: Getting cup
-[2025-11-18T20:41:35] INFO    The cup: Ready
-[2025-11-18T20:41:35] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2025-11-18T20:41:35] INFO    The spoon: Executing
-[2025-11-18T20:41:35] INFO    The spoon: Getting spoon
-[2025-11-18T20:41:35] INFO    The spoon: Ready
-[2025-11-18T20:41:35] WARNING Tea bag in cup: Not ready
-[2025-11-18T20:41:35] WARNING Tea bag in cup: Requires:
-[2025-11-18T20:41:35] WARNING Tea bag in cup: ✔ The cup
-[2025-11-18T20:41:35] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2025-11-18T20:41:35] WARNING Boiling water in cup: Not ready
-[2025-11-18T20:41:35] WARNING Boiling water in cup: Requires:
-[2025-11-18T20:41:35] WARNING Boiling water in cup: ✔ The cup
-[2025-11-18T20:41:35] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2025-11-18T20:41:35] WARNING Steeped tea: Not ready
-[2025-11-18T20:41:35] WARNING Steeped tea: Requires:
-[2025-11-18T20:41:35] WARNING Steeped tea: ✖ Boiling water in cup
-[2025-11-18T20:41:35] WARNING Sugar in cup: Not ready
-[2025-11-18T20:41:35] WARNING Sugar in cup: Requires:
-[2025-11-18T20:41:35] WARNING Sugar in cup: ✔ The cup
-[2025-11-18T20:41:35] WARNING Sugar in cup: ✖ Steeped tea
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: Not ready
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: Requires:
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: ✖ Sugar in cup
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: ✔ The spoon
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(«rm -rf teatime && »CMD« 2>&1»)dnl
 ```
 
 There's lots to see during the first invocation. Most of the tasks cannot run due to not-ready requirements and so are themselves left in a not-ready state. Only the `cup()` and `spoon()` tasks, which have no requirements, execute and end in the `Ready` state. We will see in subsequent workflow invocations that these tasks are not executed again, as their assets will be found to be ready.
@@ -388,148 +267,101 @@ There's lots to see during the first invocation. Most of the tasks cannot run du
 The on-disk workflow state is now:
 
 ```
-$ tree teatime
-teatime
-├── cup
-└── spoon
-
-1 directory, 1 file
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Note the blocker marked `WARNING`: The external asset (file) `teatime/box-of-tea-bags` is not ready and cannot be created by the workflow, as it is declared `@external`. But we can create it manually:
 
 ```
-$ touch teatime/box-of-tea-bags
+define(«CMD», «touch teatime/box-of-tea-bags»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-└── spoon
-
-1 directory, 2 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Iterate the workflow:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea teatime
-[2025-11-18T20:41:35] INFO    Tea bag in cup: Executing
-[2025-11-18T20:41:35] INFO    Tea bag in cup: Adding tea bag to cup
-[2025-11-18T20:41:35] INFO    Tea bag in cup: Ready
-[2025-11-18T20:41:35] INFO    Boiling water in cup: Executing
-[2025-11-18T20:41:35] INFO    Boiling water in cup: Adding water to cup
-[2025-11-18T20:41:35] INFO    Boiling water in cup: Ready
-[2025-11-18T20:41:35] INFO    Steeped tea: Executing
-[2025-11-18T20:41:35] WARNING Steeped tea: Tea needs to steep for 10s
-[2025-11-18T20:41:35] WARNING Steeped tea: Not ready
-[2025-11-18T20:41:35] WARNING Steeped tea: Requires:
-[2025-11-18T20:41:35] WARNING Steeped tea: ✔ Boiling water in cup
-[2025-11-18T20:41:35] WARNING Sugar in cup: Not ready
-[2025-11-18T20:41:35] WARNING Sugar in cup: Requires:
-[2025-11-18T20:41:35] WARNING Sugar in cup: ✖ Steeped tea
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: Not ready
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: Requires:
-[2025-11-18T20:41:35] WARNING The perfect cup of tea: ✖ Sugar in cup
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 On-disk workflow state now:
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 4 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Since the box of tea bags became available, the workflow was able to add a tea bag to the cup and pour boiling water over it. Note the message `Tea needs to steep for 10s`. If we iterate the workflow again after a few seconds, we can see the steep time decreasing:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea teatime
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
 ...
-[2025-11-18T20:41:41] WARNING Steeped tea: Tea needs to steep for 4s
+esyscmd(«sleep 5 && » CMD« 2>&1 | grep 'Tea needs to steep for'»)dnl
 ...
 ```
 
 Wait a bit and iterate again:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea teatime
-[2025-11-18T20:41:46] INFO    Sugar in cup: Executing
-[2025-11-18T20:41:46] INFO    Sugar in cup: Adding sugar to cup
-[2025-11-18T20:41:46] INFO    Sugar in cup: Ready
-[2025-11-18T20:41:46] INFO    The perfect cup of tea: Ready
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(«sleep 5 && »CMD« 2>&1»)dnl
 ```
 
 Now that the tea has steeped long enough, the sugar has been added:
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-│   ├── sugar
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 5 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 One more iteration and we see that the workflow has reached its final state and takes no more action:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea teatime
-[2025-11-18T20:41:46] INFO    The perfect cup of tea: Ready
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
 
 ```
-$ rm -v teatime/cup/sugar
-removed 'teatime/cup/sugar'
+define(«CMD», «rm -v teatime/cup/sugar»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 4 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Note how the workflow detects the change to the readiness of its assets and recovers:
 
 ```
-$ iotaa iotaa.demo a_cup_of_tea teatime
-[2025-11-18T20:41:46] INFO    Sugar in cup: Executing
-[2025-11-18T20:41:46] INFO    Sugar in cup: Adding sugar to cup
-[2025-11-18T20:41:46] INFO    Sugar in cup: Ready
-[2025-11-18T20:41:46] INFO    The perfect cup of tea: Ready
+define(«CMD», «iotaa iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-│   ├── sugar
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 5 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Another useful feature is the ability to enter the workflow's task graph at an arbitrary point and process a subgraph to obtain only a subset of the assets. For example, if we'd like a cup of tea _without_ sugar, we can start with the `steeped_tea` task rather than the higher-level `a_cup_of_tea` task.
@@ -537,119 +369,53 @@ Another useful feature is the ability to enter the workflow's task graph at an a
 First, let's empty the cup:
 
 ```
-$ rm -v teatime/cup/*
-removed 'teatime/cup/sugar'
-removed 'teatime/cup/tea-bag'
-removed 'teatime/cup/water'
+define(«CMD», «rm -v teatime/cup/*»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-└── spoon
-
-1 directory, 2 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 Now request tea without sugar:
 
 ```
-$ iotaa iotaa.demo steeped_tea teatime
-[2025-11-18T20:41:46] INFO    Tea bag in cup: Executing
-[2025-11-18T20:41:46] INFO    Tea bag in cup: Adding tea bag to cup
-[2025-11-18T20:41:46] INFO    Tea bag in cup: Ready
-[2025-11-18T20:41:46] INFO    Boiling water in cup: Executing
-[2025-11-18T20:41:46] INFO    Boiling water in cup: Adding water to cup
-[2025-11-18T20:41:46] INFO    Boiling water in cup: Ready
-[2025-11-18T20:41:46] INFO    Steeped tea: Executing
-[2025-11-18T20:41:46] WARNING Steeped tea: Tea needs to steep for 10s
-[2025-11-18T20:41:46] WARNING Steeped tea: Not ready
-[2025-11-18T20:41:46] WARNING Steeped tea: Requires:
-[2025-11-18T20:41:46] WARNING Steeped tea: ✔ Boiling water in cup
+define(«CMD», «iotaa iotaa.demo steeped_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 After waiting for the tea to steep:
 
 ```
-$ iotaa iotaa.demo steeped_tea teatime
-[2025-11-18T20:41:56] INFO    Steeped tea: Ready
+define(«CMD», «iotaa iotaa.demo steeped_tea teatime»)dnl
+$ CMD
+esyscmd(«sleep 10 && »CMD« 2>&1»)dnl
 ```
 
 On-disk state:
 
 ```
-$ tree teatime
-teatime
-├── box-of-tea-bags
-├── cup
-│   ├── tea-bag
-│   └── water
-└── spoon
-
-1 directory, 4 files
+define(«CMD», «tree teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 The `-v` / `--verbose` switch can be used for additional logging. Here, for example, is the verbose log output of a fresh run:
 
 ```
-$ rm -rf teatime
+define(«CMD», «rm -rf teatime»)dnl
+$ CMD
+esyscmd(CMD)dnl
 ```
 
 ```
-$ iotaa --verbose iotaa.demo a_cup_of_tea teatime
-[2025-11-18T20:41:56] DEBUG   Deduplicating task-graph nodes
-[2025-11-18T20:41:56] DEBUG   ──────────
-[2025-11-18T20:41:56] DEBUG   Task Graph
-[2025-11-18T20:41:56] DEBUG   ──────────
-[2025-11-18T20:41:56] DEBUG   The perfect cup of tea
-[2025-11-18T20:41:56] DEBUG     Sugar in cup
-[2025-11-18T20:41:56] DEBUG       The cup
-[2025-11-18T20:41:56] DEBUG       Steeped tea
-[2025-11-18T20:41:56] DEBUG         Boiling water in cup
-[2025-11-18T20:41:56] DEBUG           The cup
-[2025-11-18T20:41:56] DEBUG           Tea bag in cup
-[2025-11-18T20:41:56] DEBUG             The cup
-[2025-11-18T20:41:56] DEBUG             Box of tea bags (teatime/box-of-tea-bags)
-[2025-11-18T20:41:56] DEBUG     The spoon
-[2025-11-18T20:41:56] DEBUG   ─────────
-[2025-11-18T20:41:56] DEBUG   Execution
-[2025-11-18T20:41:56] DEBUG   ─────────
-[2025-11-18T20:41:56] INFO    The cup: Executing
-[2025-11-18T20:41:56] INFO    The cup: Getting cup
-[2025-11-18T20:41:56] INFO    The cup: Ready
-[2025-11-18T20:41:56] DEBUG   The cup: Task completed
-[2025-11-18T20:41:56] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2025-11-18T20:41:56] DEBUG   Box of tea bags (teatime/box-of-tea-bags): Task completed
-[2025-11-18T20:41:56] INFO    The spoon: Executing
-[2025-11-18T20:41:56] INFO    The spoon: Getting spoon
-[2025-11-18T20:41:56] INFO    The spoon: Ready
-[2025-11-18T20:41:56] DEBUG   The spoon: Task completed
-[2025-11-18T20:41:56] WARNING Tea bag in cup: Not ready
-[2025-11-18T20:41:56] WARNING Tea bag in cup: Requires:
-[2025-11-18T20:41:56] WARNING Tea bag in cup: ✔ The cup
-[2025-11-18T20:41:56] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2025-11-18T20:41:56] DEBUG   Tea bag in cup: Task completed
-[2025-11-18T20:41:56] WARNING Boiling water in cup: Not ready
-[2025-11-18T20:41:56] WARNING Boiling water in cup: Requires:
-[2025-11-18T20:41:56] WARNING Boiling water in cup: ✔ The cup
-[2025-11-18T20:41:56] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2025-11-18T20:41:56] DEBUG   Boiling water in cup: Task completed
-[2025-11-18T20:41:56] WARNING Steeped tea: Not ready
-[2025-11-18T20:41:56] WARNING Steeped tea: Requires:
-[2025-11-18T20:41:56] WARNING Steeped tea: ✖ Boiling water in cup
-[2025-11-18T20:41:56] DEBUG   Steeped tea: Task completed
-[2025-11-18T20:41:56] WARNING Sugar in cup: Not ready
-[2025-11-18T20:41:56] WARNING Sugar in cup: Requires:
-[2025-11-18T20:41:56] WARNING Sugar in cup: ✔ The cup
-[2025-11-18T20:41:56] WARNING Sugar in cup: ✖ Steeped tea
-[2025-11-18T20:41:56] DEBUG   Sugar in cup: Task completed
-[2025-11-18T20:41:56] WARNING The perfect cup of tea: Not ready
-[2025-11-18T20:41:56] WARNING The perfect cup of tea: Requires:
-[2025-11-18T20:41:56] WARNING The perfect cup of tea: ✖ Sugar in cup
-[2025-11-18T20:41:56] WARNING The perfect cup of tea: ✔ The spoon
-[2025-11-18T20:41:56] DEBUG   The perfect cup of tea: Task completed
+define(«CMD», «iotaa --verbose iotaa.demo a_cup_of_tea teatime»)dnl
+$ CMD
+esyscmd(CMD« 2>&1»)dnl
 ```
 
 ## Graphing
@@ -657,7 +423,9 @@ $ iotaa --verbose iotaa.demo a_cup_of_tea teatime
 The `-g` / `--graph` switch can be used to emit to `stdout` a description of the current state of the workflow task graph in [Graphviz](https://graphviz.org/) [DOT](https://graphviz.org/doc/info/lang.html) format. Here, for example, the preceding demo workflow is executed in dry-run mode with graph output requested, and the graph document rendered as an SVG image by `dot`:
 
 ```
-$ iotaa --dry-run --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-0.svg
+define(«CMD», «iotaa --dry-run --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-0.svg»)dnl
+$ CMD
+esyscmd(«rm -rf teatime && »CMD)dnl
 ```
 
 The displayed image:
@@ -670,18 +438,22 @@ Removing `--dry-run` and following the first phase of the demo tutorial in the p
 
 - After the first invocation, with cup and spoon added but blocked by missing (external) box of tea bags:
 
+esyscmd(«iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-1.svg»)dnl
 ![teatime-dry-run-image](img/teatime-1.svg)
 
 - After the second invocation, with box of tea bags available and hot water poured, the workflow task graph omits completed work:
 
+esyscmd(«touch teatime/box-of-tea-bags && iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-2.svg»)dnl
 ![teatime-dry-run-image](img/teatime-2.svg)
 
 - After the third invocation, when the tea has steeped and sugar has been added, the workflow task graph looks like:
 
+esyscmd(«sleep 10 && iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-3.svg»)dnl
 ![teatime-dry-run-image](img/teatime-3.svg)
 
 - And, finally, any subsequent invocations show the final workflow task graph state:
 
+esyscmd(«iotaa --graph iotaa.demo a_cup_of_tea teatime 2>/dev/null | dot -Tsvg >img/teatime-4.svg»)dnl
 ![teatime-dry-run-image](img/teatime-4.svg)
 
 ## Cookbook
@@ -717,69 +489,23 @@ Thread-based concurrency as implemented by `iotaa` helps overall execution time 
 `fibonacci1.py`
 
 ``` python
-from iotaa import Asset, log, logcfg, task
-
-logcfg()
-
-
-def fib(n: int) -> int:
-    return n if n < 2 else fib(n - 2) + fib(n - 1)
-
-
-@task
-def fibonacci(n: int):
-    val: list[int] = []
-    yield "Fibonacci %s" % n
-    yield Asset(val, lambda: bool(val))
-    yield None
-    val.append(fib(n))
-
-
-@task
-def main(n1: int, n2: int):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    reqs = [fibonacci(n1), fibonacci(n2)]
-    yield reqs
-    if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.ref[0] for req in reqs])
-    ran = True
+include(«fibonacci1.py»)dnl
 ```
 
 Here's a synchronous run:
 
 ```
-$ bash -c "time iotaa fibonacci1 main 36 37"
-[2025-11-18T20:42:06] INFO    Fibonacci 36: Executing
-[2025-11-18T20:42:09] INFO    Fibonacci 36: Ready
-[2025-11-18T20:42:09] INFO    Fibonacci 37: Executing
-[2025-11-18T20:42:13] INFO    Fibonacci 37: Ready
-[2025-11-18T20:42:13] INFO    Main: Executing
-[2025-11-18T20:42:13] INFO    14930352 24157817
-[2025-11-18T20:42:13] INFO    Main: Ready
-
-real	0m7.183s
-user	0m7.170s
-sys	0m0.012s
+define(«CMD», «bash -c "time iotaa fibonacci1 main 36 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 Unsurprisingly, using threads does not decrease the execution time much:
 
 ```
-$ bash -c "time iotaa --threads 2 fibonacci1 main 36 37"
-[2025-11-18T20:42:13] INFO    Fibonacci 36: Executing
-[2025-11-18T20:42:13] INFO    Fibonacci 37: Executing
-[2025-11-18T20:42:19] INFO    Fibonacci 36: Ready
-[2025-11-18T20:42:21] INFO    Fibonacci 37: Ready
-[2025-11-18T20:42:21] INFO    Main: Executing
-[2025-11-18T20:42:21] INFO    14930352 24157817
-[2025-11-18T20:42:21] INFO    Main: Ready
-
-real	0m7.216s
-user	0m7.209s
-sys	0m0.016s
+define(«CMD», «bash -c "time iotaa --threads 2 fibonacci1 main 36 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
@@ -787,82 +513,23 @@ For CPU-bound tasks, use `multiprocessing` from the Python standard library to o
 `fibonacci2.py`
 
 ``` python
-from __future__ import annotations
-
-from multiprocessing import Process, Value
-from typing import TYPE_CHECKING
-
-from iotaa import Asset, log, logcfg, task
-
-if TYPE_CHECKING:
-    from multiprocessing.sharedctypes import Synchronized
-
-logcfg()
-
-
-def fib(n: int, v: Synchronized | None = None) -> int:
-    result = n if n < 2 else fib(n - 2) + fib(n - 1)
-    if v:
-        v.value = result
-    return result
-
-
-@task
-def fibonacci(n: int):
-    val = Value("i", -1)
-    yield "Fibonacci %s" % n
-    yield Asset(val, lambda: val.value >= 0)
-    yield None
-    p = Process(target=fib, args=(n, val))
-    p.start()
-    p.join()
-
-
-@task
-def main(n1: int, n2: int):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    reqs = [fibonacci(n1), fibonacci(n2)]
-    yield reqs
-    if all(req.ready for req in reqs):
-        log.info("%s %s", *[req.ref.value for req in reqs])
-    ran = True
+include(«fibonacci2.py»)dnl
 ```
 
 This decreases the execution time:
 
 ```
-$ bash -c "time iotaa --threads 2 fibonacci2 main 36 37"
-[2025-11-18T20:42:21] INFO    Fibonacci 36: Executing
-[2025-11-18T20:42:21] INFO    Fibonacci 37: Executing
-[2025-11-18T20:42:24] INFO    Fibonacci 36: Ready
-[2025-11-18T20:42:26] INFO    Fibonacci 37: Ready
-[2025-11-18T20:42:26] INFO    Main: Executing
-[2025-11-18T20:42:26] INFO    14930352 24157817
-[2025-11-18T20:42:26] INFO    Main: Ready
-
-real	0m5.271s
-user	0m8.519s
-sys	0m0.027s
+define(«CMD», «bash -c "time iotaa --threads 2 fibonacci2 main 36 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
 
 ```
-$ bash -c "time iotaa --threads 2 fibonacci2 main 0 37"
-[2025-11-18T20:42:26] INFO    Fibonacci 0: Executing
-[2025-11-18T20:42:26] INFO    Fibonacci 37: Executing
-[2025-11-18T20:42:26] INFO    Fibonacci 0: Ready
-[2025-11-18T20:42:31] INFO    Fibonacci 37: Ready
-[2025-11-18T20:42:31] INFO    Main: Executing
-[2025-11-18T20:42:31] INFO    0 24157817
-[2025-11-18T20:42:31] INFO    Main: Ready
-
-real	0m5.173s
-user	0m5.162s
-sys	0m0.013s
+define(«CMD», «bash -c "time iotaa --threads 2 fibonacci2 main 0 37"»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 ### In-Memory Asset
@@ -872,46 +539,13 @@ External state (e.g. files on disk) may be the most common type of `iotaa` asset
 `location1.py`
 
 ``` python
-import requests
-
-from iotaa import Asset, log, logcfg, task
-
-logcfg()
-
-
-@task
-def json(lat: float, lon: float):
-    val: list[str] = []
-    yield "JSON for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    yield None
-    url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
-    val.append(requests.get(url, timeout=3).json())
-
-
-@task
-def main(lat: float, lon: float):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    req = json(lat, lon)
-    yield req
-    city, state = [
-        req.ref[0]["properties"]["relativeLocation"]["properties"][x]
-        for x in ("city", "state")
-    ]
-    log.info("%s: Location: %s, %s", taskname, city, state)
-    ran = True
+include(«location1.py»)dnl
 ```
 
 ```
-$ iotaa location1 main 40.1672 -105.1091
-[2025-11-18T20:42:31] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-11-18T20:42:32] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-11-18T20:42:32] INFO    Main: Executing
-[2025-11-18T20:42:32] INFO    Main: Location: Longmont, CO
-[2025-11-18T20:42:32] INFO    Main: Ready
+define(«CMD», «iotaa location1 main 40.1672 -105.1091»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 Since `val` is initially empty in `json()`, the second argument to `Asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.ref`.
@@ -923,74 +557,13 @@ In this simple example, there's no obvious benefit to `json()` being a `@task` i
 `location2.py`
 
 ``` python
-import requests
-
-from iotaa import Asset, log, logcfg, ready, task
-
-logcfg()
-
-get = lambda req, x: req.ref[0]["properties"]["relativeLocation"]["properties"][x]
-
-
-@task
-def json(lat: float, lon: float):
-    val: list[str] = []
-    yield "JSON for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    yield None
-    url = "https://api.weather.gov/points/%s,%s" % (lat, lon)
-    val.append(requests.get(url, timeout=3).json())
-
-
-@task
-def city(lat: float, lon: float):
-    val: list[str] = []
-    yield "City for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    req = json(lat, lon)
-    yield req
-    val.append(get(req, "city"))
-
-
-@task
-def state(lat: float, lon: float):
-    val: list[str] = []
-    yield "State for lat %s lon %s" % (lat, lon)
-    yield Asset(val, lambda: bool(val))
-    req = json(lat, lon)
-    yield req
-    val.append(get(req, "state"))
-
-
-@task
-def main(lat: float, lon: float):
-    ran = False
-    taskname = "Main"
-    yield taskname
-    yield Asset(None, lambda: ran)
-    reqs = {"city": city(lat, lon), "state": state(lat, lon)}
-    yield reqs
-    if all(ready(req) for req in reqs.values()):
-        log.info(
-            "%s: Location: %s, %s",
-            taskname,
-            reqs["city"].ref[0],
-            reqs["state"].ref[0],
-        )
-    ran = True
+include(«location2.py»)dnl
 ```
 
 ```
-$ iotaa location2 main 40.1672 -105.1091
-[2025-11-18T20:42:32] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2025-11-18T20:42:32] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2025-11-18T20:42:32] INFO    City for lat 40.1672 lon -105.1091: Executing
-[2025-11-18T20:42:32] INFO    City for lat 40.1672 lon -105.1091: Ready
-[2025-11-18T20:42:32] INFO    State for lat 40.1672 lon -105.1091: Executing
-[2025-11-18T20:42:32] INFO    State for lat 40.1672 lon -105.1091: Ready
-[2025-11-18T20:42:32] INFO    Main: Executing
-[2025-11-18T20:42:32] INFO    Main: Location: Longmont, CO
-[2025-11-18T20:42:32] INFO    Main: Ready
+define(«CMD», «iotaa location2 main 40.1672 -105.1091»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 Here, both `city()` and `state()` yield `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers. This avoids pointless duplicate network requests.
@@ -1002,43 +575,23 @@ An `@xternal` task can serve as a time gate, such that a dependent task cannot e
 `timegate.py`
 
 ``` python
-from datetime import datetime, timezone
-from pathlib import Path
-
-from iotaa import Asset, external, task
-
-
-@external
-def wait(gotime: datetime):
-    yield "Time %s" % gotime
-    yield Asset(None, lambda: datetime.now(timezone.utc) >= gotime)
-
-
-@task
-def file(gotime: str):
-    path = Path("file")
-    yield "Touch %s" % path
-    yield Asset(path, path.is_file)
-    yield wait(datetime.fromisoformat(f"{gotime}+00:00"))
-    path.touch()
+include(«timegate.py»)dnl
 ```
 
 When run before the specified time:
 
 ```
-$ iotaa timegate file $(date -d@$(( $(date +%s) + 3600 )) +%Y-%m-%dT%H)
-[2025-11-18T20:42:32] WARNING Time 2025-11-18 21:00:00+00:00: Not ready [external asset]
-[2025-11-18T20:42:32] WARNING Touch file: Not ready
-[2025-11-18T20:42:32] WARNING Touch file: Requires:
-[2025-11-18T20:42:32] WARNING Touch file: ✖ Time 2025-11-18 21:00:00+00:00
+define(«CMD», «iotaa timegate file $(date -d@$(( $(date +%s) + 3600 )) +%Y-%m-%dT%H)»)dnl
+$ CMD
+esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1 && rm -f file»)dnl
 ```
 
 When run after the specified time:
 
 ```
-$ iotaa timegate file $(date -d@$(( $(date +%s) - 3600 )) +%Y-%m-%dT%H)
-[2025-11-18T20:42:32] INFO    Touch file: Executing
-[2025-11-18T20:42:32] INFO    Touch file: Ready
+define(«CMD», «iotaa timegate file $(date -d@$(( $(date +%s) - 3600 )) +%Y-%m-%dT%H)»)dnl
+$ CMD
+esyscmd(«rm -f file && PYTHONPATH=m4/include »CMD« 2>&1 && rm -f file»)dnl
 ```
 
 ### Upstream Resource
@@ -1048,43 +601,21 @@ An `@external` task can be used to represent availability of an upstream resourc
 `upstream.py`
 
 ``` python
-from pathlib import Path
-from urllib.parse import urlparse
-
-from requests import get, head
-
-from iotaa import Asset, external, task
-
-
-@external
-def upstream(url: str):
-    yield "Upstream resource %s" % url
-    yield Asset(None, lambda: head(url, timeout=3).status_code == 200)
-
-
-@task
-def file(url: str):
-    path = Path(Path(urlparse(url).path).name)
-    yield "Local resource %s" % path
-    yield Asset(path, path.is_file)
-    yield upstream(url)
-    path.write_bytes(get(url, timeout=3).content)
+include(«upstream.py»)dnl
 ```
 
 An attempt to download data related to tomorrow's 00:00 UTC weather corecast, which is not yet available:
 
 ```
-$ iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "tomorrow 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx
-[2025-11-18T20:42:32] WARNING Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20251119/conus/hrrr.t00z.wrfnatf00.grib2.idx: Not ready [external asset]
-[2025-11-18T20:42:32] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: Not ready
-[2025-11-18T20:42:32] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: Requires:
-[2025-11-18T20:42:32] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: ✖ Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20251119/conus/hrrr.t00z.wrfnatf00.grib2.idx
+define(«CMD», «iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "tomorrow 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1»)dnl
 ```
 
 A successful download of data from yesterday's 00:00 UTC forecast, which is available:
 
 ```
-$ iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "yesterday 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx
-[2025-11-18T20:42:33] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Executing
-[2025-11-18T20:42:33] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Ready
+define(«CMD», «iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "yesterday 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx»)dnl
+$ CMD
+esyscmd(«PYTHONPATH=m4/include »CMD« 2>&1 && rm -f hrrr.*.idx»)dnl
 ```
