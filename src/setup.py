@@ -26,7 +26,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     description="A simple workflow engine",
-    entry_points={"console_scripts": ["iotaa = {x}.{x}:main".format(x=name_py)]},
+    entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
     include_package_data=True,
     long_description="A simple workflow engine"
     " with semantics inspired by Luigi"
