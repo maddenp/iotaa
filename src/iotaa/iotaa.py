@@ -9,9 +9,9 @@ import logging
 import sys
 import traceback
 from abc import ABC, abstractmethod
-from argparse import ArgumentParser, HelpFormatter, Namespace
+from argparse import ArgumentParser, HelpFormatter
 from collections import UserDict
-from contextvars import Context, ContextVar, copy_context
+from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from functools import wraps
 from graphlib import TopologicalSorter
@@ -19,8 +19,8 @@ from hashlib import sha256
 from importlib import import_module, resources
 from inspect import currentframe
 from itertools import chain
-from json import JSONDecodeError, loads
-from logging import Logger, getLogger
+from json import JSONDecodeError
+from logging import getLogger
 from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
@@ -28,7 +28,10 @@ from typing import TYPE_CHECKING, Any, TypeVar, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
+    from argparse import Namespace
     from collections.abc import Callable, Iterator
+    from contextvars import Context
+    from logging import Logger
     from types import ModuleType
 
 
@@ -811,9 +814,9 @@ def _reify(s: str) -> _JSONValT:
     """
     val: _JSONValT
     try:
-        val = loads(s)
+        val = json.loads(s)
     except JSONDecodeError:
-        val = loads(f'"{s}"')
+        val = json.loads(f'"{s}"')
     return val
 
 
@@ -839,7 +842,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str,
     :param func: A task function (receives the provided args & kwargs).
     :return: Information needed for task execution.
     """
-    ctx = copy_context()
+    ctx = copy_context()  # the unmodified module context
     if ctx.get(_LOGGER) is None:
         ctx.run(lambda: _LOGGER.set(kwargs.get("log") or getLogger()))
     if ctx.get(_REPS) is None:
@@ -875,5 +878,5 @@ _T = TypeVar("_T")
 # Private variables
 
 _LOGGER: ContextVar[Logger | None] = ContextVar("_LOGGER", default=None)
-_MARKER = uuid4().hex
+_MARKER: str = uuid4().hex
 _REPS: ContextVar[_RepsT | None] = ContextVar("_REPS", default=None)

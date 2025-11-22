@@ -5,6 +5,7 @@ Tests for module iotaa.
 import logging
 import re
 from abc import abstractmethod
+from argparse import Namespace
 from collections import UserDict
 from collections.abc import Iterator
 from contextvars import copy_context
@@ -122,7 +123,7 @@ def args(path, show):
     m = path / "a.py"
     m.touch()
     strs = ["foo", "42", "3.14", "true"]
-    return iotaa.Namespace(
+    return Namespace(
         args=strs,
         dry_run=True,
         function="a_function",
