@@ -13,7 +13,7 @@ from argparse import ArgumentParser, HelpFormatter, Namespace
 from collections import UserDict
 from contextvars import Context, ContextVar, copy_context
 from dataclasses import dataclass
-from functools import cached_property, wraps
+from functools import wraps
 from graphlib import TopologicalSorter
 from hashlib import sha256
 from importlib import import_module, resources
@@ -44,6 +44,8 @@ class Asset:
     :param ready: A function that, when called, indicates whether the asset is ready to use.
     """
 
+    __slots__ = ("ready", "ref")
+
     ref: Any
     ready: Callable[..., bool]
 
@@ -53,12 +55,16 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
+    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+
     def __init__(self, taskname: str, threads: int) -> None:
         self.taskname = taskname
-        self._threads = threads
         self._asset: _AssetsT = None
         self._first_visit = True
+        self._ready: bool | None = None
         self._req: _ReqsT = None
+        self._root: bool | None = None
+        self._threads = threads
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -80,17 +86,19 @@ class Node(ABC):
     def graph(self) -> str:
         return str(_Graph(root=self))
 
-    @cached_property
+    @property
     def ready(self) -> bool:
         """
         Are the assets represented by this task-graph node ready?
         """
-        try:
-            return all(x.ready() for x in _flatten(self.asset))
-        except TypeError:
-            msg = "Has task '%s' mistakenly yielded a task where an asset was expected?"
-            logging.error(msg, self.taskname)
-            raise
+        if self._ready is None:
+            try:
+                self._ready = all(x.ready() for x in _flatten(self.asset))
+            except TypeError:
+                msg = "Has task '%s' mistakenly yielded a task where an asset was expected?"
+                logging.error(msg, self.taskname)
+                raise
+        return self._ready
 
     @property
     def ref(self) -> Any:
@@ -100,21 +108,24 @@ class Node(ABC):
     def req(self) -> _ReqsT:
         return self._req
 
-    @cached_property
+    @property
     def root(self) -> bool:
         """
         Is this the root task node, i.e. not a requirement of another task?
         """
-        nodes_in_call_stack = 0
-        frame = currentframe()
-        while frame is not None:
-            code = frame.f_code
-            if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
-                if nodes_in_call_stack > 0:
-                    return False
-                nodes_in_call_stack += 1
-            frame = frame.f_back
-        return True
+        if self._root is None:
+            self._root = True  # initial guess
+            nodes_in_call_stack = 0
+            frame = currentframe()
+            while frame is not None:
+                code = frame.f_code
+                if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
+                    if nodes_in_call_stack > 0:
+                        self._root = False
+                        break
+                    nodes_in_call_stack += 1
+                frame = frame.f_back
+        return self._root
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
@@ -220,10 +231,11 @@ class Node(ABC):
         Log readiness status for this task-graph node and its requirement(s).
         """
         is_external = isinstance(self, NodeExternal)
-        extmsg = " [external asset]" if is_external and not self.ready else ""
-        logfunc, readymsg = (log.info, "Ready") if self.ready else (log.warning, "Not ready")
+        ready = self.ready
+        extmsg = " [external asset]" if is_external and not ready else ""
+        logfunc, readymsg = (log.info, "Ready") if ready else (log.warning, "Not ready")
         logfunc("%s: %s%s", self.taskname, readymsg, extmsg)
-        if self.ready:
+        if ready:
             return
         reqs = {req: req.ready for req in _flatten(self._req)}
         if reqs:
@@ -238,6 +250,8 @@ class NodeCollection(Node):
     A node encapsulating a @collection-decorated function/method.
     """
 
+    __slots__ = ("_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+
     def __init__(self, taskname: str, threads: int, reqs: _ReqsT = None) -> None:
         super().__init__(taskname=taskname, threads=threads)
         self._req = reqs
@@ -246,7 +260,7 @@ class NodeCollection(Node):
         if self.root and self._first_visit:
             self._exec(dry_run)
         else:
-            del self.ready  # reset cached property
+            self._ready = None  # reset cached value
             self._report_readiness()
         return self
 
@@ -265,6 +279,8 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
+    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+
     def __init__(self, taskname: str, threads: int, assets: _AssetsT) -> None:
         super().__init__(taskname=taskname, threads=threads)
         self._asset = assets
@@ -282,6 +298,17 @@ class NodeTask(Node):
     A node encapsulating a @task-decorated function/method.
     """
 
+    __slots__ = (
+        "_asset",
+        "_continuation",
+        "_first_visit",
+        "_ready",
+        "_req",
+        "_root",
+        "_threads",
+        "taskname",
+    )
+
     def __init__(
         self, taskname: str, threads: int, assets: _AssetsT, reqs: _ReqsT, continuation: Callable
     ) -> None:
@@ -298,7 +325,7 @@ class NodeTask(Node):
                 if dry_run:
                     log.info("%s: SKIPPING (DRY RUN)", self.taskname)
                 else:
-                    del self.ready  # reset cached property
+                    self._ready = None  # reset cached value
                     self._continuation()
             self._report_readiness()
         return self

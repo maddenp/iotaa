@@ -364,7 +364,7 @@ def test_Node__add_node_and_predecessors(caplog, fakefs, test_ctx):
 
 def test_Node__assemble(caplog, fakefs, test_ctx):
     node = t_collection_baz(fakefs)
-    with patch.object(node, "_add_node_and_predecessors") as _add_node_and_predecessors:
+    with patch.object(iotaa.Node, "_add_node_and_predecessors") as _add_node_and_predecessors:
         g = test_ctx.run(node._assemble)
     assert logged(caplog, "Task Graph")
     _add_node_and_predecessors.assert_called_once_with(ANY, node)
