@@ -500,7 +500,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
         state = cast(_State, run(_STATE.get))
         reps = cast(_RepsT, state.reps)
         reqs = _not_ready_reqs(rawreqs, reps)
-        continuation = _continuation(iterator, taskname)  # PM FIXME NEEDS CONTEXT
+        continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
