@@ -24,7 +24,7 @@ from logging import getLogger
 from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -223,7 +223,7 @@ class Node(ABC):
         interrupt = Event()
         threads = []
         for _ in range(self._threads):
-            ctx = copy_context()
+            ctx = copy_context()  # context for the next thread
             thread = Thread(target=ctx.run, args=(_do, todo, done, interrupt, dry_run))
             threads.append(thread)
             thread.start()
@@ -260,7 +260,7 @@ class NodeCollection(Node):
         self._req = reqs
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._first_visit and self.root:
             self._exec(dry_run)
         else:
             self._ready = None  # reset cached value
@@ -289,7 +289,7 @@ class NodeExternal(Node):
         self._asset = assets
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._first_visit and self.root:
             self._exec(dry_run)
         else:
             self._report_readiness()
@@ -321,7 +321,7 @@ class NodeTask(Node):
         self._continuation = continuation
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._first_visit and self.root:
             self._exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self._req)):
@@ -357,8 +357,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        reps = ctx.run(lambda: _REPS.get())
-        assert reps is not None
+        reps = cast(_RepsT, cast(_Context, ctx.run(lambda: _CTX.get())).reps)
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
@@ -495,8 +494,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         assets = ctx.run(_next, iterator, "assets")
-        reps = ctx.run(lambda: _REPS.get())
-        assert reps is not None
+        reps = cast(_RepsT, cast(_Context, ctx.run(lambda: _CTX.get())).reps)
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
@@ -587,7 +585,8 @@ class _LoggerProxy:
 
     @staticmethod
     def logger() -> Logger:
-        if not (it := _LOGGER.get()):
+        ctx = _CTX.get()
+        if not ctx or not (it := ctx.logger):
             msg = "No logger found: Ensure this call originated in an iotaa task function."
             raise _IotaaError(msg)
         return it
@@ -842,11 +841,10 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str,
     :param func: A task function (receives the provided args & kwargs).
     :return: Information needed for task execution.
     """
-    ctx = copy_context()  # the unmodified module context
-    if ctx.get(_LOGGER) is None:
-        ctx.run(lambda: _LOGGER.set(kwargs.get("log") or getLogger()))
-    if ctx.get(_REPS) is None:
-        ctx.run(lambda: _REPS.set(UserDict()))
+    ctx = copy_context()
+    if _CTX.get() is None:
+        new = _Context(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
+        ctx.run(lambda: _CTX.set(new))
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     iterator = ctx.run(func, *args, **task_kwargs)
@@ -877,6 +875,14 @@ _T = TypeVar("_T")
 
 # Private variables
 
-_LOGGER: ContextVar[Logger | None] = ContextVar("_LOGGER", default=None)
 _MARKER: str = uuid4().hex
-_REPS: ContextVar[_RepsT | None] = ContextVar("_REPS", default=None)
+
+
+@dataclass(frozen=True)
+class _Context:
+    logger: Logger | None = None
+    reps: _RepsT | None = None
+    root: Node | None = None
+
+
+_CTX: ContextVar[_Context | None] = ContextVar("_CTX", default=None)
