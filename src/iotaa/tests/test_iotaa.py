@@ -987,6 +987,7 @@ def test__taskprops(test_logger):
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
+    assert ctx is not None
     assert cast(iotaa._State, ctx[iotaa._STATE]).reps == {}
     assert next(iterator) == 42
     logger = cast(iotaa._State, ctx[iotaa._STATE]).logger
@@ -1007,6 +1008,7 @@ def test__taskprops__extras(test_logger):
     assert taskname == tn
     assert threads == 1
     assert dry_run is True
+    assert ctx is not None
     assert cast(iotaa._State, ctx[iotaa._STATE]).reps == {}
     assert next(iterator) == 42
     assert cast(iotaa._State, ctx[iotaa._STATE]).logger is test_logger

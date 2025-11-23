@@ -357,8 +357,11 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        reps = cast(_RepsT, cast(_State, ctx.run(lambda: _STATE.get())).reps)
-        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
+        f = ctx.run if ctx else lambda f, *args: f(*args)
+        rawreqs = f(_next, iterator, "requirements")
+        state = cast(_State, f(_STATE.get))
+        reps = cast(_RepsT, state.reps)
+        reqs = _not_ready_reqs(rawreqs, reps)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
@@ -382,7 +385,8 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        assets = ctx.run(_next, iterator, "assets")
+        f = ctx.run if ctx else lambda f, *args: f(*args)
+        assets = f(_next, iterator, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
@@ -493,10 +497,13 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        assets = ctx.run(_next, iterator, "assets")
-        reps = cast(_RepsT, cast(_State, ctx.run(lambda: _STATE.get())).reps)
-        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
-        continuation = _continuation(iterator, taskname)
+        f = ctx.run if ctx else lambda f, *args: f(*args)
+        assets = f(_next, iterator, "assets")
+        rawreqs = f(_next, iterator, "requirements")
+        state = cast(_State, f(_STATE.get))
+        reps = cast(_RepsT, state.reps)
+        reqs = _not_ready_reqs(rawreqs, reps)
+        continuation = _continuation(iterator, taskname)  # PM FIXME NEEDS CONTEXT
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
@@ -606,7 +613,12 @@ log = _LoggerProxy()
 
 
 def _construct_and_if_root_call(
-    node_class: type[_NodeT], taskname: str, threads: int, ctx: Context, dry_run: bool, **kwargs
+    node_class: type[_NodeT],
+    taskname: str,
+    threads: int,
+    ctx: Context | None,
+    dry_run: bool,
+    **kwargs,
 ) -> _NodeT:
     """
     Construct a Node object and, if it is the root node, call it.
@@ -620,7 +632,7 @@ def _construct_and_if_root_call(
     """
     node = node_class(taskname=taskname, threads=threads, **kwargs)
     if node.root:
-        ctx.run(node, dry_run)
+        ctx.run(node, dry_run) if ctx else node(dry_run)
     return node
 
 
@@ -841,21 +853,27 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
     sys.exit(0)
 
 
-def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str, bool, int]:
+def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context | None, Iterator, str, bool, int]:
     """
     Collect and return info about the task.
 
     :param func: A task function (receives the provided args & kwargs).
     :return: Information needed for task execution.
     """
-    ctx = copy_context()
+    # Prepare a context if not already inside an established context:
+    ctx = None
     if _STATE.get() is None:
+        ctx = copy_context()
         new = _State(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
         ctx.run(lambda: _STATE.set(new))
+    # Prepare arguments to task function:
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
-    iterator = ctx.run(func, *args, **task_kwargs)
-    taskname = ctx.run(_next, iterator, "task name")
+    # Run task function up to 1st yield:
+    iterator = ctx.run(func, *args, **task_kwargs) if ctx else func(*args, **task_kwargs)
+    # Run task function up to 2nd yield, obtaining task name:
+    taskname = ctx.run(_next, iterator, "task name") if ctx else _next(iterator, "task name")
+    # Collect remaining task properties:
     dry_run = bool(kwargs.get("dry_run"))
     threads = kwargs.get("threads") or 1
     return ctx, iterator, taskname, dry_run, threads
