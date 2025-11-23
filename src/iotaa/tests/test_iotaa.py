@@ -796,7 +796,11 @@ def test__construct_and_call_if_root(test_ctx):
     threads = 0
     dry_run = True
     val: Mock = iotaa._construct_and_if_root_call(
-        node_class=node_class, taskname=taskname, threads=threads, ctx=test_ctx, dry_run=dry_run
+        node_class=node_class,
+        taskname=taskname,
+        threads=threads,
+        ctxrun=test_ctx.run,
+        dry_run=dry_run,
     )
     node_class.assert_called_once_with(taskname=taskname, threads=threads)
     node.assert_called_once_with(dry_run)
@@ -983,9 +987,8 @@ def test__taskprops(test_logger):
         yield n
 
     tn = "task"
-    ctx, run, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, threads=1)
-    assert ctx is not None
-    state = cast(iotaa._State, run(_STATE.get))
+    ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, threads=1)
+    state = cast(iotaa._State, ctxrun(_STATE.get))
     assert state.reps == {}
     assert next(iterator) == 42
     assert isinstance(state.logger, logging.Logger)
@@ -1002,11 +1005,10 @@ def test__taskprops__extras(test_logger):
         iotaa.log.info("testing")
 
     tn = "task"
-    ctx, run, iterator, taskname, dry_run, threads = iotaa._taskprops(
+    ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(
         f, tn, n=42, dry_run=True, log=test_logger
     )
-    assert ctx is not None
-    state = cast(iotaa._State, run(_STATE.get))
+    state = cast(iotaa._State, ctxrun(_STATE.get))
     assert state.reps == {}
     assert next(iterator) == 42
     assert state.logger is test_logger
