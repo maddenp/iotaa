@@ -592,6 +592,13 @@ class _LoggerProxy:
         return it
 
 
+@dataclass(frozen=True)
+class _State:
+    logger: Logger | None = None
+    reps: _RepsT | None = None
+    root: Node | None = None
+
+
 log = _LoggerProxy()
 
 
@@ -876,13 +883,4 @@ _T = TypeVar("_T")
 # Private variables
 
 _MARKER: str = uuid4().hex
-
-
-@dataclass(frozen=True)
-class _State:
-    logger: Logger | None = None
-    reps: _RepsT | None = None
-    root: Node | None = None
-
-
 _STATE: ContextVar[_State | None] = ContextVar("_STATE", default=None)
