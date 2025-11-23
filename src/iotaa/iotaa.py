@@ -859,8 +859,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     # A function to run another in the correct context:
     ctxrun: Callable = lambda f, *args: f(*args)
     if _STATE.get() is None:
-        ctx = copy_context()  # PM just run = copy_context().run ?
-        ctxrun = ctx.run
+        ctxrun = copy_context().run
         new = _State(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
         ctxrun(_STATE.set, new)
     # Prepare arguments to task function:
