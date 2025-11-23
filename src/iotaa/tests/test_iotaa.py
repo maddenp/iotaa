@@ -26,7 +26,7 @@ from pytest import fixture, mark, raises
 
 from iotaa import iotaa
 
-_CTX = iotaa._CTX
+_STATE = iotaa._STATE
 
 # Fixtures
 
@@ -72,8 +72,8 @@ def graphkit():
 @fixture
 def test_ctx(test_logger):
     ctx = copy_context()
-    new = iotaa._Context(logger=test_logger, reps=UserDict(), root=None)
-    ctx.run(lambda: _CTX.set(new))
+    new = iotaa._State(logger=test_logger, reps=UserDict(), root=None)
+    ctx.run(lambda: _STATE.set(new))
     return ctx
 
 
@@ -987,9 +987,9 @@ def test__taskprops(test_logger):
     assert taskname == tn
     assert threads == 1
     assert dry_run is False
-    assert cast(iotaa._Context, ctx[iotaa._CTX]).reps == {}
+    assert cast(iotaa._State, ctx[iotaa._STATE]).reps == {}
     assert next(iterator) == 42
-    logger = cast(iotaa._Context, ctx[iotaa._CTX]).logger
+    logger = cast(iotaa._State, ctx[iotaa._STATE]).logger
     assert isinstance(logger, logging.Logger)
     assert logger is not test_logger
 
@@ -1007,9 +1007,9 @@ def test__taskprops__extras(test_logger):
     assert taskname == tn
     assert threads == 1
     assert dry_run is True
-    assert cast(iotaa._Context, ctx[iotaa._CTX]).reps == {}
+    assert cast(iotaa._State, ctx[iotaa._STATE]).reps == {}
     assert next(iterator) == 42
-    assert cast(iotaa._Context, ctx[iotaa._CTX]).logger is test_logger
+    assert cast(iotaa._State, ctx[iotaa._STATE]).logger is test_logger
 
 
 def test__version():

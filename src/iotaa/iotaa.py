@@ -357,7 +357,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        reps = cast(_RepsT, cast(_Context, ctx.run(lambda: _CTX.get())).reps)
+        reps = cast(_RepsT, cast(_State, ctx.run(lambda: _STATE.get())).reps)
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
@@ -494,7 +494,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         assets = ctx.run(_next, iterator, "assets")
-        reps = cast(_RepsT, cast(_Context, ctx.run(lambda: _CTX.get())).reps)
+        reps = cast(_RepsT, cast(_State, ctx.run(lambda: _STATE.get())).reps)
         reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
         continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
@@ -585,7 +585,7 @@ class _LoggerProxy:
 
     @staticmethod
     def logger() -> Logger:
-        ctx = _CTX.get()
+        ctx = _STATE.get()
         if not ctx or not (it := ctx.logger):
             msg = "No logger found: Ensure this call originated in an iotaa task function."
             raise _IotaaError(msg)
@@ -842,9 +842,9 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str,
     :return: Information needed for task execution.
     """
     ctx = copy_context()
-    if _CTX.get() is None:
-        new = _Context(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
-        ctx.run(lambda: _CTX.set(new))
+    if _STATE.get() is None:
+        new = _State(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
+        ctx.run(lambda: _STATE.set(new))
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     iterator = ctx.run(func, *args, **task_kwargs)
@@ -879,10 +879,10 @@ _MARKER: str = uuid4().hex
 
 
 @dataclass(frozen=True)
-class _Context:
+class _State:
     logger: Logger | None = None
     reps: _RepsT | None = None
     root: Node | None = None
 
 
-_CTX: ContextVar[_Context | None] = ContextVar("_CTX", default=None)
+_STATE: ContextVar[_State | None] = ContextVar("_STATE", default=None)
