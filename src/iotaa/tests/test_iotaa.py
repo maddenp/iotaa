@@ -983,16 +983,16 @@ def test__taskprops(test_logger):
         yield n
 
     tn = "task"
-    ctx, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, threads=1)
-    assert taskname == tn
-    assert threads == 1
-    assert dry_run is False
+    ctx, run, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, threads=1)
     assert ctx is not None
-    assert cast(iotaa._State, ctx[iotaa._STATE]).reps == {}
+    state = cast(iotaa._State, run(_STATE.get))
+    assert state.reps == {}
     assert next(iterator) == 42
-    logger = cast(iotaa._State, ctx[iotaa._STATE]).logger
-    assert isinstance(logger, logging.Logger)
-    assert logger is not test_logger
+    assert isinstance(state.logger, logging.Logger)
+    assert state.logger is not test_logger
+    assert taskname == tn
+    assert dry_run is False
+    assert threads == 1
 
 
 def test__taskprops__extras(test_logger):
@@ -1002,16 +1002,17 @@ def test__taskprops__extras(test_logger):
         iotaa.log.info("testing")
 
     tn = "task"
-    ctx, iterator, taskname, dry_run, threads = iotaa._taskprops(
+    ctx, run, iterator, taskname, dry_run, threads = iotaa._taskprops(
         f, tn, n=42, dry_run=True, log=test_logger
     )
-    assert taskname == tn
-    assert threads == 1
-    assert dry_run is True
     assert ctx is not None
-    assert cast(iotaa._State, ctx[iotaa._STATE]).reps == {}
+    state = cast(iotaa._State, run(_STATE.get))
+    assert state.reps == {}
     assert next(iterator) == 42
-    assert cast(iotaa._State, ctx[iotaa._STATE]).logger is test_logger
+    assert state.logger is test_logger
+    assert taskname == tn
+    assert dry_run is True
+    assert threads == 1
 
 
 def test__version():

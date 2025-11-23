@@ -356,10 +356,9 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
 
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
-        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        f = ctx.run if ctx else lambda f, *args: f(*args)
-        rawreqs = f(_next, iterator, "requirements")
-        state = cast(_State, f(_STATE.get))
+        ctx, run, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        rawreqs = run(_next, iterator, "requirements")
+        state = cast(_State, run(_STATE.get))
         reps = cast(_RepsT, state.reps)
         reqs = _not_ready_reqs(rawreqs, reps)
         return _construct_and_if_root_call(
@@ -384,9 +383,8 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
 
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        f = ctx.run if ctx else lambda f, *args: f(*args)
-        assets = f(_next, iterator, "assets")
+        ctx, run, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        assets = run(_next, iterator, "assets")
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
@@ -496,11 +494,10 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
 
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
-        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        f = ctx.run if ctx else lambda f, *args: f(*args)
-        assets = f(_next, iterator, "assets")
-        rawreqs = f(_next, iterator, "requirements")
-        state = cast(_State, f(_STATE.get))
+        ctx, run, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        assets = run(_next, iterator, "assets")
+        rawreqs = run(_next, iterator, "requirements")
+        state = cast(_State, run(_STATE.get))
         reps = cast(_RepsT, state.reps)
         reqs = _not_ready_reqs(rawreqs, reps)
         continuation = _continuation(iterator, taskname)  # PM FIXME NEEDS CONTEXT
@@ -853,7 +850,9 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
     sys.exit(0)
 
 
-def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context | None, Iterator, str, bool, int]:
+def _taskprops(
+    func: Callable, *args, **kwargs
+) -> tuple[Context | None, Callable, Iterator, str, bool, int]:
     """
     Collect and return info about the task.
 
@@ -866,6 +865,8 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context | None, Iterato
         ctx = copy_context()
         new = _State(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
         ctx.run(lambda: _STATE.set(new))
+    # A function to run another function in the correct context:
+    run = ctx.run if ctx else lambda f, *args: f(*args)
     # Prepare arguments to task function:
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
@@ -876,7 +877,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context | None, Iterato
     # Collect remaining task properties:
     dry_run = bool(kwargs.get("dry_run"))
     threads = kwargs.get("threads") or 1
-    return ctx, iterator, taskname, dry_run, threads
+    return ctx, run, iterator, taskname, dry_run, threads
 
 
 def _version() -> str:
