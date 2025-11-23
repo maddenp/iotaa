@@ -855,9 +855,9 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str,
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     iterator = ctx.run(func, *args, **task_kwargs)
-    taskname = str(ctx.run(_next, iterator, "task name"))
+    taskname = ctx.run(_next, iterator, "task name")
     dry_run = bool(kwargs.get("dry_run"))
-    threads = int(kwargs.get("threads") or 1)
+    threads = kwargs.get("threads") or 1
     return ctx, iterator, taskname, dry_run, threads
 
 
