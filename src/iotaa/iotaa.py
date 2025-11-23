@@ -222,7 +222,7 @@ class Node(ABC):
         interrupt = Event()
         threads = []
         for _ in range(self._threads):
-            ctx = copy_context()  # context for the next thread
+            ctx = copy_context()  # context for the thread
             thread = Thread(target=ctx.run, args=(_do, todo, done, interrupt, dry_run))
             threads.append(thread)
             thread.start()
