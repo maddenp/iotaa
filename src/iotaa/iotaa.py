@@ -24,7 +24,7 @@ from logging import getLogger
 from pathlib import Path
 from queue import Queue
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -773,7 +773,8 @@ def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
     reqs = ctxrun(_next, iterator, "requirements")
     if reqs is None:
         return None
-    state = cast(_State, ctxrun(_STATE.get))
+    state = ctxrun(_STATE.get)
+    assert state is not None
     if isinstance(reqs, dict):
         return {k: the(req) for k, req in reqs.items() if not the(req).ready}
     if isinstance(reqs, list):
