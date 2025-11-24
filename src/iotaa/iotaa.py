@@ -356,10 +356,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        rawreqs = ctxrun(_next, iterator, "requirements")
-        state = cast(_State, ctxrun(_STATE.get))
-        reps = cast(_RepsT, state.reps)
-        reqs = _not_ready_reqs(rawreqs, reps)
+        reqs = _not_ready_reqs(ctxrun, iterator)
         return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
@@ -495,10 +492,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         assets = ctxrun(_next, iterator, "assets")
-        rawreqs = ctxrun(_next, iterator, "requirements")
-        state = cast(_State, ctxrun(_STATE.get))
-        reps = cast(_RepsT, state.reps)
-        reqs = _not_ready_reqs(rawreqs, reps)
+        reqs = _not_ready_reqs(ctxrun, iterator)
         continuation = _continuation(iterator, taskname)
         return _construct_and_if_root_call(
             node_class=NodeTask,
@@ -744,6 +738,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
     """
     Return the next value from the generator, if available. Otherwise log an error and exit.
 
+    :param iterator: The current task.
     :param desc: A description of the expected value.
     """
     try:
@@ -753,12 +748,12 @@ def _next(iterator: Iterator, desc: str) -> Any:
         raise _IotaaError(msg) from e
 
 
-def _not_ready_reqs(reqs: _ReqsT, reps: _RepsT) -> _ReqsT:
+def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
     """
     Return only not-ready requirements.
 
-    :param reqs: One or more Node objects representing task requirements.
-    :param reps: Mapping from tasknames to representative Nodes.
+    :param ctxrun: A function to run another in the correct context.
+    :param iterator: The current task.
     """
 
     # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
@@ -775,8 +770,11 @@ def _not_ready_reqs(reqs: _ReqsT, reps: _RepsT) -> _ReqsT:
             reps[req.taskname] = req
         return reps[req.taskname]
 
+    reqs = ctxrun(_next, iterator, "requirements")
     if reqs is None:
         return None
+    state = cast(_State, ctxrun(_STATE.get))
+    reps = cast(_RepsT, state.reps)
     if isinstance(reqs, dict):
         return {k: the(req) for k, req in reqs.items() if not the(req).ready}
     if isinstance(reqs, list):

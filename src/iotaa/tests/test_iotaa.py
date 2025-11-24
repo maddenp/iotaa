@@ -887,34 +887,36 @@ def test__not_ready_reqs():
     d = iotaa.NodeExternal(**kwargs("n", False))  # a duplicate not-ready node
     r = iotaa.NodeExternal(**kwargs("r", True))  # a ready node
     nodes: UserDict[str, iotaa.NodeExternal] = UserDict()
-    assert iotaa._not_ready_reqs({}, nodes) == {}
+    ctxrun = lambda reqs: Mock(side_effect=[reqs, Mock(reps=nodes)])
+    iterator: Iterator = iter([])  # never used due to ctxrun mock
+    assert iotaa._not_ready_reqs(ctxrun({}), iterator) == {}
     assert nodes == {}
-    assert iotaa._not_ready_reqs({"r": r}, nodes) == {}
+    assert iotaa._not_ready_reqs(ctxrun({"r": r}), iterator) == {}
     assert nodes == {"r": r}
     invariant = lambda: nodes == {"n": n, "r": r} and nodes["n"] is n
-    assert iotaa._not_ready_reqs({"n": n}, nodes) == {"n": n}
+    assert iotaa._not_ready_reqs(ctxrun({"n": n}), iterator) == {"n": n}
     assert invariant()
-    assert iotaa._not_ready_reqs({"n": d}, nodes) == {"n": d}
+    assert iotaa._not_ready_reqs(ctxrun({"n": d}), iterator) == {"n": d}
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready_reqs({"r": r, "n": n}, nodes) == {"n": n}
+    assert iotaa._not_ready_reqs(ctxrun({"r": r, "n": n}), iterator) == {"n": n}
     assert invariant()
-    assert iotaa._not_ready_reqs([], nodes) == []
+    assert iotaa._not_ready_reqs(ctxrun([]), iterator) == []
     assert invariant()
-    assert iotaa._not_ready_reqs([r], nodes) == []
+    assert iotaa._not_ready_reqs(ctxrun([r]), iterator) == []
     assert invariant()
-    assert iotaa._not_ready_reqs([n], nodes) == [n]
+    assert iotaa._not_ready_reqs(ctxrun([n]), iterator) == [n]
     assert invariant()
-    assert iotaa._not_ready_reqs([d], nodes) == [n]
+    assert iotaa._not_ready_reqs(ctxrun([d]), iterator) == [n]
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready_reqs([r, n], nodes) == [n]
+    assert iotaa._not_ready_reqs(ctxrun([r, n]), iterator) == [n]
     assert invariant()
-    assert iotaa._not_ready_reqs(r, nodes) is None
+    assert iotaa._not_ready_reqs(ctxrun(r), iterator) is None
     assert invariant()
-    assert iotaa._not_ready_reqs(n, nodes) is n
+    assert iotaa._not_ready_reqs(ctxrun(n), iterator) is n
     assert invariant()
-    assert iotaa._not_ready_reqs(d, nodes) is n
+    assert iotaa._not_ready_reqs(ctxrun(d), iterator) is n
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready_reqs(None, nodes) is None
+    assert iotaa._not_ready_reqs(ctxrun(None), iterator) is None
     assert invariant()
 
 
