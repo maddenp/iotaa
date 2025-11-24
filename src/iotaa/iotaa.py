@@ -591,9 +591,9 @@ class _LoggerProxy:
 
 @dataclass(frozen=True)
 class _State:
-    logger: Logger | None = None
-    reps: _RepsT | None = None
-    root: Node | None = None
+    depth: int
+    logger: Logger
+    reps: _RepsT
 
 
 log = _LoggerProxy()
@@ -764,17 +764,16 @@ def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
     # assets as ready after the representative is processed.
 
     def the(req):
-        if req.taskname in reps:
-            req._asset = reps[req.taskname].asset  # noqa: SLF001
+        if req.taskname in state.reps:
+            req._asset = state.reps[req.taskname].asset  # noqa: SLF001
         else:
-            reps[req.taskname] = req
-        return reps[req.taskname]
+            state.reps[req.taskname] = req
+        return state.reps[req.taskname]
 
     reqs = ctxrun(_next, iterator, "requirements")
     if reqs is None:
         return None
     state = cast(_State, ctxrun(_STATE.get))
-    reps = cast(_RepsT, state.reps)
     if isinstance(reqs, dict):
         return {k: the(req) for k, req in reqs.items() if not the(req).ready}
     if isinstance(reqs, list):
@@ -858,7 +857,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     ctxrun: Callable = lambda f, *args: f(*args)  # default if already in context
     if _STATE.get() is None:  # but if not in context...
         ctxrun = copy_context().run
-        new = _State(logger=kwargs.get("log") or getLogger(), reps=UserDict(), root=None)
+        new = _State(depth=0, logger=kwargs.get("log") or getLogger(), reps=UserDict())
         ctxrun(_STATE.set, new)
     # Prepare arguments to task function:
     filter_keys = ("dry_run", "log", "threads")

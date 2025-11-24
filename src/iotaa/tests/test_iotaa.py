@@ -72,7 +72,7 @@ def graphkit():
 @fixture
 def test_ctx(test_logger):
     ctx = copy_context()
-    new = iotaa._State(logger=test_logger, reps=UserDict(), root=None)
+    new = iotaa._State(depth=0, logger=test_logger, reps=UserDict())
     ctx.run(lambda: _STATE.set(new))
     return ctx
 
