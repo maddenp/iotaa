@@ -73,11 +73,11 @@ def graphkit():
 
 
 @fixture
-def test_ctx(test_logger):
+def test_ctxrun(test_logger):
     ctx = copy_context()
     new = iotaa._State(count=1, logger=test_logger, reps=UserDict())
     ctx.run(lambda: _STATE.set(new))
-    return ctx
+    return ctx.run
 
 
 @fixture
@@ -352,10 +352,10 @@ def test_Node_root(fakefs):
     assert not any(child.root for child in children)
 
 
-def test_Node__add_node_and_predecessors(caplog, fakefs, test_ctx):
+def test_Node__add_node_and_predecessors(caplog, fakefs, test_ctxrun):
     g: TopologicalSorter = TopologicalSorter()
     node = t_collection_baz(fakefs)
-    test_ctx.run(node._add_node_and_predecessors, g=g, node=node)
+    test_ctxrun(node._add_node_and_predecessors, g=g, node=node)
     tasknames = [
         "external foo %s" % Path(fakefs, "foo"),
         "task bar dict %s" % Path(fakefs, "bar"),
@@ -367,10 +367,10 @@ def test_Node__add_node_and_predecessors(caplog, fakefs, test_ctx):
     assert logged(caplog, "  task bar dict %s" % Path(fakefs, "bar"))
 
 
-def test_Node__assemble(caplog, fakefs, test_ctx):
+def test_Node__assemble(caplog, fakefs, test_ctxrun):
     node = t_collection_baz(fakefs)
     with patch.object(iotaa.Node, "_add_node_and_predecessors") as _add_node_and_predecessors:
-        g = test_ctx.run(node._assemble)
+        g = test_ctxrun(node._assemble)
     assert logged(caplog, "Task Graph")
     _add_node_and_predecessors.assert_called_once_with(ANY, node)
     assert logged(caplog, "Execution")
@@ -378,9 +378,9 @@ def test_Node__assemble(caplog, fakefs, test_ctx):
     assert isinstance(g, TopologicalSorter)
 
 
-def test_Node__debug_header(caplog, fakefs, test_ctx):
+def test_Node__debug_header(caplog, fakefs, test_ctxrun):
     node = t_collection_baz(fakefs)
-    test_ctx.run(node._debug_header, "foo")
+    test_ctxrun(node._debug_header, "foo")
     expected = """
     ───
     foo
@@ -435,10 +435,10 @@ def test_Node__exec_threads_shutdown():
     assert not todo.empty()
 
 
-def test_Node__exec_threads_startup(test_ctx):
+def test_Node__exec_threads_startup(test_ctxrun):
     nthreads = 100
     obj = Mock(_threads=nthreads)
-    threads, todo, done, interrupt = test_ctx.run(
+    threads, todo, done, interrupt = test_ctxrun(
         iotaa.Node._exec_threads_startup, self=obj, dry_run=False
     )
     nodes = [Mock() for _ in range(nthreads)]
@@ -455,12 +455,12 @@ def test_Node__exec_threads_startup(test_ctx):
 
 
 @mark.parametrize("touch", [False, True])
-def test_Node__report_readiness(caplog, fakefs, test_ctx, touch):
+def test_Node__report_readiness(caplog, fakefs, test_ctxrun, touch):
     path = fakefs / "foo"
     if touch:
         path.touch()
     node = t_collection_qux(fakefs)
-    test_ctx.run(node._report_readiness)
+    test_ctxrun(node._report_readiness)
     assert logged(caplog, "collection qux: %s" % ("Ready" if touch else "Not ready"))
     if not touch:
         assert logged(caplog, "collection qux: Requires:")
@@ -563,21 +563,21 @@ def test_external__early_logging(caplog):
     assert logged(caplog, msg)
 
 
-def test_external__not_ready(fakefs, test_ctx):
+def test_external__not_ready(fakefs, test_ctxrun):
     f = fakefs / "foo"
     assert not f.is_file()
     node = t_external_foo_scalar(fakefs)
-    test_ctx.run(node)
+    test_ctxrun(node)
     assert iotaa.ref(node) == f
     assert not node.ready
 
 
-def test_external__ready(fakefs, test_ctx):
+def test_external__ready(fakefs, test_ctxrun):
     f = fakefs / "foo"
     f.touch()
     assert f.is_file()
     node = t_external_foo_scalar(fakefs)
-    test_ctx.run(node)
+    test_ctxrun(node)
     assert iotaa.ref(node) == f
     assert node.ready
 
@@ -732,11 +732,11 @@ def test_task__docstring():
         (t_task_bar_list, lambda x: x[0]),
     ],
 )
-def test_task__not_ready(caplog, fakefs, func, test_logger, test_ctx, val):
+def test_task__not_ready(caplog, fakefs, func, test_logger, test_ctxrun, val):
     f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
     node = func(fakefs, log=test_logger)
-    test_ctx.run(node)
+    test_ctxrun(node)
     assert val(iotaa.ref(node)) == f_bar
     assert not val(node._asset).ready()
     assert not any(x.is_file() for x in [f_foo, f_bar])
@@ -792,7 +792,7 @@ def test_log():
 # Tests for private functions
 
 
-def test__construct_and_call_if_root(test_ctx):
+def test__construct_and_call_if_root(test_ctxrun):
     node = Mock(_root=True)
     node_class = Mock(return_value=node)
     taskname = "test"
@@ -802,7 +802,7 @@ def test__construct_and_call_if_root(test_ctx):
         node_class=node_class,
         taskname=taskname,
         threads=threads,
-        ctxrun=test_ctx.run,
+        ctxrun=test_ctxrun,
         dry_run=dry_run,
     )
     node_class.assert_called_once_with(taskname=taskname, threads=threads)
@@ -810,34 +810,34 @@ def test__construct_and_call_if_root(test_ctx):
     assert val is node
 
 
-def test__continuation(caplog, rungen, test_ctx):
+def test__continuation(caplog, rungen, test_ctxrun):
     continuation = iotaa._continuation(iterator=rungen, taskname="task")
-    test_ctx.run(continuation)
+    test_ctxrun(continuation)
     assert logged(caplog, "task: Executing")
 
 
-def test__do(caplog, test_ctx):
+def test__do(caplog, test_ctxrun):
     todo: iotaa._QueueT = Queue()
     done: iotaa._QueueT = Queue()
     interrupt = Event()
     node = Mock(taskname="foo")
     todo.put(node)
     todo.put(None)
-    test_ctx.run(iotaa._do, todo=todo, done=done, interrupt=interrupt, dry_run=False)
+    test_ctxrun(iotaa._do, todo=todo, done=done, interrupt=interrupt, dry_run=False)
     node.assert_called_once_with(False)
     assert logged(caplog, "foo: Task completed")
     assert todo.empty()
     assert node in done.queue
 
 
-def test__do__bad_node(caplog, test_ctx):
+def test__do__bad_node(caplog, test_ctxrun):
     todo: iotaa._QueueT = Queue()
     done: iotaa._QueueT = Queue()
     interrupt = Event()
     boom = Mock(taskname="boom", side_effect=RuntimeError)
     todo.put(boom)
     todo.put(None)
-    test_ctx.run(iotaa._do, todo=todo, done=done, interrupt=interrupt, dry_run=False)
+    test_ctxrun(iotaa._do, todo=todo, done=done, interrupt=interrupt, dry_run=False)
     boom.assert_called_once_with(False)
     assert logged(caplog, "boom: Task failed: RuntimeError")
     assert todo.empty()
