@@ -40,21 +40,24 @@ def fakefs(fs):
 def graphkit():
     a = iotaa.NodeExternal(
         taskname="a",
+        root=False,
         threads=0,
         assets=iotaa.Asset(None, lambda: False),
     )
     b = iotaa.NodeExternal(
         taskname="b",
+        root=False,
         threads=0,
         assets=iotaa.Asset(None, lambda: True),
     )
     root = iotaa.NodeCollection(
         taskname="root",
+        root=True,
         threads=0,
         reqs=[a, b],
     )
     name = lambda x: sha256(x.encode("utf-8")).hexdigest()
-    graph = iotaa._Graph(root=root)
+    graph = iotaa._Graph(node=root)
     assert {x.taskname for x in graph._nodes} == {"a", "b", "root"}
     assert {(x.taskname, y.taskname) for x, y in graph._edges} == {("root", "a"), ("root", "b")}
     expected = """
@@ -72,7 +75,7 @@ def graphkit():
 @fixture
 def test_ctx(test_logger):
     ctx = copy_context()
-    new = iotaa._State(depth=0, logger=test_logger, reps=UserDict())
+    new = iotaa._State(count=1, logger=test_logger, reps=UserDict())
     ctx.run(lambda: _STATE.set(new))
     return ctx
 
@@ -389,8 +392,8 @@ def test_Node__debug_header(caplog, fakefs, test_ctx):
 
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
-def test_Node__exec(caplog, n, test_ctx, threads):
-    node = test_ctx.run(memval, n, threads=threads)
+def test_Node__exec(caplog, n, test_logger, threads):
+    node = memval(n, log=test_logger, threads=threads)
     success = "Task completed"
     assert logged(caplog, f"b 1: {success}")
     assert logged(caplog, f"b {n}: {success}")
@@ -406,9 +409,9 @@ def test_Node__exec(caplog, n, test_ctx, threads):
         assert logged(caplog, f"a: {success}")
 
 
-def test_Node__exec__interrupt(caplog, test_ctx):
+def test_Node__exec__interrupt(caplog, test_logger):
     with patch.object(iotaa.TopologicalSorter, "is_active", side_effect=KeyboardInterrupt):
-        node = test_ctx.run(memval, 2)
+        node = memval(2, log=test_logger)
     assert not iotaa.ready(node)
     assert logged(caplog, "Interrupted, shutting down...")
 
@@ -690,7 +693,7 @@ def test_ready__collection():
 def test_ref():
     expected = "bar"
     asset = iotaa.Asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", threads=0, assets=None)
+    node = iotaa.NodeExternal(taskname="test", root=True, threads=0, assets=None)
     ref1 = iotaa.ref(obj=node)
     assert ref1 is None
     assert node.ref == ref1
@@ -881,7 +884,7 @@ def test__next():
 
 def test__not_ready_reqs():
     kwargs = lambda name, ready: dict(
-        taskname=name, threads=0, assets=iotaa.Asset(None, lambda: ready)
+        taskname=name, root=True, threads=0, assets=iotaa.Asset(None, lambda: ready)
     )
     n = iotaa.NodeExternal(**kwargs("n", False))  # a not-ready node
     d = iotaa.NodeExternal(**kwargs("n", False))  # a duplicate not-ready node

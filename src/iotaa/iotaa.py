@@ -17,7 +17,6 @@ from functools import wraps
 from graphlib import TopologicalSorter
 from hashlib import sha256
 from importlib import import_module, resources
-from inspect import currentframe
 from itertools import chain
 from json import JSONDecodeError
 from logging import getLogger
@@ -57,16 +56,16 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, threads: int) -> None:
+    def __init__(self, taskname: str, root: bool, threads: int) -> None:
         self.taskname = taskname
+        self.root = root
+        self._threads = threads
         self._asset: _AssetsT = None
         self._first_visit = True
         self._ready: bool | None = None
         self._req: _ReqsT = None
-        self._root: bool | None = None
-        self._threads = threads
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -86,7 +85,7 @@ class Node(ABC):
 
     @property
     def graph(self) -> str:
-        return str(_Graph(root=self))
+        return str(_Graph(node=self))
 
     @property
     def ready(self) -> bool:
@@ -109,25 +108,6 @@ class Node(ABC):
     @property
     def req(self) -> _ReqsT:
         return self._req
-
-    @property
-    def root(self) -> bool:
-        """
-        Is this the root task node, i.e. not a requirement of another task?
-        """
-        if self._root is None:
-            self._root = True  # initial guess
-            nodes_in_call_stack = 0
-            frame = currentframe()
-            while frame is not None:
-                code = frame.f_code
-                if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
-                    if nodes_in_call_stack > 0:
-                        self._root = False
-                        break
-                    nodes_in_call_stack += 1
-                frame = frame.f_back
-        return self._root
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
@@ -252,10 +232,10 @@ class NodeCollection(Node):
     A node encapsulating a @collection-decorated function/method.
     """
 
-    __slots__ = ("_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+    __slots__ = ("_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, threads: int, reqs: _ReqsT = None) -> None:
-        super().__init__(taskname=taskname, threads=threads)
+    def __init__(self, taskname: str, root: bool, threads: int, reqs: _ReqsT = None) -> None:
+        super().__init__(taskname=taskname, root=root, threads=threads)
         self._req = reqs
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -281,10 +261,10 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, threads: int, assets: _AssetsT) -> None:
-        super().__init__(taskname=taskname, threads=threads)
+    def __init__(self, taskname: str, root: bool, threads: int, assets: _AssetsT) -> None:
+        super().__init__(taskname=taskname, root=root, threads=threads)
         self._asset = assets
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -306,15 +286,21 @@ class NodeTask(Node):
         "_first_visit",
         "_ready",
         "_req",
-        "_root",
         "_threads",
+        "root",
         "taskname",
     )
 
     def __init__(
-        self, taskname: str, threads: int, assets: _AssetsT, reqs: _ReqsT, continuation: Callable
+        self,
+        taskname: str,
+        root: bool,
+        threads: int,
+        assets: _AssetsT,
+        reqs: _ReqsT,
+        continuation: Callable,
     ) -> None:
-        super().__init__(taskname=taskname, threads=threads)
+        super().__init__(taskname=taskname, root=root, threads=threads)
         self._asset = assets
         self._req = reqs
         self._continuation = continuation
@@ -357,16 +343,26 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         reqs = _not_ready_reqs(ctxrun, iterator)
-        return _construct_and_if_root_call(
+        root = ctxrun(lambda: _STATE.get()).count == 1
+        node = _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
+            root=root,
             threads=threads,
             ctxrun=ctxrun,
             dry_run=dry_run,
             reqs=reqs,
         )
+        decrement_count(ctxrun)
+        return node
 
     return _mark(_iotaa_wrapper_collection)
+
+
+def decrement_count(ctxrun: Callable) -> None:
+    state = ctxrun(_STATE.get)
+    assert state is not None
+    ctxrun(lambda: setattr(state, "count", state.count - 1))
 
 
 def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
@@ -381,14 +377,18 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         assets = ctxrun(_next, iterator, "assets")
-        return _construct_and_if_root_call(
+        root = ctxrun(lambda: _STATE.get()).count == 1
+        node = _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
+            root=root,
             threads=threads,
             ctxrun=ctxrun,
             dry_run=dry_run,
             assets=assets,
         )
+        decrement_count(ctxrun)
+        return node
 
     return _mark(_iotaa_wrapper_external)
 
@@ -437,12 +437,12 @@ def main() -> None:
     task_args = [_reify(arg) for arg in args.args]
     task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
     try:
-        root = task_func(*task_args, **task_kwargs)
+        node = task_func(*task_args, **task_kwargs)
     except _IotaaError as e:
         logging.error(str(e))
         sys.exit(1)
     if args.graph:
-        print(graph(root))
+        print(graph(node))
 
 
 def ready(node: Node) -> bool:
@@ -494,9 +494,11 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
         assets = ctxrun(_next, iterator, "assets")
         reqs = _not_ready_reqs(ctxrun, iterator)
         continuation = _continuation(iterator, taskname)
-        return _construct_and_if_root_call(
+        root = ctxrun(lambda: _STATE.get()).count == 1
+        node = _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
+            root=root,
             threads=threads,
             ctxrun=ctxrun,
             dry_run=dry_run,
@@ -504,6 +506,8 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
             reqs=reqs,
             continuation=continuation,
         )
+        decrement_count(ctxrun)
+        return node
 
     return _mark(_iotaa_wrapper_task)
 
@@ -535,13 +539,13 @@ class _Graph:
     Graphviz digraph support.
     """
 
-    def __init__(self, root: Node) -> None:
+    def __init__(self, node: Node) -> None:
         """
-        :param root: The task-graph root node.
+        :param node: The task-graph root node.
         """
         self._nodes: set = set()
         self._edges: set = set()
-        self._build(root)
+        self._build(node)
 
     def _build(self, node: Node) -> None:
         """
@@ -589,9 +593,9 @@ class _LoggerProxy:
         return it
 
 
-@dataclass(frozen=True)
+@dataclass
 class _State:
-    depth: int
+    count: int
     logger: Logger
     reps: _RepsT
 
@@ -855,10 +859,14 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     :return: Items needed for task execution.
     """
     # A function to run another in the correct context:
-    ctxrun: Callable = lambda f, *args: f(*args)  # default if already in context
-    if _STATE.get() is None:  # but if not in context...
+    ctxrun: Callable
+    state = _STATE.get()
+    if state is not None:
+        ctxrun = lambda f, *args: f(*args)
+        state.count += 1
+    else:
         ctxrun = copy_context().run
-        new = _State(depth=0, logger=kwargs.get("log") or getLogger(), reps=UserDict())
+        new = _State(count=1, logger=kwargs.get("log") or getLogger(), reps=UserDict())
         ctxrun(_STATE.set, new)
     # Prepare arguments to task function:
     filter_keys = ("dry_run", "log", "threads")
