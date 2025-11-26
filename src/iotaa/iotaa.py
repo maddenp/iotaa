@@ -866,7 +866,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
         new = _State(count=1, logger=kwargs.get("log") or getLogger(), reps=UserDict())
         ctxrun(_STATE.set, new)
     else:
-        ctxrun = lambda f, *args: f(*args)
+        ctxrun = lambda f, *a, **k: f(*a, **k)
         state.count += 1
     # Prepare arguments to task function:
     filter_keys = ("dry_run", "log", "threads")

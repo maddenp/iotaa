@@ -188,7 +188,8 @@ def t_collection_baz(path) -> Iterator:
     TASKS!
     """
     yield "collection baz"
-    yield [t_external_foo_scalar(path), t_task_bar_dict(path)]
+    # Test both with and without kwargs:
+    yield [t_external_foo_scalar(path), t_task_bar_dict(path=path)]
 
 
 @iotaa.collection
