@@ -21,7 +21,7 @@ from itertools import chain
 from json import JSONDecodeError
 from logging import getLogger
 from pathlib import Path
-from queue import Queue
+from queue import SimpleQueue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 from uuid import uuid4
@@ -197,8 +197,8 @@ class Node(ABC):
         :param dry_run: Avoid executing state-affecting code?
         :return: The worker threads, outstanding- and finished-work queues, and the interrupt event.
         """
-        todo: _QueueT = Queue()
-        done: _QueueT = Queue()
+        todo: _QueueT = SimpleQueue()
+        done: _QueueT = SimpleQueue()
         interrupt = Event()
         threads = []
         for _ in range(self._threads):
@@ -895,7 +895,7 @@ def _version() -> str:
 _AssetsT = Asset | dict[str, Asset] | list[Asset] | None
 _JSONValT = bool | dict | float | int | list | str
 _NodeT = TypeVar("_NodeT", bound=Node)
-_QueueT = Queue[Node | None]
+_QueueT = SimpleQueue[Node | None]
 _RepsT = UserDict[str, _NodeT]
 _ReqsT = Node | dict[str, Node] | list[Node] | None
 _T = TypeVar("_T")

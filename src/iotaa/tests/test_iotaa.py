@@ -15,7 +15,7 @@ from importlib import import_module
 from itertools import chain
 from operator import add
 from pathlib import Path
-from queue import Queue
+from queue import SimpleQueue
 from textwrap import dedent
 from threading import Event, Thread
 from typing import cast
@@ -425,7 +425,7 @@ def test_Node__exec_threads_shutdown():
         thread = Thread(target=lambda: None)
         threads.append(thread)
         thread.start()
-    todo: iotaa._QueueT = Queue()
+    todo: iotaa._QueueT = SimpleQueue()
     interrupt = Event()
     assert todo.empty()
     iotaa.Node._exec_threads_shutdown(self=obj, threads=threads, todo=todo, interrupt=interrupt)
@@ -818,31 +818,33 @@ def test__continuation(caplog, rungen, test_ctxrun):
 
 
 def test__do(caplog, test_ctxrun):
-    todo: iotaa._QueueT = Queue()
-    done: iotaa._QueueT = Queue()
+    todo: iotaa._QueueT = SimpleQueue()
+    done: iotaa._QueueT = SimpleQueue()
     interrupt = Event()
     node = Mock(taskname="foo")
     todo.put(node)
     todo.put(None)
+    assert done.empty()
     test_ctxrun(iotaa._do, todo=todo, done=done, interrupt=interrupt, dry_run=False)
     node.assert_called_once_with(False)
     assert logged(caplog, "foo: Task completed")
     assert todo.empty()
-    assert node in done.queue
+    assert not done.empty()
 
 
 def test__do__bad_node(caplog, test_ctxrun):
-    todo: iotaa._QueueT = Queue()
-    done: iotaa._QueueT = Queue()
+    todo: iotaa._QueueT = SimpleQueue()
+    done: iotaa._QueueT = SimpleQueue()
     interrupt = Event()
     boom = Mock(taskname="boom", side_effect=RuntimeError)
     todo.put(boom)
     todo.put(None)
+    assert done.empty()
     test_ctxrun(iotaa._do, todo=todo, done=done, interrupt=interrupt, dry_run=False)
     boom.assert_called_once_with(False)
     assert logged(caplog, "boom: Task failed: RuntimeError")
     assert todo.empty()
-    assert boom in done.queue
+    assert not done.empty()
 
 
 def test__flatten():
