@@ -62,10 +62,10 @@ class Node(ABC):
         self.taskname = taskname
         self.root = root
         self._threads = threads
-        self._asset: _AssetsT = None
+        self._asset: _AssetT = None
         self._first_visit = True
         self._ready: bool | None = None
-        self._req: _ReqsT = None
+        self._req: _ReqT = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -80,7 +80,7 @@ class Node(ABC):
         return "%s <%s>" % (self.taskname, id(self))
 
     @property
-    def asset(self) -> _AssetsT:
+    def asset(self) -> _AssetT:
         return self._asset
 
     @property
@@ -90,7 +90,7 @@ class Node(ABC):
     @property
     def ready(self) -> bool:
         """
-        Are the assets represented by this task-graph node ready?
+        Are the asset(s) represented by this task-graph node ready?
         """
         if self._ready is None:
             try:
@@ -106,7 +106,7 @@ class Node(ABC):
         return ref(self.asset)
 
     @property
-    def req(self) -> _ReqsT:
+    def req(self) -> _ReqT:
         return self._req
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
@@ -234,7 +234,7 @@ class NodeCollection(Node):
 
     __slots__ = ("_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, root: bool, threads: int, reqs: _ReqsT = None) -> None:
+    def __init__(self, taskname: str, root: bool, threads: int, reqs: _ReqT = None) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
         self._req = reqs
 
@@ -263,7 +263,7 @@ class NodeExternal(Node):
 
     __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, root: bool, threads: int, assets: _AssetsT) -> None:
+    def __init__(self, taskname: str, root: bool, threads: int, assets: _AssetT) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
         self._asset = assets
 
@@ -296,8 +296,8 @@ class NodeTask(Node):
         taskname: str,
         root: bool,
         threads: int,
-        assets: _AssetsT,
-        reqs: _ReqsT,
+        assets: _AssetT,
+        reqs: _ReqT,
         continuation: Callable,
     ) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
@@ -322,9 +322,9 @@ class NodeTask(Node):
 # Public functions
 
 
-def asset(node: Node | None) -> _AssetsT:
+def asset(node: Node | None) -> _AssetT:
     """
-    Return the node's assets.
+    Return the node's asset(s).
 
     :param node: A node.
     """
@@ -367,7 +367,7 @@ def decrement_count(ctxrun: Callable) -> None:
 
 def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     """
-    The @external decorator for assets the workflow cannot produce.
+    The @external decorator for [an] asset(s) the workflow cannot produce.
 
     :param func: The function being decorated.
     :return: A decorated function.
@@ -454,12 +454,12 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def ref(obj: Node | _AssetsT) -> Any:
+def ref(obj: Node | _AssetT) -> Any:
     """
     Extract and return asset reference(s).
 
     :param obj: A Node, or an Asset, or a list or dict of Assets.
-    :return: Asset reference(s) matching the obj's assets' shape (e.g. dict, list, scalar, None).
+    :return: Asset reference(s) in the shape (scalar, list, dict, None) of the asset(s).
     """
     assets = asset(obj) if isinstance(obj, Node) else obj
     if isinstance(assets, dict):
@@ -471,7 +471,7 @@ def ref(obj: Node | _AssetsT) -> Any:
     return None
 
 
-def req(node: Node) -> _ReqsT:
+def req(node: Node) -> _ReqT:
     """
     Return the node's requirement(s).
 
@@ -482,7 +482,7 @@ def req(node: Node) -> _ReqsT:
 
 def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     """
-    The @task decorator for assets that the workflow can produce.
+    The @task decorator for [an] asset(s) that the workflow can produce.
 
     :param func: The function being decorated.
     :return: A decorated function.
@@ -752,7 +752,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
         raise _IotaaError(msg) from e
 
 
-def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
+def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqT:
     """
     Return only not-ready requirement(s).
 
@@ -763,9 +763,9 @@ def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
     # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
     # the rule that tasks with the same name are equivalent. Discard already-ready requirement(s)
     # and replace those remaining with their previously-seen representatives when possible, so that
-    # the final task graph contains distinct nodes only. Update the assets on discarded nodes to
-    # point to their representatives' assets so that any outstanding references to them will show
-    # their assets as ready after the representative is processed.
+    # the final task graph contains distinct nodes only. Update the asset(s) on discarded nodes to
+    # point to their representatives' asset(s) so that any outstanding references to them will show
+    # their asset(s) as ready after the representative is processed.
 
     def the(req):
         if req.taskname in state.reps:
@@ -892,12 +892,12 @@ def _version() -> str:
 
 # Private types
 
-_AssetsT = Asset | dict[str, Asset] | list[Asset] | None
+_AssetT = Asset | dict[str, Asset] | list[Asset] | None
 _JSONValT = bool | dict | float | int | list | str
 _NodeT = TypeVar("_NodeT", bound=Node)
 _QueueT = SimpleQueue[Node | None]
 _RepsT = UserDict[str, _NodeT]
-_ReqsT = Node | dict[str, Node] | list[Node] | None
+_ReqT = Node | dict[str, Node] | list[Node] | None
 _T = TypeVar("_T")
 
 # Private variables
