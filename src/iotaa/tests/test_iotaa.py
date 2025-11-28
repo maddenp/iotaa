@@ -42,13 +42,13 @@ def graphkit():
         taskname="a",
         root=False,
         threads=0,
-        assets=iotaa.Asset(None, lambda: False),
+        asset_=iotaa.Asset(None, lambda: False),
     )
     b = iotaa.NodeExternal(
         taskname="b",
         root=False,
         threads=0,
-        assets=iotaa.Asset(None, lambda: True),
+        asset_=iotaa.Asset(None, lambda: True),
     )
     root = iotaa.NodeCollection(
         taskname="root",
@@ -694,7 +694,7 @@ def test_ready__collection():
 def test_ref():
     expected = "bar"
     asset = iotaa.Asset(ref="bar", ready=lambda: True)
-    node = iotaa.NodeExternal(taskname="test", root=True, threads=0, assets=None)
+    node = iotaa.NodeExternal(taskname="test", root=True, threads=0, asset_=None)
     ref1 = iotaa.ref(obj=node)
     assert ref1 is None
     assert node.ref == ref1
@@ -887,7 +887,7 @@ def test__next():
 
 def test__not_ready_reqs():
     kwargs = lambda name, ready: dict(
-        taskname=name, root=True, threads=0, assets=iotaa.Asset(None, lambda: ready)
+        taskname=name, root=True, threads=0, asset_=iotaa.Asset(None, lambda: ready)
     )
     n = iotaa.NodeExternal(**kwargs("n", False))  # a not-ready node
     d = iotaa.NodeExternal(**kwargs("n", False))  # a duplicate not-ready node
