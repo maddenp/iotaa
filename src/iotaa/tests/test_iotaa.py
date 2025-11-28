@@ -54,7 +54,7 @@ def graphkit():
         taskname="root",
         root=True,
         threads=0,
-        req_=[a, b],
+        req=[a, b],
     )
     name = lambda x: sha256(x.encode("utf-8")).hexdigest()
     graph = iotaa._Graph(node=root)

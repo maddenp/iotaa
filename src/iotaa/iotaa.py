@@ -219,12 +219,12 @@ class Node(ABC):
         logfunc("%s: %s%s", self.taskname, readymsg, extmsg)
         if ready:
             return
-        req_ = {req: req.ready for req in _flatten(self._req)}
-        if req_:
+        req = {req: req.ready for req in _flatten(self._req)}
+        if req:
             log.warning("%s: Requires:", self.taskname)
-            for req, ready_ in req_.items():
+            for r, ready_ in req.items():
                 status = "✔" if ready_ else "✖"
-                log.warning("%s: %s %s", self.taskname, status, req.taskname)
+                log.warning("%s: %s %s", self.taskname, status, r.taskname)
 
 
 class NodeCollection(Node):
@@ -234,9 +234,9 @@ class NodeCollection(Node):
 
     __slots__ = ("_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, root: bool, threads: int, req_: _ReqT = None) -> None:
+    def __init__(self, taskname: str, root: bool, threads: int, req: _ReqT = None) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
-        self._req = req_
+        self._req = req
 
     def __call__(self, dry_run: bool = False) -> Node:
         if self._first_visit and self.root:
@@ -297,12 +297,12 @@ class NodeTask(Node):
         root: bool,
         threads: int,
         asset: _AssetT,
-        req_: _ReqT,
+        req: _ReqT,
         continuation: Callable,
     ) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
         self._asset = asset
-        self._req = req_
+        self._req = req
         self._continuation = continuation
 
     def __call__(self, dry_run: bool = False) -> Node:
@@ -342,7 +342,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        req_ = _not_ready_reqs(ctxrun, iterator)
+        req = _not_ready_reqs(ctxrun, iterator)
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
             node_class=NodeCollection,
@@ -351,7 +351,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
             threads=threads,
             ctxrun=ctxrun,
             dry_run=dry_run,
-            req_=req_,
+            req=req,
         )
         decrement_count(ctxrun)
         return node
@@ -492,7 +492,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         asset = ctxrun(_next, iterator, "asset(s)")
-        req_ = _not_ready_reqs(ctxrun, iterator)
+        req = _not_ready_reqs(ctxrun, iterator)
         continuation = _continuation(iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
@@ -503,7 +503,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
             ctxrun=ctxrun,
             dry_run=dry_run,
             asset=asset,
-            req_=req_,
+            req=req,
             continuation=continuation,
         )
         decrement_count(ctxrun)
@@ -774,16 +774,17 @@ def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqT:
             state.reps[req.taskname] = req
         return state.reps[req.taskname]
 
-    req_ = ctxrun(_next, iterator, "requirement(s)")
-    if req_ is None:
+    req = ctxrun(_next, iterator, "requirement(s)")
+    if req is None:
         return None
     state = ctxrun(_STATE.get)
     assert state is not None
-    if isinstance(req_, dict):
-        return {k: the(req) for k, req in req_.items() if not the(req).ready}
-    if isinstance(req_, list):
-        return [the(req) for req in req_ if not the(req).ready]
-    return None if the(req_).ready else the(req_)
+    if isinstance(req, dict):
+        return {k: the(v) for k, v in req.items() if not the(v).ready}
+    if isinstance(req, list):
+        return [the(v) for v in req if not the(v).ready]
+    # req must be a scalar:
+    return None if the(req).ready else the(req)
 
 
 def _parse_args(raw: list[str]) -> Namespace:
