@@ -895,34 +895,41 @@ def test__not_ready():
     nodes: UserDict[str, iotaa.NodeExternal] = UserDict()
     ctxrun = lambda reqs: Mock(side_effect=[reqs, Mock(reps=nodes)])
     iterator: Iterator = iter([])  # never used due to ctxrun mock
-    assert iotaa._not_ready(ctxrun({}), iterator) == {}
+    taskname = "test"
+    assert iotaa._not_ready(ctxrun=ctxrun({}), iterator=iterator, taskname=taskname) == {}
     assert nodes == {}
-    assert iotaa._not_ready(ctxrun({"r": r}), iterator) == {}
+    assert iotaa._not_ready(ctxrun=ctxrun({"r": r}), iterator=iterator, taskname=taskname) == {}
     assert nodes == {"r": r}
     invariant = lambda: nodes == {"n": n, "r": r} and nodes["n"] is n
-    assert iotaa._not_ready(ctxrun({"n": n}), iterator) == {"n": n}
+    assert iotaa._not_ready(ctxrun=ctxrun({"n": n}), iterator=iterator, taskname=taskname) == {
+        "n": n
+    }
     assert invariant()
-    assert iotaa._not_ready(ctxrun({"n": d}), iterator) == {"n": d}
+    assert iotaa._not_ready(ctxrun=ctxrun({"n": d}), iterator=iterator, taskname=taskname) == {
+        "n": d
+    }
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready(ctxrun({"r": r, "n": n}), iterator) == {"n": n}
+    assert iotaa._not_ready(
+        ctxrun=ctxrun({"r": r, "n": n}), iterator=iterator, taskname=taskname
+    ) == {"n": n}
     assert invariant()
-    assert iotaa._not_ready(ctxrun([]), iterator) == []
+    assert iotaa._not_ready(ctxrun=ctxrun([]), iterator=iterator, taskname=taskname) == []
     assert invariant()
-    assert iotaa._not_ready(ctxrun([r]), iterator) == []
+    assert iotaa._not_ready(ctxrun=ctxrun([r]), iterator=iterator, taskname=taskname) == []
     assert invariant()
-    assert iotaa._not_ready(ctxrun([n]), iterator) == [n]
+    assert iotaa._not_ready(ctxrun=ctxrun([n]), iterator=iterator, taskname=taskname) == [n]
     assert invariant()
-    assert iotaa._not_ready(ctxrun([d]), iterator) == [n]
+    assert iotaa._not_ready(ctxrun=ctxrun([d]), iterator=iterator, taskname=taskname) == [n]
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready(ctxrun([r, n]), iterator) == [n]
+    assert iotaa._not_ready(ctxrun=ctxrun([r, n]), iterator=iterator, taskname=taskname) == [n]
     assert invariant()
-    assert iotaa._not_ready(ctxrun(r), iterator) is None
+    assert iotaa._not_ready(ctxrun=ctxrun(r), iterator=iterator, taskname=taskname) is None
     assert invariant()
-    assert iotaa._not_ready(ctxrun(n), iterator) is n
+    assert iotaa._not_ready(ctxrun=ctxrun(n), iterator=iterator, taskname=taskname) is n
     assert invariant()
-    assert iotaa._not_ready(ctxrun(d), iterator) is n
+    assert iotaa._not_ready(ctxrun=ctxrun(d), iterator=iterator, taskname=taskname) is n
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready(ctxrun(None), iterator) is None
+    assert iotaa._not_ready(ctxrun=ctxrun(None), iterator=iterator, taskname=taskname) is None
     assert invariant()
 
 
@@ -934,7 +941,7 @@ def test__not_ready__bad_req():
 
     with raises(iotaa._IotaaError) as e:
         f()
-    msg = "Requirement must be an iotaa task-call value, not '42' of type <class 'int'>"
+    msg = "Task 'f' yielded requirement 42 of type <class 'int'>: Expected an iotaa task-call value"
     assert str(e.value) == msg
 
 

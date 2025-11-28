@@ -342,7 +342,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        req = _not_ready(ctxrun, iterator)
+        req = _not_ready(ctxrun, iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
             node_class=NodeCollection,
@@ -439,7 +439,11 @@ def main() -> None:
     try:
         node = task_func(*task_args, **task_kwargs)
     except _IotaaError as e:
-        logging.error(str(e))
+        if args.verbose:
+            for line in traceback.format_exc().strip().split("\n"):
+                logging.debug(line)
+        else:
+            logging.error(str(e))
         sys.exit(1)
     if args.graph:
         print(graph(node))
@@ -492,7 +496,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         asset = ctxrun(_next, iterator, "asset(s)")
-        req = _not_ready(ctxrun, iterator)
+        req = _not_ready(ctxrun, iterator, taskname)
         continuation = _continuation(iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
@@ -752,12 +756,13 @@ def _next(iterator: Iterator, desc: str) -> Any:
         raise _IotaaError(msg) from e
 
 
-def _not_ready(ctxrun: Callable, iterator: Iterator) -> _ReqT:
+def _not_ready(ctxrun: Callable, iterator: Iterator, taskname: str) -> _ReqT:
     """
     Return only not-ready requirement(s).
 
     :param ctxrun: A function to run another in the correct context.
     :param iterator: The current task.
+    :param taskname: Name of task who requirement(s) to check for readiness.
     """
 
     # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
@@ -769,8 +774,8 @@ def _not_ready(ctxrun: Callable, iterator: Iterator) -> _ReqT:
 
     def the(req):
         if not isinstance(req, Node):
-            msg = "Requirement must be an iotaa task-call value, not '%s' of type %s"
-            raise _IotaaError(msg % (req, type(req)))
+            msg = "Task '%s' yielded requirement %s of type %s: Expected an iotaa task-call value"
+            raise _IotaaError(msg % (taskname, req, type(req)))
         if req.taskname in state.reps:
             req._asset = state.reps[req.taskname].asset  # noqa: SLF001
         else:
