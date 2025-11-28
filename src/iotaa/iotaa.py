@@ -376,7 +376,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        assets = ctxrun(_next, iterator, "assets")
+        assets = ctxrun(_next, iterator, "asset(s)")
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -491,7 +491,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        assets = ctxrun(_next, iterator, "assets")
+        assets = ctxrun(_next, iterator, "asset(s)")
         reqs = _not_ready_reqs(ctxrun, iterator)
         continuation = _continuation(iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
@@ -754,7 +754,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
 
 def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
     """
-    Return only not-ready requirements.
+    Return only not-ready requirement(s).
 
     :param ctxrun: A function to run another in the correct context.
     :param iterator: The current task.
@@ -774,7 +774,7 @@ def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
             state.reps[req.taskname] = req
         return state.reps[req.taskname]
 
-    reqs = ctxrun(_next, iterator, "requirements")
+    reqs = ctxrun(_next, iterator, "requirement(s)")
     if reqs is None:
         return None
     state = ctxrun(_STATE.get)

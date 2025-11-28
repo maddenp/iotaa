@@ -604,7 +604,7 @@ def test_main__error(caplog):
         raises(SystemExit),
     ):
         iotaa.main()
-    assert logged(caplog, "Failed to get assets: Check yield statements.")
+    assert logged(caplog, "Failed to get asset(s): Check yield statements.")
 
 
 def test_main__live_abspath(capsys, module_for_main):
