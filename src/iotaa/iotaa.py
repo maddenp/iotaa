@@ -768,6 +768,9 @@ def _not_ready(ctxrun: Callable, iterator: Iterator) -> _ReqT:
     # their asset(s) as ready after the representative is processed.
 
     def the(req):
+        if not isinstance(req, Node):
+            msg = "Requirement must be an iotaa task-call value, not '%s' of type %s"
+            raise _IotaaError(msg % (req, type(req)))
         if req.taskname in state.reps:
             req._asset = state.reps[req.taskname].asset  # noqa: SLF001
         else:
@@ -783,7 +786,7 @@ def _not_ready(ctxrun: Callable, iterator: Iterator) -> _ReqT:
         return {k: the(v) for k, v in req.items() if not the(v).ready}
     if isinstance(req, list):
         return [the(v) for v in req if not the(v).ready]
-    # req must be a scalar:
+    # Then req must be a scalar:
     return None if the(req).ready else the(req)
 
 

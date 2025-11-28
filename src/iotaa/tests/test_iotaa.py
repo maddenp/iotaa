@@ -926,6 +926,18 @@ def test__not_ready():
     assert invariant()
 
 
+def test__not_ready__bad_req():
+    @iotaa.collection
+    def f():
+        yield "f"
+        yield 42
+
+    with raises(iotaa._IotaaError) as e:
+        f()
+    msg = "Requirement must be an iotaa task-call value, not '42' of type <class 'int'>"
+    assert str(e.value) == msg
+
+
 @mark.parametrize("graph", [None, "-g", "--graph"])
 @mark.parametrize("show", [None, "-s", "--show"])
 @mark.parametrize("verbose", [None, "-v", "--verbose"])
