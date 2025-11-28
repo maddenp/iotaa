@@ -885,7 +885,7 @@ def test__next():
     assert str(e.value) == "Failed to get foo: Check yield statements."
 
 
-def test__not_ready_reqs():
+def test__not_ready():
     kwargs = lambda name, ready: dict(
         taskname=name, root=True, threads=0, asset=iotaa.Asset(None, lambda: ready)
     )
@@ -895,34 +895,34 @@ def test__not_ready_reqs():
     nodes: UserDict[str, iotaa.NodeExternal] = UserDict()
     ctxrun = lambda reqs: Mock(side_effect=[reqs, Mock(reps=nodes)])
     iterator: Iterator = iter([])  # never used due to ctxrun mock
-    assert iotaa._not_ready_reqs(ctxrun({}), iterator) == {}
+    assert iotaa._not_ready(ctxrun({}), iterator) == {}
     assert nodes == {}
-    assert iotaa._not_ready_reqs(ctxrun({"r": r}), iterator) == {}
+    assert iotaa._not_ready(ctxrun({"r": r}), iterator) == {}
     assert nodes == {"r": r}
     invariant = lambda: nodes == {"n": n, "r": r} and nodes["n"] is n
-    assert iotaa._not_ready_reqs(ctxrun({"n": n}), iterator) == {"n": n}
+    assert iotaa._not_ready(ctxrun({"n": n}), iterator) == {"n": n}
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun({"n": d}), iterator) == {"n": d}
+    assert iotaa._not_ready(ctxrun({"n": d}), iterator) == {"n": d}
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready_reqs(ctxrun({"r": r, "n": n}), iterator) == {"n": n}
+    assert iotaa._not_ready(ctxrun({"r": r, "n": n}), iterator) == {"n": n}
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun([]), iterator) == []
+    assert iotaa._not_ready(ctxrun([]), iterator) == []
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun([r]), iterator) == []
+    assert iotaa._not_ready(ctxrun([r]), iterator) == []
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun([n]), iterator) == [n]
+    assert iotaa._not_ready(ctxrun([n]), iterator) == [n]
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun([d]), iterator) == [n]
+    assert iotaa._not_ready(ctxrun([d]), iterator) == [n]
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready_reqs(ctxrun([r, n]), iterator) == [n]
+    assert iotaa._not_ready(ctxrun([r, n]), iterator) == [n]
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun(r), iterator) is None
+    assert iotaa._not_ready(ctxrun(r), iterator) is None
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun(n), iterator) is n
+    assert iotaa._not_ready(ctxrun(n), iterator) is n
     assert invariant()
-    assert iotaa._not_ready_reqs(ctxrun(d), iterator) is n
+    assert iotaa._not_ready(ctxrun(d), iterator) is n
     assert invariant()  # i.e. n retained, d discarded
-    assert iotaa._not_ready_reqs(ctxrun(None), iterator) is None
+    assert iotaa._not_ready(ctxrun(None), iterator) is None
     assert invariant()
 
 

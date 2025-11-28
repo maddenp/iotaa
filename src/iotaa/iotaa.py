@@ -342,7 +342,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        req = _not_ready_reqs(ctxrun, iterator)
+        req = _not_ready(ctxrun, iterator)
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
             node_class=NodeCollection,
@@ -492,7 +492,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         asset = ctxrun(_next, iterator, "asset(s)")
-        req = _not_ready_reqs(ctxrun, iterator)
+        req = _not_ready(ctxrun, iterator)
         continuation = _continuation(iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
@@ -752,7 +752,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
         raise _IotaaError(msg) from e
 
 
-def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqT:
+def _not_ready(ctxrun: Callable, iterator: Iterator) -> _ReqT:
     """
     Return only not-ready requirement(s).
 
