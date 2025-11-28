@@ -761,11 +761,11 @@ def _not_ready_reqs(ctxrun: Callable, iterator: Iterator) -> _ReqsT:
     """
 
     # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
-    # the rule that tasks with the same name are equivalent. Discard already-ready requirements and
-    # replace those remaining with their previously-seen representatives when possible, so that the
-    # final task graph contains distinct nodes only. Update the assets on discarded nodes to point
-    # to their representatives' assets so that any outstanding references to them will show their
-    # assets as ready after the representative is processed.
+    # the rule that tasks with the same name are equivalent. Discard already-ready requirement(s)
+    # and replace those remaining with their previously-seen representatives when possible, so that
+    # the final task graph contains distinct nodes only. Update the assets on discarded nodes to
+    # point to their representatives' assets so that any outstanding references to them will show
+    # their assets as ready after the representative is processed.
 
     def the(req):
         if req.taskname in state.reps:
