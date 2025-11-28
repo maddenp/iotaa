@@ -263,9 +263,9 @@ class NodeExternal(Node):
 
     __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, root: bool, threads: int, asset_: _AssetT) -> None:
+    def __init__(self, taskname: str, root: bool, threads: int, asset: _AssetT) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
-        self._asset = asset_
+        self._asset = asset
 
     def __call__(self, dry_run: bool = False) -> Node:
         if self._first_visit and self.root:
@@ -296,12 +296,12 @@ class NodeTask(Node):
         taskname: str,
         root: bool,
         threads: int,
-        asset_: _AssetT,
+        asset: _AssetT,
         req_: _ReqT,
         continuation: Callable,
     ) -> None:
         super().__init__(taskname=taskname, root=root, threads=threads)
-        self._asset = asset_
+        self._asset = asset
         self._req = req_
         self._continuation = continuation
 
@@ -376,7 +376,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        asset_ = ctxrun(_next, iterator, "asset(s)")
+        asset = ctxrun(_next, iterator, "asset(s)")
         root = ctxrun(lambda: _STATE.get()).count == 1
         node = _construct_and_if_root_call(
             node_class=NodeExternal,
@@ -385,7 +385,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
             threads=threads,
             ctxrun=ctxrun,
             dry_run=dry_run,
-            asset_=asset_,
+            asset=asset,
         )
         decrement_count(ctxrun)
         return node
@@ -461,13 +461,13 @@ def ref(obj: Node | _AssetT) -> Any:
     :param obj: A Node, or an Asset, or a list or dict of Assets.
     :return: Asset reference(s) in the shape (scalar, list, dict, None) of the asset(s).
     """
-    asset_ = asset(obj) if isinstance(obj, Node) else obj
-    if isinstance(asset_, dict):
-        return {k: v.ref for k, v in asset_.items()}
-    if isinstance(asset_, list):
-        return [a.ref for a in asset_]
-    if isinstance(asset_, Asset):
-        return asset_.ref
+    asset = obj.asset if isinstance(obj, Node) else obj
+    if isinstance(asset, dict):
+        return {k: v.ref for k, v in asset.items()}
+    if isinstance(asset, list):
+        return [a.ref for a in asset]
+    if isinstance(asset, Asset):
+        return asset.ref
     return None
 
 
@@ -491,7 +491,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        asset_ = ctxrun(_next, iterator, "asset(s)")
+        asset = ctxrun(_next, iterator, "asset(s)")
         req_ = _not_ready_reqs(ctxrun, iterator)
         continuation = _continuation(iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
@@ -502,7 +502,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
             threads=threads,
             ctxrun=ctxrun,
             dry_run=dry_run,
-            asset_=asset_,
+            asset=asset,
             req_=req_,
             continuation=continuation,
         )
