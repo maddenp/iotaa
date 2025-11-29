@@ -137,6 +137,8 @@ Given a task graph comprising any number of nodes, any arbitrary subgraph may be
 
 The `function` argument is optional, and ignored if supplied, if the `-s` / `--show` option to show the names of available task functions in `module` is specified.
 
+In addition to normally hidden messages logged at the `DEBUG` level, specifying `-v` / `--verbose` will result in a stacktrace being logged when `iotaa`-internal exceptions are raised, which ma sometimes be helpful for debugging in some cases.
+
 ### Programmatic Use
 
 After installation, `import iotaa` or `from iotaa import <name>` to access public members. See the demo application below for example use.
