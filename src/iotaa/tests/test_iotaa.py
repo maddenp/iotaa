@@ -942,7 +942,9 @@ def test__not_ready__bad_req():
 
     with raises(iotaa._IotaaError) as e:
         f()
-    msg = "Task 'f' yielded requirement 42 of type <class 'int'>: Expected an iotaa task-call value"
+    msg = (
+        "Task 'f' yielded requirement 42 of type <class 'int'>: Expected an iotaa task-call value."
+    )
     assert str(e.value) == msg
 
 

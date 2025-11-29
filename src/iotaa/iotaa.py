@@ -774,7 +774,7 @@ def _not_ready(ctxrun: Callable, iterator: Iterator, taskname: str) -> _ReqT:
 
     def the(req):
         if not isinstance(req, Node):
-            msg = "Task '%s' yielded requirement %s of type %s: Expected an iotaa task-call value"
+            msg = "Task '%s' yielded requirement %s of type %s: Expected an iotaa task-call value."
             raise _IotaaError(msg % (taskname, req, type(req)))
         if req.taskname in state.reps:
             req._asset = state.reps[req.taskname].asset  # noqa: SLF001
