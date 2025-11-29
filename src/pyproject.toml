@@ -47,6 +47,7 @@ ignore = [
   "D212",    # multi-line-summary-first-line
   "D400",    # missing-trailing-period
   "D401",    # non-imperative-mood
+  "D402",    # signature-in-docstring
   "E731",    # lambda-assignment
   "ERA001",  # commented-out-code
   "FBT001",  # boolean-type-hint-positional-argument

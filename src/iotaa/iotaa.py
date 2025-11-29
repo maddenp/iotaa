@@ -9,26 +9,27 @@ import logging
 import sys
 import traceback
 from abc import ABC, abstractmethod
-from argparse import ArgumentParser, HelpFormatter, Namespace
+from argparse import ArgumentParser, HelpFormatter
 from collections import UserDict
-from contextvars import Context, ContextVar, copy_context
+from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from functools import wraps
 from graphlib import TopologicalSorter
 from hashlib import sha256
 from importlib import import_module, resources
-from inspect import currentframe
 from itertools import chain
-from json import JSONDecodeError, loads
-from logging import Logger, getLogger
+from json import JSONDecodeError
+from logging import getLogger
 from pathlib import Path
-from queue import Queue
+from queue import SimpleQueue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
+    from argparse import Namespace
     from collections.abc import Callable, Iterator
+    from logging import Logger
     from types import ModuleType
 
 
@@ -55,16 +56,16 @@ class Node(ABC):
     The base class for task-graph nodes.
     """
 
-    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, threads: int) -> None:
+    def __init__(self, taskname: str, root: bool, threads: int) -> None:
         self.taskname = taskname
-        self._asset: _AssetsT = None
+        self.root = root
+        self._threads = threads
+        self._asset: _AssetT = None
         self._first_visit = True
         self._ready: bool | None = None
-        self._req: _ReqsT = None
-        self._root: bool | None = None
-        self._threads = threads
+        self._req: _ReqT = None
 
     @abstractmethod
     def __call__(self, dry_run: bool = False) -> Node: ...
@@ -79,17 +80,17 @@ class Node(ABC):
         return "%s <%s>" % (self.taskname, id(self))
 
     @property
-    def asset(self) -> _AssetsT:
+    def asset(self) -> _AssetT:
         return self._asset
 
     @property
     def graph(self) -> str:
-        return str(_Graph(root=self))
+        return str(_Graph(node=self))
 
     @property
     def ready(self) -> bool:
         """
-        Are the assets represented by this task-graph node ready?
+        Are the asset(s) represented by this task-graph node ready?
         """
         if self._ready is None:
             try:
@@ -105,27 +106,8 @@ class Node(ABC):
         return ref(self.asset)
 
     @property
-    def req(self) -> _ReqsT:
+    def req(self) -> _ReqT:
         return self._req
-
-    @property
-    def root(self) -> bool:
-        """
-        Is this the root task node, i.e. not a requirement of another task?
-        """
-        if self._root is None:
-            self._root = True  # initial guess
-            nodes_in_call_stack = 0
-            frame = currentframe()
-            while frame is not None:
-                code = frame.f_code
-                if code.co_name.startswith("_iotaa_wrapper_") and code.co_filename == __file__:
-                    if nodes_in_call_stack > 0:
-                        self._root = False
-                        break
-                    nodes_in_call_stack += 1
-                frame = frame.f_back
-        return self._root
 
     def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
         """
@@ -215,12 +197,12 @@ class Node(ABC):
         :param dry_run: Avoid executing state-affecting code?
         :return: The worker threads, outstanding- and finished-work queues, and the interrupt event.
         """
-        todo: _QueueT = Queue()
-        done: _QueueT = Queue()
+        todo: _QueueT = SimpleQueue()
+        done: _QueueT = SimpleQueue()
         interrupt = Event()
         threads = []
         for _ in range(self._threads):
-            ctx = copy_context()
+            ctx = copy_context()  # context for the thread
             thread = Thread(target=ctx.run, args=(_do, todo, done, interrupt, dry_run))
             threads.append(thread)
             thread.start()
@@ -237,12 +219,12 @@ class Node(ABC):
         logfunc("%s: %s%s", self.taskname, readymsg, extmsg)
         if ready:
             return
-        reqs = {req: req.ready for req in _flatten(self._req)}
-        if reqs:
+        req = {req: req.ready for req in _flatten(self._req)}
+        if req:
             log.warning("%s: Requires:", self.taskname)
-            for req, ready_ in reqs.items():
+            for r, ready_ in req.items():
                 status = "✔" if ready_ else "✖"
-                log.warning("%s: %s %s", self.taskname, status, req.taskname)
+                log.warning("%s: %s %s", self.taskname, status, r.taskname)
 
 
 class NodeCollection(Node):
@@ -250,14 +232,14 @@ class NodeCollection(Node):
     A node encapsulating a @collection-decorated function/method.
     """
 
-    __slots__ = ("_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+    __slots__ = ("_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, threads: int, reqs: _ReqsT = None) -> None:
-        super().__init__(taskname=taskname, threads=threads)
-        self._req = reqs
+    def __init__(self, taskname: str, root: bool, threads: int, req: _ReqT = None) -> None:
+        super().__init__(taskname=taskname, root=root, threads=threads)
+        self._req = req
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._first_visit and self.root:
             self._exec(dry_run)
         else:
             self._ready = None  # reset cached value
@@ -279,14 +261,14 @@ class NodeExternal(Node):
     A node encapsulating an @external-decorated function/method.
     """
 
-    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_root", "_threads", "taskname")
+    __slots__ = ("_asset", "_first_visit", "_ready", "_req", "_threads", "root", "taskname")
 
-    def __init__(self, taskname: str, threads: int, assets: _AssetsT) -> None:
-        super().__init__(taskname=taskname, threads=threads)
-        self._asset = assets
+    def __init__(self, taskname: str, root: bool, threads: int, asset: _AssetT) -> None:
+        super().__init__(taskname=taskname, root=root, threads=threads)
+        self._asset = asset
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._first_visit and self.root:
             self._exec(dry_run)
         else:
             self._report_readiness()
@@ -304,21 +286,27 @@ class NodeTask(Node):
         "_first_visit",
         "_ready",
         "_req",
-        "_root",
         "_threads",
+        "root",
         "taskname",
     )
 
     def __init__(
-        self, taskname: str, threads: int, assets: _AssetsT, reqs: _ReqsT, continuation: Callable
+        self,
+        taskname: str,
+        root: bool,
+        threads: int,
+        asset: _AssetT,
+        req: _ReqT,
+        continuation: Callable,
     ) -> None:
-        super().__init__(taskname=taskname, threads=threads)
-        self._asset = assets
-        self._req = reqs
+        super().__init__(taskname=taskname, root=root, threads=threads)
+        self._asset = asset
+        self._req = req
         self._continuation = continuation
 
     def __call__(self, dry_run: bool = False) -> Node:
-        if self.root and self._first_visit:
+        if self._first_visit and self.root:
             self._exec(dry_run)
         else:
             if not self.ready and all(req.ready for req in _flatten(self._req)):
@@ -334,9 +322,9 @@ class NodeTask(Node):
 # Public functions
 
 
-def asset(node: Node | None) -> _AssetsT:
+def asset(node: Node | None) -> _AssetT:
     """
-    Return the node's assets.
+    Return the node's asset(s).
 
     :param node: A node.
     """
@@ -353,25 +341,33 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
 
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
-        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        reps = ctx.run(lambda: _REPS.get())
-        assert reps is not None
-        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
-        return _construct_and_if_root_call(
+        ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        req = _not_ready(ctxrun, iterator, taskname)
+        root = ctxrun(lambda: _STATE.get()).count == 1
+        node = _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
+            root=root,
             threads=threads,
-            ctx=ctx,
+            ctxrun=ctxrun,
             dry_run=dry_run,
-            reqs=reqs,
+            req=req,
         )
+        decrement_count(ctxrun)
+        return node
 
     return _mark(_iotaa_wrapper_collection)
 
 
+def decrement_count(ctxrun: Callable) -> None:
+    state = ctxrun(_STATE.get)
+    assert state is not None
+    ctxrun(lambda: setattr(state, "count", state.count - 1))
+
+
 def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     """
-    The @external decorator for assets the workflow cannot produce.
+    The @external decorator for [an] asset(s) the workflow cannot produce.
 
     :param func: The function being decorated.
     :return: A decorated function.
@@ -379,16 +375,20 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
 
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
-        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        assets = ctx.run(_next, iterator, "assets")
-        return _construct_and_if_root_call(
+        ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        asset = ctxrun(_next, iterator, "asset(s)")
+        root = ctxrun(lambda: _STATE.get()).count == 1
+        node = _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
+            root=root,
             threads=threads,
-            ctx=ctx,
+            ctxrun=ctxrun,
             dry_run=dry_run,
-            assets=assets,
+            asset=asset,
         )
+        decrement_count(ctxrun)
+        return node
 
     return _mark(_iotaa_wrapper_external)
 
@@ -437,12 +437,16 @@ def main() -> None:
     task_args = [_reify(arg) for arg in args.args]
     task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
     try:
-        root = task_func(*task_args, **task_kwargs)
+        node = task_func(*task_args, **task_kwargs)
     except _IotaaError as e:
-        logging.error(str(e))
+        if args.verbose:
+            for line in traceback.format_exc().strip().split("\n"):
+                logging.error(line)
+        else:
+            logging.error(str(e))
         sys.exit(1)
     if args.graph:
-        print(graph(root))
+        print(graph(node))
 
 
 def ready(node: Node) -> bool:
@@ -454,24 +458,24 @@ def ready(node: Node) -> bool:
     return node.ready
 
 
-def ref(obj: Node | _AssetsT) -> Any:
+def ref(obj: Node | _AssetT) -> Any:
     """
     Extract and return asset reference(s).
 
     :param obj: A Node, or an Asset, or a list or dict of Assets.
-    :return: Asset reference(s) matching the obj's assets' shape (e.g. dict, list, scalar, None).
+    :return: Asset reference(s) in the shape (scalar, list, dict, None) of the asset(s).
     """
-    assets = asset(obj) if isinstance(obj, Node) else obj
-    if isinstance(assets, dict):
-        return {k: v.ref for k, v in assets.items()}
-    if isinstance(assets, list):
-        return [a.ref for a in assets]
-    if isinstance(assets, Asset):
-        return assets.ref
+    asset = obj.asset if isinstance(obj, Node) else obj
+    if isinstance(asset, dict):
+        return {k: v.ref for k, v in asset.items()}
+    if isinstance(asset, list):
+        return [a.ref for a in asset]
+    if isinstance(asset, Asset):
+        return asset.ref
     return None
 
 
-def req(node: Node) -> _ReqsT:
+def req(node: Node) -> _ReqT:
     """
     Return the node's requirement(s).
 
@@ -482,7 +486,7 @@ def req(node: Node) -> _ReqsT:
 
 def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     """
-    The @task decorator for assets that the workflow can produce.
+    The @task decorator for [an] asset(s) that the workflow can produce.
 
     :param func: The function being decorated.
     :return: A decorated function.
@@ -490,22 +494,24 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
 
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
-        ctx, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        assets = ctx.run(_next, iterator, "assets")
-        reps = ctx.run(lambda: _REPS.get())
-        assert reps is not None
-        reqs = _not_ready_reqs(ctx.run(_next, iterator, "requirements"), reps)
+        ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        asset = ctxrun(_next, iterator, "asset(s)")
+        req = _not_ready(ctxrun, iterator, taskname)
         continuation = _continuation(iterator, taskname)
-        return _construct_and_if_root_call(
+        root = ctxrun(lambda: _STATE.get()).count == 1
+        node = _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
+            root=root,
             threads=threads,
-            ctx=ctx,
+            ctxrun=ctxrun,
             dry_run=dry_run,
-            assets=assets,
-            reqs=reqs,
+            asset=asset,
+            req=req,
             continuation=continuation,
         )
+        decrement_count(ctxrun)
+        return node
 
     return _mark(_iotaa_wrapper_task)
 
@@ -537,13 +543,13 @@ class _Graph:
     Graphviz digraph support.
     """
 
-    def __init__(self, root: Node) -> None:
+    def __init__(self, node: Node) -> None:
         """
-        :param root: The task-graph root node.
+        :param node: The task-graph root node.
         """
         self._nodes: set = set()
         self._edges: set = set()
-        self._build(root)
+        self._build(node)
 
     def _build(self, node: Node) -> None:
         """
@@ -584,10 +590,18 @@ class _LoggerProxy:
 
     @staticmethod
     def logger() -> Logger:
-        if not (it := _LOGGER.get()):
+        ctx = _STATE.get()
+        if not ctx or not (it := ctx.logger):
             msg = "No logger found: Ensure this call originated in an iotaa task function."
             raise _IotaaError(msg)
         return it
+
+
+@dataclass
+class _State:
+    count: int
+    logger: Logger
+    reps: _RepsT
 
 
 log = _LoggerProxy()
@@ -597,7 +611,12 @@ log = _LoggerProxy()
 
 
 def _construct_and_if_root_call(
-    node_class: type[_NodeT], taskname: str, threads: int, ctx: Context, dry_run: bool, **kwargs
+    node_class: type[_NodeT],
+    taskname: str,
+    threads: int,
+    ctxrun: Callable,
+    dry_run: bool,
+    **kwargs,
 ) -> _NodeT:
     """
     Construct a Node object and, if it is the root node, call it.
@@ -605,13 +624,13 @@ def _construct_and_if_root_call(
     :param node_class: The type of Node to construct.
     :param taskname: The current task's name.
     :param threads: Number of concurrent threads.
-    :param ctx: The execution context.
+    :param ctxrun: A function to run another in the correct context.
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
     node = node_class(taskname=taskname, threads=threads, **kwargs)
     if node.root:
-        ctx.run(node, dry_run)
+        ctxrun(node, dry_run)
     return node
 
 
@@ -727,6 +746,7 @@ def _next(iterator: Iterator, desc: str) -> Any:
     """
     Return the next value from the generator, if available. Otherwise log an error and exit.
 
+    :param iterator: The current task.
     :param desc: A description of the expected value.
     """
     try:
@@ -736,35 +756,42 @@ def _next(iterator: Iterator, desc: str) -> Any:
         raise _IotaaError(msg) from e
 
 
-def _not_ready_reqs(reqs: _ReqsT, reps: _RepsT) -> _ReqsT:
+def _not_ready(ctxrun: Callable, iterator: Iterator, taskname: str) -> _ReqT:
     """
-    Return only not-ready requirements.
+    Return only not-ready requirement(s).
 
-    :param reqs: One or more Node objects representing task requirements.
-    :param reps: Mapping from tasknames to representative Nodes.
+    :param ctxrun: A function to run another in the correct context.
+    :param iterator: The current task.
+    :param taskname: Name of task who requirement(s) to check for readiness.
     """
 
     # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
-    # the rule that tasks with the same name are equivalent. Discard already-ready requirements and
-    # replace those remaining with their previously-seen representatives when possible, so that the
-    # final task graph contains distinct nodes only. Update the assets on discarded nodes to point
-    # to their representatives' assets so that any outstanding references to them will show their
-    # assets as ready after the representative is processed.
+    # the rule that tasks with the same name are equivalent. Discard already-ready requirement(s)
+    # and replace those remaining with their previously-seen representatives when possible, so that
+    # the final task graph contains distinct nodes only. Update the asset(s) on discarded nodes to
+    # point to their representatives' asset(s) so that any outstanding references to them will show
+    # their asset(s) as ready after the representative is processed.
 
     def the(req):
-        if req.taskname in reps:
-            req._asset = reps[req.taskname].asset  # noqa: SLF001
+        if not isinstance(req, Node):
+            msg = "Task '%s' yielded requirement %s of type %s: Expected an iotaa task-call value."
+            raise _IotaaError(msg % (taskname, req, type(req)))
+        if req.taskname in state.reps:
+            req._asset = state.reps[req.taskname].asset  # noqa: SLF001
         else:
-            reps[req.taskname] = req
-        return reps[req.taskname]
+            state.reps[req.taskname] = req
+        return state.reps[req.taskname]
 
-    if reqs is None:
+    req = ctxrun(_next, iterator, "requirement(s)")
+    if req is None:
         return None
-    if isinstance(reqs, dict):
-        return {k: the(req) for k, req in reqs.items() if not the(req).ready}
-    if isinstance(reqs, list):
-        return [the(req) for req in reqs if not the(req).ready]
-    req = reqs  # i.e. a scalar
+    state = ctxrun(_STATE.get)
+    assert state is not None
+    if isinstance(req, dict):
+        return {k: the(v) for k, v in req.items() if not the(v).ready}
+    if isinstance(req, list):
+        return [the(v) for v in req if not the(v).ready]
+    # Then req must be a scalar:
     return None if the(req).ready else the(req)
 
 
@@ -811,9 +838,9 @@ def _reify(s: str) -> _JSONValT:
     """
     val: _JSONValT
     try:
-        val = loads(s)
+        val = json.loads(s)
     except JSONDecodeError:
-        val = loads(f'"{s}"')
+        val = json.loads(f'"{s}"')
     return val
 
 
@@ -832,25 +859,34 @@ def _show_tasks_and_exit(name: str, obj: object) -> None:
     sys.exit(0)
 
 
-def _taskprops(func: Callable, *args, **kwargs) -> tuple[Context, Iterator, str, bool, int]:
+def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str, bool, int]:
     """
     Collect and return info about the task.
 
     :param func: A task function (receives the provided args & kwargs).
-    :return: Information needed for task execution.
+    :return: Items needed for task execution.
     """
-    ctx = copy_context()
-    if ctx.get(_LOGGER) is None:
-        ctx.run(lambda: _LOGGER.set(kwargs.get("log") or getLogger()))
-    if ctx.get(_REPS) is None:
-        ctx.run(lambda: _REPS.set(UserDict()))
+    # A function to run another in the correct context:
+    ctxrun: Callable
+    state = _STATE.get()
+    if state is None:
+        ctxrun = copy_context().run
+        new = _State(count=1, logger=kwargs.get("log") or getLogger(), reps=UserDict())
+        ctxrun(_STATE.set, new)
+    else:
+        ctxrun = lambda f, *a, **k: f(*a, **k)
+        state.count += 1
+    # Prepare arguments to task function:
     filter_keys = ("dry_run", "log", "threads")
     task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
-    iterator = ctx.run(func, *args, **task_kwargs)
-    taskname = str(ctx.run(_next, iterator, "task name"))
+    # Run task function up to 1st yield:
+    iterator = ctxrun(func, *args, **task_kwargs)
+    # Run task function up to 2nd yield, obtaining task name:
+    taskname = ctxrun(_next, iterator, "task name")
+    # Collect remaining task properties:
     dry_run = bool(kwargs.get("dry_run"))
-    threads = int(kwargs.get("threads") or 1)
-    return ctx, iterator, taskname, dry_run, threads
+    threads = kwargs.get("threads") or 1
+    return ctxrun, iterator, taskname, dry_run, threads
 
 
 def _version() -> str:
@@ -864,16 +900,15 @@ def _version() -> str:
 
 # Private types
 
-_AssetsT = Asset | dict[str, Asset] | list[Asset] | None
+_AssetT = Asset | dict[str, Asset] | list[Asset] | None
 _JSONValT = bool | dict | float | int | list | str
 _NodeT = TypeVar("_NodeT", bound=Node)
-_QueueT = Queue[Node | None]
+_QueueT = SimpleQueue[Node | None]
 _RepsT = UserDict[str, _NodeT]
-_ReqsT = Node | dict[str, Node] | list[Node] | None
+_ReqT = Node | dict[str, Node] | list[Node] | None
 _T = TypeVar("_T")
 
 # Private variables
 
-_LOGGER: ContextVar[Logger | None] = ContextVar("_LOGGER", default=None)
-_MARKER = uuid4().hex
-_REPS: ContextVar[_RepsT | None] = ContextVar("_REPS", default=None)
+_MARKER: str = uuid4().hex
+_STATE: ContextVar[_State | None] = ContextVar("_STATE", default=None)
