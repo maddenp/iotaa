@@ -168,9 +168,8 @@ def memval_req(n) -> Iterator:
     val.append(n)
 
 
-def logged(caplog, msg, escape=True):
-    msg = re.escape(msg) if escape else msg
-    return any(re.match(r"^%s$" % msg, rec.message) for rec in caplog.records)
+def logged(caplog, msg):
+    return any(re.match(r"^.*%s.*$" % re.escape(msg), line) for line in caplog.messages)
 
 
 def simple_assets():
@@ -598,13 +597,19 @@ def test_logcfg(vals):
     bc.assert_called_once_with(datefmt=ANY, format=ANY, level=level)
 
 
-def test_main__error(caplog):
+@mark.parametrize("verbose", [True, False])
+def test_main__error(caplog, verbose):
+    argv = ["prog", "iotaa.tests.test_iotaa", "badtask"]
+    if verbose:
+        argv.append("--verbose")
     with (
-        patch.object(iotaa.sys, "argv", new=["prog", "iotaa.tests.test_iotaa", "badtask"]),
+        patch.object(iotaa.sys, "argv", argv),
         raises(SystemExit),
     ):
         iotaa.main()
     assert logged(caplog, "Failed to get asset(s): Check yield statements.")
+    if verbose:
+        assert logged(caplog, "Traceback (most recent call last)")
 
 
 def test_main__live_abspath(capsys, module_for_main):

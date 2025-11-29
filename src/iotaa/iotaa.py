@@ -441,7 +441,7 @@ def main() -> None:
     except _IotaaError as e:
         if args.verbose:
             for line in traceback.format_exc().strip().split("\n"):
-                logging.debug(line)
+                logging.error(line)
         else:
             logging.error(str(e))
         sys.exit(1)
