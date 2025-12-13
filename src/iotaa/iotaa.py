@@ -10,7 +10,6 @@ import sys
 import traceback
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, HelpFormatter
-from collections import UserDict
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from functools import wraps
@@ -23,7 +22,7 @@ from logging import getLogger
 from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -344,7 +343,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         req = _not_ready(ctxrun, iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
-        node = _construct_and_if_root_call(
+        return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
             root=root,
@@ -353,8 +352,6 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
             dry_run=dry_run,
             req=req,
         )
-        decrement_count(ctxrun)
-        return node
 
     return _mark(_iotaa_wrapper_collection)
 
@@ -378,7 +375,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         asset = ctxrun(_next, iterator, "asset(s)")
         root = ctxrun(lambda: _STATE.get()).count == 1
-        node = _construct_and_if_root_call(
+        return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
             root=root,
@@ -387,8 +384,6 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
             dry_run=dry_run,
             asset=asset,
         )
-        decrement_count(ctxrun)
-        return node
 
     return _mark(_iotaa_wrapper_external)
 
@@ -499,7 +494,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
         req = _not_ready(ctxrun, iterator, taskname)
         continuation = _continuation(iterator, taskname)
         root = ctxrun(lambda: _STATE.get()).count == 1
-        node = _construct_and_if_root_call(
+        return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
             root=root,
@@ -510,8 +505,6 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
             req=req,
             continuation=continuation,
         )
-        decrement_count(ctxrun)
-        return node
 
     return _mark(_iotaa_wrapper_task)
 
@@ -628,10 +621,12 @@ def _construct_and_if_root_call(
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
-    node = node_class(taskname=taskname, threads=threads, **kwargs)
+    reps = ctxrun(lambda: _STATE.get()).reps
+    node = reps.setdefault(taskname, node_class(taskname=taskname, threads=threads, **kwargs))
     if node.root:
         ctxrun(node, dry_run)
-    return node
+    decrement_count(ctxrun)
+    return cast(_NodeT, node)
 
 
 def _continuation(iterator: Iterator, taskname: str) -> Callable:
@@ -765,34 +760,21 @@ def _not_ready(ctxrun: Callable, iterator: Iterator, taskname: str) -> _ReqT:
     :param taskname: Name of task who requirement(s) to check for readiness.
     """
 
-    # The reps dict maps task names to representative nodes standing in for equivalent nodes, per
-    # the rule that tasks with the same name are equivalent. Discard already-ready requirement(s)
-    # and replace those remaining with their previously-seen representatives when possible, so that
-    # the final task graph contains distinct nodes only. Update the asset(s) on discarded nodes to
-    # point to their representatives' asset(s) so that any outstanding references to them will show
-    # their asset(s) as ready after the representative is processed.
-
-    def the(req):
+    def ok(req):
         if not isinstance(req, Node):
             msg = "Task '%s' yielded requirement %s of type %s: Expected an iotaa task-call value."
             raise _IotaaError(msg % (taskname, req, type(req)))
-        if req.taskname in state.reps:
-            req._asset = state.reps[req.taskname].asset  # noqa: SLF001
-        else:
-            state.reps[req.taskname] = req
-        return state.reps[req.taskname]
+        return req
 
     req = ctxrun(_next, iterator, "requirement(s)")
     if req is None:
         return None
-    state = ctxrun(_STATE.get)
-    assert state is not None
     if isinstance(req, dict):
-        return {k: the(v) for k, v in req.items() if not the(v).ready}
+        return {k: v for k, v in req.items() if not ok(v).ready}
     if isinstance(req, list):
-        return [the(v) for v in req if not the(v).ready]
+        return [v for v in req if not ok(v).ready]
     # Then req must be a scalar:
-    return None if the(req).ready else the(req)
+    return None if ok(req).ready else req
 
 
 def _parse_args(raw: list[str]) -> Namespace:
@@ -871,7 +853,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     state = _STATE.get()
     if state is None:
         ctxrun = copy_context().run
-        new = _State(count=1, logger=kwargs.get("log") or getLogger(), reps=UserDict())
+        new = _State(count=1, logger=kwargs.get("log") or getLogger(), reps={})
         ctxrun(_STATE.set, new)
     else:
         ctxrun = lambda f, *a, **k: f(*a, **k)
@@ -904,7 +886,7 @@ _AssetT = Asset | dict[str, Asset] | list[Asset] | None
 _JSONValT = bool | dict | float | int | list | str
 _NodeT = TypeVar("_NodeT", bound=Node)
 _QueueT = SimpleQueue[Node | None]
-_RepsT = UserDict[str, _NodeT]
+_RepsT = dict[str, _NodeT]
 _ReqT = Node | dict[str, Node] | list[Node] | None
 _T = TypeVar("_T")
 
