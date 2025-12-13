@@ -22,10 +22,11 @@ test:
     - docformatter 1.7.*
     - jq 1.8.*
     - m4 1.4.*
-    - mypy 1.18.*
+    - mypy 1.19.*
     - pyfakefs 5.10.*
     - pytest 9.0.*
     - pytest-cov 7.0.*
+    - pytest-randomly 3.15.*
     - pytest-xdist 3.8.*
     - python {{ minpy }}
     - requests 2.32.*

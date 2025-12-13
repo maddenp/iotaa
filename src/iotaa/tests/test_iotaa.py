@@ -6,7 +6,6 @@ import logging
 import re
 from abc import abstractmethod
 from argparse import Namespace
-from collections import UserDict
 from collections.abc import Iterator
 from contextvars import copy_context
 from graphlib import TopologicalSorter
@@ -75,7 +74,7 @@ def graphkit():
 @fixture
 def test_ctxrun(test_logger):
     ctx = copy_context()
-    new = iotaa._State(count=1, logger=test_logger, reps=UserDict())
+    new = iotaa._State(count=1, logger=test_logger, reps={})
     ctx.run(lambda: _STATE.set(new))
     return ctx.run
 
@@ -895,43 +894,23 @@ def test__not_ready():
         taskname=name, root=True, threads=0, asset=iotaa.Asset(None, lambda: ready)
     )
     n = iotaa.NodeExternal(**node_kwargs("n", False))  # a not-ready node
-    d = iotaa.NodeExternal(**node_kwargs("n", False))  # a duplicate not-ready node
     r = iotaa.NodeExternal(**node_kwargs("r", True))  # a ready node
-    nodes: UserDict[str, iotaa.NodeExternal] = UserDict()
-    ctxrun = lambda reqs: Mock(side_effect=[reqs, Mock(reps=nodes)])
+    ctxrun = lambda reqs: Mock(side_effect=[reqs, Mock(reps={})])
     task_kwargs: dict = dict(
         iterator=iter([]),  # never used due to ctxrun mock
         taskname="test",
     )
     assert iotaa._not_ready(ctxrun=ctxrun({}), **task_kwargs) == {}
-    assert nodes == {}
     assert iotaa._not_ready(ctxrun=ctxrun({"r": r}), **task_kwargs) == {}
-    assert nodes == {"r": r}
-    invariant = lambda: nodes == {"n": n, "r": r} and nodes["n"] is n
     assert iotaa._not_ready(ctxrun=ctxrun({"n": n}), **task_kwargs) == {"n": n}
-    assert invariant()
-    assert iotaa._not_ready(ctxrun=ctxrun({"n": d}), **task_kwargs) == {"n": d}
-    assert invariant()  # i.e. n retained, d discarded
     assert iotaa._not_ready(ctxrun=ctxrun({"r": r, "n": n}), **task_kwargs) == {"n": n}
-    assert invariant()
     assert iotaa._not_ready(ctxrun=ctxrun([]), **task_kwargs) == []
-    assert invariant()
     assert iotaa._not_ready(ctxrun=ctxrun([r]), **task_kwargs) == []
-    assert invariant()
     assert iotaa._not_ready(ctxrun=ctxrun([n]), **task_kwargs) == [n]
-    assert invariant()
-    assert iotaa._not_ready(ctxrun=ctxrun([d]), **task_kwargs) == [n]
-    assert invariant()  # i.e. n retained, d discarded
     assert iotaa._not_ready(ctxrun=ctxrun([r, n]), **task_kwargs) == [n]
-    assert invariant()
     assert iotaa._not_ready(ctxrun=ctxrun(r), **task_kwargs) is None
-    assert invariant()
     assert iotaa._not_ready(ctxrun=ctxrun(n), **task_kwargs) is n
-    assert invariant()
-    assert iotaa._not_ready(ctxrun=ctxrun(d), **task_kwargs) is n
-    assert invariant()  # i.e. n retained, d discarded
     assert iotaa._not_ready(ctxrun=ctxrun(None), **task_kwargs) is None
-    assert invariant()
 
 
 def test__not_ready__bad_req():

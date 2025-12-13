@@ -26,7 +26,7 @@ typecheck() {
   msg Running typechecker
   (
     set -eux
-    mypy --install-types --non-interactive .
+    mypy .
   )
   msg OK
 }
