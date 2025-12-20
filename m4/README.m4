@@ -3,38 +3,38 @@ changequote(`«', `»')dnl
 
 **It's One Thing After Another**
 
-A simple workflow engine with semantics inspired by [Luigi](https://github.com/spotify/luigi) and tasks expressed as decorated Python functions (or methods), `iotaa` is pure Python, relies on no third-party packages, and is contained in a single module.
+`iotaa` is a simple workflow engine with semantics inspired by [Luigi](https://github.com/spotify/luigi) and tasks expressed as decorated Python functions (or methods). It is pure Python, depends on no third-party packages, and is contained in a single module.
 
 ## Workflows
 
 Workflows are composed of tasks, each of which is some combination of:
 
-- Assets: Observable state, an asset is often an external entity like a file, but may also be a more abstract entity like a file line count, REST API response, time of day, or any kind of in-memory data.
-- Actions: Imperative logic to create or otherwise "ready" assets.
-- Requirements: Dependency relationships that define the order in which tasks must be executed, they also allow a task to use assets from tasks it requires when readying its own assets.
+- Assets: Observable state. Assets are often external entities like files, but may also be more abstract entities like the number of lines in a file, a REST API response, the time of day, or any kind of in-memory data.
+- Actions: Imperative logic. Actions create or otherwise "ready" assets.
+- Requirements: Dependency relationships. Requirements define the order in which tasks must execute, and allow a task to use assets from other tasks it requires when readying its own assets.
 
-A workflow can be thought of as a graph where tasks are nodes and the dependency relationships between them are directed edges between them.
+A workflow can be thought of as a graph where the nodes are tasks and the (directed) edges are dependency relationships.
 
 ## Assets
 
-An asset (an instance of class `iotaa.Asset`) has two attributes:
+An asset (an instance of class `iotaa.Asset`) has two properties:
 
-1. `ref`: A value, of any type, identifying the observable state this asset represents.
-2. `ready`: A 0-arity (no-argument) function that returns a `bool` indicating whether the asset is ready to use. Note that this should be a reference to a callable function, not a function _call_.
+1. `ref`: A value, of any type, identifying the observable state the asset represents.
+2. `ready`: A 0-arity (no-argument) function that returns a `bool` indicating whether the asset is ready to use. Note that this should be a _reference to a callable function_, not a function call.
 
-Create an asset by calling `iotaa.Asset(ref=<ref>, ready=<callable>)`.
+Create an asset by calling `iotaa.Asset(ref=<object>, ready=<callable>)`.
 
 See the _In-Memory Asset_ topic in the _Cookbook_ section for a strategy for handling in-memory assets.
 
 ## Tasks
 
-A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. A task is identified by its name, so multiple tasks yielding the same name are considered equivalent, and `iotaa` will select one as a representative for execution.
+A task is a decorated Python function that yields to `iotaa` its name and, depending on its type (see below), assets and/or required tasks. A task's identity is its name, so multiple tasks yielding the same name are considered equivalent, and `iotaa` will deduplicate them. For this reason, it is crucial to **ensure that distinct tasks yield distinct names**.
 
-Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of any required tasks are ready, and which may make use of those assets in its work.
+Following its `yield` statements, a task that readies an asset provides action code to do so, which is only executed if the assets of all required tasks are ready, and which may make use of those assets in its work.
 
-`iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be a single (scalar) item, a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.Asset(ref=<object>, ready=<callable})` calls, and requiremens are specified as calls to task functions, e.g. `t(<args>)` for a required task `t`.
+`iotaa` provides three decorators to define tasks, described below. For each, assets and requirements may be a single (scalar) item, a `list` of items, or a `dict` mapping `str` keys to items. Assets are specified as `iotaa.Asset(ref=<object>, ready=<callable})` calls, and requirements are specified as **calls** to task functions, e.g. `t(*args, **kwargs)` for a required task `t`.
 
-For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A useful pattern is to assign a requirement to a variable, yield that variable, then access its assets via its `.ref` property (or by passing it as the argument to the `iotaa.ref()` helper function). For example:
+For all task types, arbitrary Python statements may appear before and interspersed between the `yield` statements, but should generally not be permitted to affect external state. A useful pattern is to assign a requirement to a variable, yield that variable, then access its assets via its `.ref` property, or by passing it as the argument to the `iotaa.ref()` helper function. For example, given that `random_number` is another `iotaa` task function whose scalar asset is an in-memory random number:
 
 ``` python
 @task
@@ -43,7 +43,7 @@ def random_number_file(path: Path):
     yield Asset(path, path.is_file)       # Yield task asset
     rn = random_number()                  # Call and save required task
     yield rn                              # Yield required task
-    path.write_text(rn.ref)               # Ready THIS task's asset, using the requirement's asset.
+    path.write_text(rn.ref)               # Ready THIS task's asset using the required task's asset.
 ```
 
 ### `@task`
@@ -54,36 +54,38 @@ The essential task type, a `@task` function yields, in order:
 2. The asset(s) it readies.
 3. Any requirements.
 
-A task may have no requirements, in which case `None` can be specified. For example, a task to create a file with static content might not rely on any other tasks. (It could perhaps rely on another task to ready the parent directory, but could also create that directory itself before writing the file.)
+A task may have no requirements, in which case `None` can be yielded. For example, a task to create a file with static content might not rely on any other tasks: It is self-contained and can be executed at any time. It could perhaps rely on another task to ready the file's parent directory, but could also create that directory itself before writing the file.
 
-Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.ref` properties (or by passing them to the `iotaa.ref()` helper function -- see the demo application below).
+Action code following the final `yield` will be executed with the expectation that it will ready the task's asset(s). It is only executed if all required tasks' assets are all ready. Action code may access the values from required tasks' assets via their `.ref` properties, or by passing them to the `iotaa.ref()` helper function.
 
 ### `@collection`
 
-A collection of other tasks, a `@collection` task is ready when all of its required tasks are ready. It yields, in order:
+A `@collection` task simply groups other tasks together and is ready when all its required tasks are ready. It yields, in order:
 
 1. Its name.
-2. The collection of required tasks: A `list` of task-function calls, or a `dict` mapping `str` keys to task-function-call values. A `@collection` task could yield a scalar requirement (or even `None`) but this probably makes no sense in practice.
+2. A collection of requirements: A `list` of task-function calls, or a `dict` mapping `str` keys to task-function calls. A `@collection` task could yield a scalar requirement (or even `None`) but this may not be useful in practice.
 
-No action code should follow the final `yield`: It will never be executed.
+No action code should follow the final `yield`, as it will never be executed.
 
 ### `@external`
 
 An `@external` task describes assets required by downstream tasks that are outside the workflow's power to ready. It yields, in order:
 
 1. Its name.
-2. The asset(s) that are required but cannot be readied by the workflow.
+2. The asset(s) that are required but cannot be readied by the workflow. The yielded value may be a scalar `Asset`, a `list` of `Asset`s, or a `dict` mapping `str` keys to `Asset` values.
 
-No action code should follow the final `yield`: It will never be executed.
+No action code should follow the final `yield`, as it will never be executed.
 
 ## Use
 
 ### Installation
 
-Installation via a `conda` package at [anaconda.org](https://anaconda.org/conda-forge/iotaa):
+Installation via `conda` ([anaconda.org](https://anaconda.org/conda-forge/iotaa)):
 
 - Into an existing, activated conda environment: `conda install -c conda-forge iotaa`
 - Into a new environment called `iotaa`: `conda create -n iotaa -c conda-forge iotaa`
+
+[Miniforge](https://github.com/conda-forge/miniforge) is recommended, and does not require the `-c conda-forge` argument.
 
 Installation via a `pip` package at [pypi.org](https://pypi.org/project/iotaa/):
 
@@ -129,15 +131,15 @@ optional arguments:
     Show version info and exit
 ```
 
-Specifying positional arguments `module function hello 42` calls task function `function` in module `module` with arguments `hello: str` and `42: int`. Positional arguments past `module` and `function` are parsed with the `json` library into Python values.
+Specifying positional arguments `module function hello 42` calls task function `function` in module `module` with arguments `hello: str` and `42: int`. Positional arguments past `module` and `function` are parsed as JSON into Python values.
 
-It is assumed that `module` is importable by Python by customary means. As a convenience, if `module` is a valid absolute or relative path (perhaps specified as `module.py` or `/path/to/module.py`), its parent directory will automatically be added to `sys.path` so that it can be imported.
+It is assumed that `module` is importable by Python by customary means. As a convenience, if `module` is a valid absolute or relative path (perhaps specified as `module.py` or `/path/to/module.py`), its parent directory will automatically be added to `sys.path` so that it can be imported with `import module`.
 
 Given a task graph comprising any number of nodes, any arbitrary subgraph may be executed by specifying the appropriate root function `function`: Only `function` and its requirement(s) (and their requirements, etc.) will be executed, resulting in partial processing of the potentially larger graph.
 
 The `function` argument is optional, and ignored if supplied, if the `-s` / `--show` option to show the names of available task functions in `module` is specified.
 
-In addition to normally hidden messages logged at the `DEBUG` level, specifying `-v` / `--verbose` will result in a stacktrace being logged when `iotaa`-internal exceptions are raised, which ma sometimes be helpful for debugging in some cases.
+In addition to normally hidden messages logged at the `DEBUG` level, specifying `-v` / `--verbose` will result in a stacktrace being logged when `iotaa`-internal exceptions are raised, which may be helpful for debugging in some cases.
 
 ### Programmatic Use
 
@@ -145,31 +147,31 @@ After installation, `import iotaa` or `from iotaa import <name>` to access publi
 
 ### Dry-Run Mode
 
-Use the `--dry-mode` CLI switch, or supply the `dry_run=True` argument when calling a task-graph root function, to run `iotaa` in a mode where no post-`yield` action statements in `@task` bodies are executed. When applications are written such that no state-affecting statements precede the final `yield` statement, dry-run mode will report the current state of the workflow without affecting state, potentially identifying not-ready requirements that are blocking workflow progress.
+Use the `--dry-mode` CLI switch, or supply the `dry_run=True` argument when programmatically calling a task function, to run `iotaa` in a mode where no post-`yield` action statements in `@task` bodies are executed. When applications are written such that no state-affecting statements precede the final `yield` statement, dry-run mode will report the current state of the workflow without affecting assets, potentially identifying not-ready requirements that are blocking workflow progress.
 
 ### Threading
 
-Use the `--threads` CLI switch, or supply the `threads=` argument when calling a task-graph root function, to process the task graph with the specified number of threads. Threads can speed up workflows by executing IO-bound tasks concurrently. (See the _Cookbook_ section, below, for information on combining threads and processes to speed up CPU-bound tasks.)
+Use the `--threads` CLI switch, or supply the `threads=` argument when programmatically calling a task function, to process the task graph with the specified number of threads. Threads can speed up workflows by executing IO-bound tasks concurrently. (See the _Cookbook_ section, below, for information on combining threads and processes to speed up CPU-bound tasks.)
 
-When using threads, note that log messages relating to different tasks may be interleaved. Those logged by `iotaa` itself should be prefixed with each task's name, so it should be clear which messages belong to which task. When creating custom log messages by via `iotaa.log`, consider prefixing them with the taskname, too, to allow them to be logically grouped together when reading.
+When using threads, note that log messages relating to different tasks may be interleaved. Those logged by `iotaa` itself will be prefixed with each task's name, so it should be clear which messages belong to which task. When calling `iotaa.log()` in application code, consider prefixing log messages with the task's name so that they can be associated with the task's other messages, e.g. by filtering the log output with `grep`.
 
 ## Helpers
 
-A number of public helper functions are available in the `iotaa` module:
+A number of public helper functions are available in the `iotaa` module. The `Node` objects referred to in the table are the return values of task-function calls.
 
-| Function         | Description |
-| ---------------- | ----------- |
-| `asset()`        | Given the `Node` value returned by a task-function call, return the asset(s) yielded by the task. Equivalent to accessing the `.asset` property of the `Node`. |
-| `graph()`        | Given the `Node` value returned by a task-function call, return a Graphviz string representation of the task graph. Equivalent to accessing the `.graph` property of the `Node`. |
-| `logcfg()`       | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
-| `ready()`        | Given the `Node` value returned by a task-function call, return the ready (`bool`) status of the task. Equivalent to accessing the `.ready` property of the `Node`. |
-| `ref()`          | Given the `Node` value returned by a task-function call, a single asset, a `list` of assets, or a `dict` whose values are assets, return the `ref` values of the asset(s) in the corresponding shape (e.g. `dict`, `list`). Accessing the `.ref` property returns the `ref` values for the assets of that `Node`. |
-| `req()`          | Given the `Node` value returned by a task-function call, return the represented task's requirement(s), themselves `Node` values. Equivalent to accessing the `.req` property of the `Node`. |
-| `tasknames()`    | Given an object (e.g. a module), return a list of names of  `iotaa` task members. Called by the CLI when `-s` / `--show` is specified. Prints each task name followed by, when available, the first line of its docstring. |
+| Function      | Description |
+| ------------- | ----------- |
+| `asset()`     | Given a `Node`, return its task's asset(s). Equivalent to the `Node`'s `.asset` property. |
+| `graph()`     | Given a `Node`, return a Graphviz string representing its task's graph. Equivalent to the `Node`'s `.graph` property. |
+| `logcfg()`    | Configure Python's root logger for use by `iotaa`. Called by the CLI, but available for standalone applications with simple logging needs to call programmatically. |
+| `ready()`     | Given a `Node`, return its task's ready status task. Equivalent to the `Node`'s `.ready` property. |
+| `ref()`       | Given a `Node`, return the `.ref` values of its task's asset(s) in the same shape (scalar, `list`, `dict`) as the assets. Equivalent to the `Node`'s `.ref` property. |
+| `req()`       | Given a `Node`, return its task's `Node` requirement(s). Equivalent to the `Node`'s `.req` property. |
+| `tasknames()` | Given an object (e.g. a module) containing public (not named with a leading underscore) `iotaa` tasks, return a list of those tasks' names. |
 
 Some linters may not recognize the existence of `Node` properties `.asset`, `.graph`, `.ready`, `.ref`, and `.req`. In such cases, calling the corresponding helper functions instead may silence complaints.
 
-Additionally, `iotaa.log` provides a reference to the logger in use by `iotaa`. By default this will be the Python root logger, configured by `iotaa`. But, if a custom logger was supplied via the `log=` keyword argument to a task-graph root function, `iotaa.log` will reference that logger. Thus, application code can safely call `iotaa.log.info()`, `iotaa.log.debug()`, etc.
+Additionally, `iotaa.log` provides a reference to the logger in use by `iotaa`. By default this will be the Python root logger, configured by `iotaa`. But, if a custom logger was supplied via the `log=` keyword argument to a task function, `iotaa.log` will reference that logger. Thus, application code can safely call `iotaa.log.info()`, `iotaa.log.debug()`, etc.
 
 ## Development
 
@@ -177,13 +179,13 @@ In the base environment of a conda installation ([Miniforge](https://github.com/
 
 ## Important Notes and Tips
 
-- Tasks yielding the same task name are deemed equivalent by `iotaa`, which will add a single representative to the task graph for execution and patch the rest with references to the representative's assets . Be sure that distinct tasks yield distinct names. If it appears that `iotaa` is not executing all expected tasks, too-general task names may be the cause.
-- For efficient task-graph execution, if `iotaa` finds that a task's assets are ready, it will ignore all that task's requirements, adding no child nodes for them to the task graph. Furthermore, when it _does_ process a task's requirement(s), it will discard any that are themselves ready. For this reason, yielding assets as soon as possible, before doing any work constructing requirements, may speed up workflow execution.
-- Tasks with all their assets ready will not be re-executed, nor their requirements revisited. So, in order to force re-execution (for example, after a configuration change that would produce different assets) it is necessary to externally make them _not ready_, e.g. by deleting on-disk files for filesystem-based assets.
-- The following keyword arguments to task functions are reserved. They need only be provided when calling the root function of a task graph from outside `iotaa`, not when calling a task function as a requirement inside a decorated `@task`, `@collection`, or `@external` task. They are consumed by `iotaa`, not passed on to task functions, and should not appear in task functions' argument lists. Since they do not appear in argument lists, linter complaints may need to be suppressed at some call sites.
-    - `dry_run`: Instructs `iotaa` not to run the action code in `@task` functions. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting state appear only after the final `yield` statement in `@task` functions, and that `@collection` and `@external` tasks perform no state-affecting actions.
-    - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger as configured by `iotaa`. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object.
-    - `threads`: Specifies the number of concurrent threads to use. Defaults to 1. When interrupted for example by CTRL-C, `iotaa` waits for outstanding tasks to complete before exiting; terminating `iotaa` forcefully may leave the workflow in an inconsistent state requiring manual recovery.
+- Tasks yielding the same task name are deemed equivalent by `iotaa`, which will add a single representative to the task graph for execution and discard duplicates. Be sure that distinct tasks yield distinct names. If it appears that `iotaa` is not executing all expected tasks, too-general task names may be the cause.
+- For efficient task-graph execution, if `iotaa` finds that a task's assets are ready, it will ignore all that task's requirements, adding no nodes for them to the task graph. Furthermore, when it _does_ process a task's requirement(s), it will discard any that are themselves ready. Thus, yielding assets as soon as possible, before doing any work constructing requirements, may speed up workflow execution.
+- Tasks whose assets are ready will not be re-executed, nor their requirements revisited. So, in order to force re-execution (for example, after a configuration change that would produce different assets) it is necessary to externally make them _not ready_, for example by deleting on-disk files for filesystem-based assets.
+- The following keyword arguments to task functions are reserved. They should not be specified when calling a task function to create a requirement inside another `iotaa`-decorated task function, but only (and optionally) when calling a task function to trigger execution of a task graph. They are consumed by `iotaa`, not passed on to task functions, and should not appear in task functions' argument lists. Since they do not appear in argument lists, linter complaints may need to be suppressed at some call sites.
+    - `dry_run`: Instructs `iotaa` not to run the action code in `@task` functions. Defaults to `False`. Passed automatically by the `iotaa` CLI when the `--dry-run` switch is specified. For dry-run mode to work correctly, ensure that any statements affecting assets appear only after the final `yield` statement in `@task` functions, and that `@collection` and `@external` tasks perform no asset-affecting actions.
+    - `log`: Provides a custom Python `Logger` object for `iotaa` to use. Defaults to the Python root logger as configured by `iotaa`. Task functions may access the in-use `iotaa` logger via the `iotaa.log` object to create application-specific log messages.
+    - `threads`: Specifies the number of concurrent threads to use. Defaults to 1. When interrupted, for example, by CTRL-C, `iotaa` waits for outstanding tasks to complete before exiting; terminating `iotaa` forcefully may leave the workflow in an inconsistent state requiring manual recovery.
 - Workflows may be invoked repeatedly, potentially making further progress with each invocation, depending on readiness of requirements. Since task functions' assets are checked for readiness before their requirements are checked or their post-`yield` statements are executed, completed work is never repeated. That is, correctly designed tasks are idempotent, unless their assets become not-ready by external means. For example, one might notice that an asset is incorrect, remove it, fix the workflow code, then re-run the workflow: `iotaa` would perform whatever work is necessary to re-ready the asset, but nothing more.
 
 ## Demo
@@ -196,7 +198,7 @@ The first `@collection` task defines the end result: A cup of tea, steeped, with
 include(«a_cup_of_tea.py»)dnl
 ```
 
-As described above, a `@collection` task is just a collection of other tasks, and must yield its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@collection` task, no executable statements follow the final `yield`.
+As described above, a `@collection` task is just a group of other tasks, and must yield its name and the tasks it collects: In this case, the steeped tea with sugar, and the spoon. Since this function is a `@collection` task, no executable statements follow the final `yield`.
 
 The `cup()` and `spoon()` `@task` functions are straightforward:
 
@@ -554,7 +556,7 @@ Since `val` is initially empty in `json()`, the second argument to `Asset()`, it
 
 Any mutable value could potentially fill the role of `val` using this mechanism. In this case, a `list` is mutated with `.append()`. A `dict` val could be mutated with `.update()`, a `set` with `.add()`, and `+=` could mutate a NumPy `ndarray`. The key is that the value returned by `Asset(val, lambda: bool(val))` is a closure that captures `val` -- at the moment of that call -- such that it survives beyond the scope of the `json()` function. A change to `val` via an assignment statement like `val = requests.get(url).json()` in the action code would not be visible outside the lexical scope of `json()`.
 
-In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, depulication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
+In this simple example, there's no obvious benefit to `json()` being a `@task` instead of a normal function. But, in a case where multiple tasks have a common requirement, deduplication of tasks and the ability to retrieve in-memory values from tasks can be a benefit. For example:
 
 `location2.py`
 
@@ -606,7 +608,7 @@ An `@external` task can be used to represent availability of an upstream resourc
 include(«upstream.py»)dnl
 ```
 
-An attempt to download data related to tomorrow's 00:00 UTC weather corecast, which is not yet available:
+An attempt to download data related to tomorrow's 00:00 UTC weather forecast, which is not yet available:
 
 ```
 define(«CMD», «iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "tomorrow 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx»)dnl
