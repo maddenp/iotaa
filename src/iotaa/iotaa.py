@@ -342,7 +342,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         req = _not_ready(ctxrun, iterator, taskname)
-        root = ctxrun(lambda: _STATE.get()).count == 1
+        root = ctxrun(_STATE.get).count == 1
         return _construct_and_if_root_call(
             node_class=NodeCollection,
             taskname=taskname,
@@ -374,7 +374,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
         asset = ctxrun(_next, iterator, "asset(s)")
-        root = ctxrun(lambda: _STATE.get()).count == 1
+        root = ctxrun(_STATE.get).count == 1
         return _construct_and_if_root_call(
             node_class=NodeExternal,
             taskname=taskname,
@@ -493,7 +493,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
         asset = ctxrun(_next, iterator, "asset(s)")
         req = _not_ready(ctxrun, iterator, taskname)
         continuation = _continuation(iterator, taskname)
-        root = ctxrun(lambda: _STATE.get()).count == 1
+        root = ctxrun(_STATE.get).count == 1
         return _construct_and_if_root_call(
             node_class=NodeTask,
             taskname=taskname,
@@ -621,7 +621,7 @@ def _construct_and_if_root_call(
     :param dry_run: Avoid executing state-affecting code?
     :return: A constructed Node object.
     """
-    reps = ctxrun(lambda: _STATE.get()).reps
+    reps = ctxrun(_STATE.get).reps
     node = reps.setdefault(taskname, node_class(taskname=taskname, threads=threads, **kwargs))
     if node.root:
         ctxrun(node, dry_run)

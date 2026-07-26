@@ -36,6 +36,7 @@ ignore = [
   "ANN401",  # any-type
   "C408",    # unnecessary-collection-call
   "COM812",  # missing-trailing-comma
+  "CPY001",  # missing-copyright-notice
   "D102",    # undocumented-public-method
   "D103",    # undocumented-public-function
   "D104",    # undocumented-public-package
@@ -55,6 +56,7 @@ ignore = [
   "FBT003",  # boolean-positional-value-in-call
   "LOG015",  # root-logger-call
   "PLR0913", # too-many-arguments
+  "PLR0917", # too-many-positional-arguments
   "S101",    # assert
   "T201",    # print
   "TC006",   # runtime-cast-value
