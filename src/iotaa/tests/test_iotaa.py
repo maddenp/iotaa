@@ -620,7 +620,7 @@ def test_main__live_abspath(capsys, module_for_main):
 def test_main__live_syspath(capsys, module_for_main):
     m = str(module_for_main.name).replace(".py", "")  # i.e. not a path to an actual file
     with patch.object(iotaa.sys, "argv", new=["prog", m, "hi", "world"]):
-        syspath = [iotaa.sys.path, str(module_for_main.parent)]
+        syspath = [*iotaa.sys.path, str(module_for_main.parent)]
         with (
             patch.object(iotaa.sys, "path", new=syspath),
             patch.object(iotaa.Path, "is_file", return_value=False),
