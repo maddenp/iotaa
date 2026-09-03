@@ -615,6 +615,31 @@ def test_external__ready(fakefs, test_ctxrun):
     assert node.ready
 
 
+@mark.parametrize("kind", ["collection", "external", "task"])
+def test_task_construction__existing_representative(kind):
+    events = []
+
+    @getattr(iotaa, kind)
+    def shared():
+        events.append("name")
+        yield "shared"
+        events.append("properties")
+        if kind == "collection":
+            yield None
+        else:
+            yield iotaa.Asset(None, lambda: False)
+            if kind == "task":
+                yield None
+
+    @iotaa.collection
+    def root():
+        yield "root"
+        yield [shared(), shared()]
+
+    root(dry_run=True)
+    assert events == ["name", "properties", "name"]
+
+
 def test_graph(graphkit):
     expected, _, root = graphkit
     graph = iotaa.graph(root)
@@ -868,6 +893,29 @@ def test_log():
 
 
 # Tests for private functions
+
+
+def test__existing_and_if_root_call__root(test_ctxrun):
+    closed = []
+
+    def task_iterator():
+        try:
+            yield "task"
+        finally:
+            closed.append(True)
+
+    iterator = task_iterator()
+    taskname = next(iterator)
+    node = Mock(root=True)
+    state = test_ctxrun(_STATE.get)
+    state.reps[taskname] = node
+
+    actual = iotaa._existing_and_if_root_call(test_ctxrun, iterator, taskname, dry_run=True)
+
+    assert actual is node
+    assert closed == [True]
+    assert state.count == 0
+    node.assert_called_once_with(True)
 
 
 def test__construct_and_call_if_root(test_ctxrun):

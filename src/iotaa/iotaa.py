@@ -353,6 +353,9 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        node = _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)
+        if node is not None:
+            return cast(NodeCollection, node)
         req = _not_ready(ctxrun, iterator, taskname)
         root = ctxrun(_STATE.get).count == 1
         return _construct_and_if_root_call(
@@ -385,6 +388,9 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        node = _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)
+        if node is not None:
+            return cast(NodeExternal, node)
         asset = ctxrun(_next, iterator, "asset(s)")
         root = ctxrun(_STATE.get).count == 1
         return _construct_and_if_root_call(
@@ -502,6 +508,9 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
+        node = _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)
+        if node is not None:
+            return cast(NodeTask, node)
         asset = ctxrun(_next, iterator, "asset(s)")
         req = _not_ready(ctxrun, iterator, taskname)
         continuation = _continuation(iterator, taskname)
@@ -636,7 +645,10 @@ def _construct_and_if_root_call(
     :return: A constructed Node object.
     """
     reps = ctxrun(_STATE.get).reps
-    node = reps.setdefault(taskname, node_class(taskname=taskname, threads=threads, **kwargs))
+    node = reps.get(taskname)
+    if node is None:
+        node = node_class(taskname=taskname, threads=threads, **kwargs)
+        reps[taskname] = node
     if node.root:
         ctxrun(node, dry_run)
     decrement_count(ctxrun)
@@ -716,6 +728,29 @@ def _flatten(o):
     if o is None:
         return []
     return [o]
+
+
+def _existing_and_if_root_call(
+    ctxrun: Callable, iterator: Iterator, taskname: str, dry_run: bool
+) -> Node | None:
+    """
+    Return and optionally call an existing representative for a task.
+
+    :param ctxrun: A function to run another in the correct context.
+    :param iterator: The current task.
+    :param taskname: The current task's name.
+    :param dry_run: Avoid executing state-affecting code?
+    :return: The existing representative, if any.
+    """
+    reps = ctxrun(_STATE.get).reps
+    node = reps.get(taskname)
+    if node is None:
+        return None
+    ctxrun(cast(Any, iterator).close)
+    if node.root:
+        ctxrun(node, dry_run)
+    decrement_count(ctxrun)
+    return cast(Node, node)
 
 
 def _formatter(prog: str) -> HelpFormatter:
