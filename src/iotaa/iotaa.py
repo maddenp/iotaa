@@ -353,8 +353,7 @@ def collection(func: Callable[..., Iterator]) -> Callable[..., NodeCollection]:
     @wraps(func)
     def _iotaa_wrapper_collection(*args, **kwargs) -> NodeCollection:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        node = _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)
-        if node is not None:
+        if (node := _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)) is not None:
             return cast(NodeCollection, node)
         req = _not_ready(ctxrun, iterator, taskname)
         root = ctxrun(_STATE.get).count == 1
@@ -388,8 +387,7 @@ def external(func: Callable[..., Iterator]) -> Callable[..., NodeExternal]:
     @wraps(func)
     def _iotaa_wrapper_external(*args, **kwargs) -> NodeExternal:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        node = _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)
-        if node is not None:
+        if (node := _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)) is not None:
             return cast(NodeExternal, node)
         asset = ctxrun(_next, iterator, "asset(s)")
         root = ctxrun(_STATE.get).count == 1
@@ -508,8 +506,7 @@ def task(func: Callable[..., Iterator]) -> Callable[..., NodeTask]:
     @wraps(func)
     def _iotaa_wrapper_task(*args, **kwargs) -> NodeTask:
         ctxrun, iterator, taskname, dry_run, threads = _taskprops(func, *args, **kwargs)
-        node = _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)
-        if node is not None:
+        if (node := _existing_and_if_root_call(ctxrun, iterator, taskname, dry_run)) is not None:
             return cast(NodeTask, node)
         asset = ctxrun(_next, iterator, "asset(s)")
         req = _not_ready(ctxrun, iterator, taskname)
@@ -645,8 +642,7 @@ def _construct_and_if_root_call(
     :return: A constructed Node object.
     """
     reps = ctxrun(_STATE.get).reps
-    node = reps.get(taskname)
-    if node is None:
+    if (node := reps.get(taskname)) is None:
         node = node_class(taskname=taskname, threads=threads, **kwargs)
         reps[taskname] = node
     if node.root:
@@ -743,8 +739,7 @@ def _existing_and_if_root_call(
     :return: The existing representative, if any.
     """
     reps = ctxrun(_STATE.get).reps
-    node = reps.get(taskname)
-    if node is None:
+    if (node := reps.get(taskname)) is None:
         return None
     ctxrun(cast(Any, iterator).close)
     if node.root:
