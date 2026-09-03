@@ -359,32 +359,32 @@ Let's run this workflow with the `iotaa` CLI, requesting that the workflow start
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea teatime
-[2026-07-26T20:47:31] INFO    The cup: Executing
-[2026-07-26T20:47:31] INFO    The cup: Getting cup
-[2026-07-26T20:47:31] INFO    The cup: Ready
-[2026-07-26T20:47:31] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2026-07-26T20:47:31] INFO    The spoon: Executing
-[2026-07-26T20:47:31] INFO    The spoon: Getting spoon
-[2026-07-26T20:47:31] INFO    The spoon: Ready
-[2026-07-26T20:47:31] WARNING Tea bag in cup: Not ready
-[2026-07-26T20:47:31] WARNING Tea bag in cup: Requires:
-[2026-07-26T20:47:31] WARNING Tea bag in cup: ✔ The cup
-[2026-07-26T20:47:31] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2026-07-26T20:47:31] WARNING Boiling water in cup: Not ready
-[2026-07-26T20:47:31] WARNING Boiling water in cup: Requires:
-[2026-07-26T20:47:31] WARNING Boiling water in cup: ✔ The cup
-[2026-07-26T20:47:31] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2026-07-26T20:47:31] WARNING Steeped tea: Not ready
-[2026-07-26T20:47:31] WARNING Steeped tea: Requires:
-[2026-07-26T20:47:31] WARNING Steeped tea: ✖ Boiling water in cup
-[2026-07-26T20:47:31] WARNING Sugar in cup: Not ready
-[2026-07-26T20:47:31] WARNING Sugar in cup: Requires:
-[2026-07-26T20:47:31] WARNING Sugar in cup: ✔ The cup
-[2026-07-26T20:47:31] WARNING Sugar in cup: ✖ Steeped tea
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: Not ready
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: Requires:
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: ✖ Sugar in cup
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: ✔ The spoon
+[2026-09-03T19:14:45] INFO    The cup: Executing
+[2026-09-03T19:14:45] INFO    The cup: Getting cup
+[2026-09-03T19:14:45] INFO    The cup: Ready
+[2026-09-03T19:14:45] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
+[2026-09-03T19:14:45] INFO    The spoon: Executing
+[2026-09-03T19:14:45] INFO    The spoon: Getting spoon
+[2026-09-03T19:14:45] INFO    The spoon: Ready
+[2026-09-03T19:14:45] WARNING Tea bag in cup: Not ready
+[2026-09-03T19:14:45] WARNING Tea bag in cup: Requires:
+[2026-09-03T19:14:45] WARNING Tea bag in cup: ✔ The cup
+[2026-09-03T19:14:45] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
+[2026-09-03T19:14:45] WARNING Boiling water in cup: Not ready
+[2026-09-03T19:14:45] WARNING Boiling water in cup: Requires:
+[2026-09-03T19:14:45] WARNING Boiling water in cup: ✔ The cup
+[2026-09-03T19:14:45] WARNING Boiling water in cup: ✖ Tea bag in cup
+[2026-09-03T19:14:45] WARNING Steeped tea: Not ready
+[2026-09-03T19:14:45] WARNING Steeped tea: Requires:
+[2026-09-03T19:14:45] WARNING Steeped tea: ✖ Boiling water in cup
+[2026-09-03T19:14:45] WARNING Sugar in cup: Not ready
+[2026-09-03T19:14:45] WARNING Sugar in cup: Requires:
+[2026-09-03T19:14:45] WARNING Sugar in cup: ✔ The cup
+[2026-09-03T19:14:45] WARNING Sugar in cup: ✖ Steeped tea
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: Not ready
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: Requires:
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: ✖ Sugar in cup
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: ✔ The spoon
 ```
 
 There's lots to see during the first invocation. Most of the tasks cannot run due to not-ready requirements and so are themselves left in a not-ready state. Only the `cup()` and `spoon()` tasks, which have no requirements, execute and end in the `Ready` state. We will see in subsequent workflow invocations that these tasks are not executed again, as their assets will be found to be ready.
@@ -420,23 +420,23 @@ Iterate the workflow:
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea teatime
-[2026-07-26T20:47:31] INFO    Tea bag in cup: Executing
-[2026-07-26T20:47:31] INFO    Tea bag in cup: Adding tea bag to cup
-[2026-07-26T20:47:31] INFO    Tea bag in cup: Ready
-[2026-07-26T20:47:31] INFO    Boiling water in cup: Executing
-[2026-07-26T20:47:31] INFO    Boiling water in cup: Adding water to cup
-[2026-07-26T20:47:31] INFO    Boiling water in cup: Ready
-[2026-07-26T20:47:31] INFO    Steeped tea: Executing
-[2026-07-26T20:47:31] WARNING Steeped tea: Tea needs to steep for 10s
-[2026-07-26T20:47:31] WARNING Steeped tea: Not ready
-[2026-07-26T20:47:31] WARNING Steeped tea: Requires:
-[2026-07-26T20:47:31] WARNING Steeped tea: ✔ Boiling water in cup
-[2026-07-26T20:47:31] WARNING Sugar in cup: Not ready
-[2026-07-26T20:47:31] WARNING Sugar in cup: Requires:
-[2026-07-26T20:47:31] WARNING Sugar in cup: ✖ Steeped tea
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: Not ready
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: Requires:
-[2026-07-26T20:47:31] WARNING The perfect cup of tea: ✖ Sugar in cup
+[2026-09-03T19:14:45] INFO    Tea bag in cup: Executing
+[2026-09-03T19:14:45] INFO    Tea bag in cup: Adding tea bag to cup
+[2026-09-03T19:14:45] INFO    Tea bag in cup: Ready
+[2026-09-03T19:14:45] INFO    Boiling water in cup: Executing
+[2026-09-03T19:14:45] INFO    Boiling water in cup: Adding water to cup
+[2026-09-03T19:14:45] INFO    Boiling water in cup: Ready
+[2026-09-03T19:14:45] INFO    Steeped tea: Executing
+[2026-09-03T19:14:45] WARNING Steeped tea: Tea needs to steep for 10s
+[2026-09-03T19:14:45] WARNING Steeped tea: Not ready
+[2026-09-03T19:14:45] WARNING Steeped tea: Requires:
+[2026-09-03T19:14:45] WARNING Steeped tea: ✔ Boiling water in cup
+[2026-09-03T19:14:45] WARNING Sugar in cup: Not ready
+[2026-09-03T19:14:45] WARNING Sugar in cup: Requires:
+[2026-09-03T19:14:45] WARNING Sugar in cup: ✖ Steeped tea
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: Not ready
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: Requires:
+[2026-09-03T19:14:45] WARNING The perfect cup of tea: ✖ Sugar in cup
 ```
 
 On-disk workflow state now:
@@ -458,7 +458,7 @@ Since the box of tea bags became available, the workflow was able to add a tea b
 ```
 $ iotaa iotaa.demo a_cup_of_tea teatime
 ...
-[2026-07-26T20:47:37] WARNING Steeped tea: Tea needs to steep for 4s
+[2026-09-03T19:14:50] WARNING Steeped tea: Tea needs to steep for 4s
 ...
 ```
 
@@ -466,10 +466,10 @@ Wait a bit and iterate again:
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea teatime
-[2026-07-26T20:47:42] INFO    Sugar in cup: Executing
-[2026-07-26T20:47:42] INFO    Sugar in cup: Adding sugar to cup
-[2026-07-26T20:47:42] INFO    Sugar in cup: Ready
-[2026-07-26T20:47:42] INFO    The perfect cup of tea: Ready
+[2026-09-03T19:14:55] INFO    Sugar in cup: Executing
+[2026-09-03T19:14:55] INFO    Sugar in cup: Adding sugar to cup
+[2026-09-03T19:14:55] INFO    Sugar in cup: Ready
+[2026-09-03T19:14:55] INFO    The perfect cup of tea: Ready
 ```
 
 Now that the tea has steeped long enough, the sugar has been added:
@@ -491,7 +491,7 @@ One more iteration and we see that the workflow has reached its final state and 
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea teatime
-[2026-07-26T20:47:42] INFO    The perfect cup of tea: Ready
+[2026-09-03T19:14:55] INFO    The perfect cup of tea: Ready
 ```
 
 One useful feature of this kind of workflow is its ability to recover from damage to its external state. Here, we remove the sugar from the tea (don't try this at home):
@@ -517,10 +517,10 @@ Note how the workflow detects the change to the readiness of its assets and reco
 
 ```
 $ iotaa iotaa.demo a_cup_of_tea teatime
-[2026-07-26T20:47:42] INFO    Sugar in cup: Executing
-[2026-07-26T20:47:42] INFO    Sugar in cup: Adding sugar to cup
-[2026-07-26T20:47:42] INFO    Sugar in cup: Ready
-[2026-07-26T20:47:42] INFO    The perfect cup of tea: Ready
+[2026-09-03T19:14:55] INFO    Sugar in cup: Executing
+[2026-09-03T19:14:55] INFO    Sugar in cup: Adding sugar to cup
+[2026-09-03T19:14:55] INFO    Sugar in cup: Ready
+[2026-09-03T19:14:55] INFO    The perfect cup of tea: Ready
 ```
 
 ```
@@ -561,24 +561,24 @@ Now request tea without sugar:
 
 ```
 $ iotaa iotaa.demo steeped_tea teatime
-[2026-07-26T20:47:42] INFO    Tea bag in cup: Executing
-[2026-07-26T20:47:42] INFO    Tea bag in cup: Adding tea bag to cup
-[2026-07-26T20:47:42] INFO    Tea bag in cup: Ready
-[2026-07-26T20:47:42] INFO    Boiling water in cup: Executing
-[2026-07-26T20:47:42] INFO    Boiling water in cup: Adding water to cup
-[2026-07-26T20:47:42] INFO    Boiling water in cup: Ready
-[2026-07-26T20:47:42] INFO    Steeped tea: Executing
-[2026-07-26T20:47:42] WARNING Steeped tea: Tea needs to steep for 10s
-[2026-07-26T20:47:42] WARNING Steeped tea: Not ready
-[2026-07-26T20:47:42] WARNING Steeped tea: Requires:
-[2026-07-26T20:47:42] WARNING Steeped tea: ✔ Boiling water in cup
+[2026-09-03T19:14:56] INFO    Tea bag in cup: Executing
+[2026-09-03T19:14:56] INFO    Tea bag in cup: Adding tea bag to cup
+[2026-09-03T19:14:56] INFO    Tea bag in cup: Ready
+[2026-09-03T19:14:56] INFO    Boiling water in cup: Executing
+[2026-09-03T19:14:56] INFO    Boiling water in cup: Adding water to cup
+[2026-09-03T19:14:56] INFO    Boiling water in cup: Ready
+[2026-09-03T19:14:56] INFO    Steeped tea: Executing
+[2026-09-03T19:14:56] WARNING Steeped tea: Tea needs to steep for 10s
+[2026-09-03T19:14:56] WARNING Steeped tea: Not ready
+[2026-09-03T19:14:56] WARNING Steeped tea: Requires:
+[2026-09-03T19:14:56] WARNING Steeped tea: ✔ Boiling water in cup
 ```
 
 After waiting for the tea to steep:
 
 ```
 $ iotaa iotaa.demo steeped_tea teatime
-[2026-07-26T20:47:53] INFO    Steeped tea: Ready
+[2026-09-03T19:15:06] INFO    Steeped tea: Ready
 ```
 
 On-disk state:
@@ -603,57 +603,55 @@ $ rm -rf teatime
 
 ```
 $ iotaa --verbose iotaa.demo a_cup_of_tea teatime
-[2026-07-26T20:47:53] DEBUG   Deduplicating task-graph nodes
-[2026-07-26T20:47:53] DEBUG   ──────────
-[2026-07-26T20:47:53] DEBUG   Task Graph
-[2026-07-26T20:47:53] DEBUG   ──────────
-[2026-07-26T20:47:53] DEBUG   The perfect cup of tea
-[2026-07-26T20:47:53] DEBUG     Sugar in cup
-[2026-07-26T20:47:53] DEBUG       The cup
-[2026-07-26T20:47:53] DEBUG       Steeped tea
-[2026-07-26T20:47:53] DEBUG         Boiling water in cup
-[2026-07-26T20:47:53] DEBUG           The cup
-[2026-07-26T20:47:53] DEBUG           Tea bag in cup
-[2026-07-26T20:47:53] DEBUG             The cup
-[2026-07-26T20:47:53] DEBUG             Box of tea bags (teatime/box-of-tea-bags)
-[2026-07-26T20:47:53] DEBUG     The spoon
-[2026-07-26T20:47:53] DEBUG   ─────────
-[2026-07-26T20:47:53] DEBUG   Execution
-[2026-07-26T20:47:53] DEBUG   ─────────
-[2026-07-26T20:47:53] INFO    The cup: Executing
-[2026-07-26T20:47:53] INFO    The cup: Getting cup
-[2026-07-26T20:47:53] INFO    The cup: Ready
-[2026-07-26T20:47:53] DEBUG   The cup: Task completed
-[2026-07-26T20:47:53] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
-[2026-07-26T20:47:53] DEBUG   Box of tea bags (teatime/box-of-tea-bags): Task completed
-[2026-07-26T20:47:53] INFO    The spoon: Executing
-[2026-07-26T20:47:53] INFO    The spoon: Getting spoon
-[2026-07-26T20:47:53] INFO    The spoon: Ready
-[2026-07-26T20:47:53] DEBUG   The spoon: Task completed
-[2026-07-26T20:47:53] WARNING Tea bag in cup: Not ready
-[2026-07-26T20:47:53] WARNING Tea bag in cup: Requires:
-[2026-07-26T20:47:53] WARNING Tea bag in cup: ✔ The cup
-[2026-07-26T20:47:53] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
-[2026-07-26T20:47:53] DEBUG   Tea bag in cup: Task completed
-[2026-07-26T20:47:53] WARNING Boiling water in cup: Not ready
-[2026-07-26T20:47:53] WARNING Boiling water in cup: Requires:
-[2026-07-26T20:47:53] WARNING Boiling water in cup: ✔ The cup
-[2026-07-26T20:47:53] WARNING Boiling water in cup: ✖ Tea bag in cup
-[2026-07-26T20:47:53] DEBUG   Boiling water in cup: Task completed
-[2026-07-26T20:47:53] WARNING Steeped tea: Not ready
-[2026-07-26T20:47:53] WARNING Steeped tea: Requires:
-[2026-07-26T20:47:53] WARNING Steeped tea: ✖ Boiling water in cup
-[2026-07-26T20:47:53] DEBUG   Steeped tea: Task completed
-[2026-07-26T20:47:53] WARNING Sugar in cup: Not ready
-[2026-07-26T20:47:53] WARNING Sugar in cup: Requires:
-[2026-07-26T20:47:53] WARNING Sugar in cup: ✔ The cup
-[2026-07-26T20:47:53] WARNING Sugar in cup: ✖ Steeped tea
-[2026-07-26T20:47:53] DEBUG   Sugar in cup: Task completed
-[2026-07-26T20:47:53] WARNING The perfect cup of tea: Not ready
-[2026-07-26T20:47:53] WARNING The perfect cup of tea: Requires:
-[2026-07-26T20:47:53] WARNING The perfect cup of tea: ✖ Sugar in cup
-[2026-07-26T20:47:53] WARNING The perfect cup of tea: ✔ The spoon
-[2026-07-26T20:47:53] DEBUG   The perfect cup of tea: Task completed
+[2026-09-03T19:15:06] DEBUG   Deduplicating task-graph nodes
+[2026-09-03T19:15:06] DEBUG   ──────────
+[2026-09-03T19:15:06] DEBUG   Task Graph
+[2026-09-03T19:15:06] DEBUG   ──────────
+[2026-09-03T19:15:06] DEBUG   The perfect cup of tea
+[2026-09-03T19:15:06] DEBUG     Sugar in cup
+[2026-09-03T19:15:06] DEBUG       The cup
+[2026-09-03T19:15:06] DEBUG       Steeped tea
+[2026-09-03T19:15:06] DEBUG         Boiling water in cup
+[2026-09-03T19:15:06] DEBUG           Tea bag in cup
+[2026-09-03T19:15:06] DEBUG             Box of tea bags (teatime/box-of-tea-bags)
+[2026-09-03T19:15:06] DEBUG     The spoon
+[2026-09-03T19:15:06] DEBUG   ─────────
+[2026-09-03T19:15:06] DEBUG   Execution
+[2026-09-03T19:15:06] DEBUG   ─────────
+[2026-09-03T19:15:06] INFO    The cup: Executing
+[2026-09-03T19:15:06] INFO    The cup: Getting cup
+[2026-09-03T19:15:06] INFO    The cup: Ready
+[2026-09-03T19:15:06] DEBUG   The cup: Task completed
+[2026-09-03T19:15:06] WARNING Box of tea bags (teatime/box-of-tea-bags): Not ready [external asset]
+[2026-09-03T19:15:06] DEBUG   Box of tea bags (teatime/box-of-tea-bags): Task completed
+[2026-09-03T19:15:06] INFO    The spoon: Executing
+[2026-09-03T19:15:06] INFO    The spoon: Getting spoon
+[2026-09-03T19:15:06] INFO    The spoon: Ready
+[2026-09-03T19:15:06] DEBUG   The spoon: Task completed
+[2026-09-03T19:15:06] WARNING Tea bag in cup: Not ready
+[2026-09-03T19:15:06] WARNING Tea bag in cup: Requires:
+[2026-09-03T19:15:06] WARNING Tea bag in cup: ✔ The cup
+[2026-09-03T19:15:06] WARNING Tea bag in cup: ✖ Box of tea bags (teatime/box-of-tea-bags)
+[2026-09-03T19:15:06] DEBUG   Tea bag in cup: Task completed
+[2026-09-03T19:15:06] WARNING Boiling water in cup: Not ready
+[2026-09-03T19:15:06] WARNING Boiling water in cup: Requires:
+[2026-09-03T19:15:06] WARNING Boiling water in cup: ✔ The cup
+[2026-09-03T19:15:06] WARNING Boiling water in cup: ✖ Tea bag in cup
+[2026-09-03T19:15:06] DEBUG   Boiling water in cup: Task completed
+[2026-09-03T19:15:06] WARNING Steeped tea: Not ready
+[2026-09-03T19:15:06] WARNING Steeped tea: Requires:
+[2026-09-03T19:15:06] WARNING Steeped tea: ✖ Boiling water in cup
+[2026-09-03T19:15:06] DEBUG   Steeped tea: Task completed
+[2026-09-03T19:15:06] WARNING Sugar in cup: Not ready
+[2026-09-03T19:15:06] WARNING Sugar in cup: Requires:
+[2026-09-03T19:15:06] WARNING Sugar in cup: ✔ The cup
+[2026-09-03T19:15:06] WARNING Sugar in cup: ✖ Steeped tea
+[2026-09-03T19:15:06] DEBUG   Sugar in cup: Task completed
+[2026-09-03T19:15:06] WARNING The perfect cup of tea: Not ready
+[2026-09-03T19:15:06] WARNING The perfect cup of tea: Requires:
+[2026-09-03T19:15:06] WARNING The perfect cup of tea: ✖ Sugar in cup
+[2026-09-03T19:15:06] WARNING The perfect cup of tea: ✔ The spoon
+[2026-09-03T19:15:06] DEBUG   The perfect cup of tea: Task completed
 ```
 
 ## Graphing
@@ -756,34 +754,34 @@ Here's a synchronous run:
 
 ```
 $ bash -c "time iotaa fibonacci1 main 36 37"
-[2026-07-26T20:48:04] INFO    Fibonacci 36: Executing
-[2026-07-26T20:48:20] INFO    Fibonacci 36: Ready
-[2026-07-26T20:48:20] INFO    Fibonacci 37: Executing
-[2026-07-26T20:48:45] INFO    Fibonacci 37: Ready
-[2026-07-26T20:48:45] INFO    Main: Executing
-[2026-07-26T20:48:45] INFO    14930352 24157817
-[2026-07-26T20:48:45] INFO    Main: Ready
+[2026-09-03T19:15:16] INFO    Fibonacci 36: Executing
+[2026-09-03T19:15:19] INFO    Fibonacci 36: Ready
+[2026-09-03T19:15:19] INFO    Fibonacci 37: Executing
+[2026-09-03T19:15:23] INFO    Fibonacci 37: Ready
+[2026-09-03T19:15:23] INFO    Main: Executing
+[2026-09-03T19:15:23] INFO    14930352 24157817
+[2026-09-03T19:15:23] INFO    Main: Ready
 
-real	0m41.006s
-user	0m40.943s
-sys	0m0.023s
+real	0m6.929s
+user	0m6.913s
+sys	0m0.011s
 ```
 
-Unsurprisingly, using threads does not help:
+Unsurprisingly, using threads does not decrease the execution time much:
 
 ```
 $ bash -c "time iotaa --threads 2 fibonacci1 main 36 37"
-[2026-07-26T20:48:45] INFO    Fibonacci 36: Executing
-[2026-07-26T20:48:45] INFO    Fibonacci 37: Executing
-[2026-07-26T20:49:16] INFO    Fibonacci 36: Ready
-[2026-07-26T20:49:26] INFO    Fibonacci 37: Ready
-[2026-07-26T20:49:26] INFO    Main: Executing
-[2026-07-26T20:49:26] INFO    14930352 24157817
-[2026-07-26T20:49:26] INFO    Main: Ready
+[2026-09-03T19:15:23] INFO    Fibonacci 36: Executing
+[2026-09-03T19:15:23] INFO    Fibonacci 37: Executing
+[2026-09-03T19:15:45] INFO    Fibonacci 36: Ready
+[2026-09-03T19:15:47] INFO    Fibonacci 37: Ready
+[2026-09-03T19:15:47] INFO    Main: Executing
+[2026-09-03T19:15:47] INFO    14930352 24157817
+[2026-09-03T19:15:47] INFO    Main: Ready
 
-real	0m41.410s
-user	0m41.230s
-sys	0m0.278s
+real	0m23.804s
+user	0m23.791s
+sys	0m0.146s
 ```
 
 For CPU-bound tasks, use `multiprocessing` from the Python standard library to offload work on to separate CPU cores. Here, two two Fibonacci numbers are calculated in separate `Process`es, their value communicated back to the main process via a `Value` object:
@@ -839,34 +837,34 @@ This decreases the execution time:
 
 ```
 $ bash -c "time iotaa --threads 2 fibonacci2 main 36 37"
-[2026-07-26T20:49:27] INFO    Fibonacci 36: Executing
-[2026-07-26T20:49:27] INFO    Fibonacci 37: Executing
-[2026-07-26T20:49:45] INFO    Fibonacci 36: Ready
-[2026-07-26T20:49:56] INFO    Fibonacci 37: Ready
-[2026-07-26T20:49:56] INFO    Main: Executing
-[2026-07-26T20:49:56] INFO    14930352 24157817
-[2026-07-26T20:49:56] INFO    Main: Ready
+[2026-09-03T19:15:47] INFO    Fibonacci 36: Executing
+[2026-09-03T19:15:47] INFO    Fibonacci 37: Executing
+[2026-09-03T19:15:50] INFO    Fibonacci 36: Ready
+[2026-09-03T19:15:53] INFO    Fibonacci 37: Ready
+[2026-09-03T19:15:53] INFO    Main: Executing
+[2026-09-03T19:15:53] INFO    14930352 24157817
+[2026-09-03T19:15:53] INFO    Main: Ready
 
-real	0m29.323s
-user	0m47.234s
-sys	0m0.067s
+real	0m5.565s
+user	0m8.713s
+sys	0m0.037s
 ```
 
 The execution time is dominated by the time required to calculate the larger Fibonacci number, as can be seen by setting `n1` to `0`:
 
 ```
 $ bash -c "time iotaa --threads 2 fibonacci2 main 0 37"
-[2026-07-26T20:49:56] INFO    Fibonacci 0: Executing
-[2026-07-26T20:49:56] INFO    Fibonacci 37: Executing
-[2026-07-26T20:49:56] INFO    Fibonacci 0: Ready
-[2026-07-26T20:50:25] INFO    Fibonacci 37: Ready
-[2026-07-26T20:50:25] INFO    Main: Executing
-[2026-07-26T20:50:25] INFO    0 24157817
-[2026-07-26T20:50:25] INFO    Main: Ready
+[2026-09-03T19:15:53] INFO    Fibonacci 0: Executing
+[2026-09-03T19:15:53] INFO    Fibonacci 37: Executing
+[2026-09-03T19:15:53] INFO    Fibonacci 0: Ready
+[2026-09-03T19:15:58] INFO    Fibonacci 37: Ready
+[2026-09-03T19:15:58] INFO    Main: Executing
+[2026-09-03T19:15:58] INFO    0 24157817
+[2026-09-03T19:15:58] INFO    Main: Ready
 
-real	0m29.405s
-user	0m29.350s
-sys	0m0.061s
+real	0m5.132s
+user	0m5.096s
+sys	0m0.040s
 ```
 
 ### In-Memory Asset
@@ -911,11 +909,11 @@ def main(lat: float, lon: float):
 
 ```
 $ iotaa location1 main 40.1672 -105.1091
-[2026-07-26T20:50:26] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2026-07-26T20:50:27] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2026-07-26T20:50:27] INFO    Main: Executing
-[2026-07-26T20:50:27] INFO    Main: Location: Longmont, CO
-[2026-07-26T20:50:27] INFO    Main: Ready
+[2026-09-03T19:15:58] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2026-09-03T19:15:59] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2026-09-03T19:15:59] INFO    Main: Executing
+[2026-09-03T19:15:59] INFO    Main: Location: Longmont, CO
+[2026-09-03T19:15:59] INFO    Main: Ready
 ```
 
 Since `val` is initially empty in `json()`, the second argument to `Asset()`, its readiness function, initially returns `False` when called, so the task must execute its action code (the code following the final `yield`). Then `val` becomes non-empty, and thus truthy. When `iotaa` later checks the readiness of `json()` by calling its asset's readiness function, the now-truthy `val` tells `iotaa` that it is safe to proceed past `yield req` (where `req` refers to `json()`) and run the action code in `main()`, where `val` can then safely be extracted by `req.ref`.
@@ -986,15 +984,15 @@ def main(lat: float, lon: float):
 
 ```
 $ iotaa location2 main 40.1672 -105.1091
-[2026-07-26T20:50:27] INFO    JSON for lat 40.1672 lon -105.1091: Executing
-[2026-07-26T20:50:27] INFO    JSON for lat 40.1672 lon -105.1091: Ready
-[2026-07-26T20:50:27] INFO    City for lat 40.1672 lon -105.1091: Executing
-[2026-07-26T20:50:27] INFO    City for lat 40.1672 lon -105.1091: Ready
-[2026-07-26T20:50:27] INFO    State for lat 40.1672 lon -105.1091: Executing
-[2026-07-26T20:50:27] INFO    State for lat 40.1672 lon -105.1091: Ready
-[2026-07-26T20:50:27] INFO    Main: Executing
-[2026-07-26T20:50:27] INFO    Main: Location: Longmont, CO
-[2026-07-26T20:50:27] INFO    Main: Ready
+[2026-09-03T19:15:59] INFO    JSON for lat 40.1672 lon -105.1091: Executing
+[2026-09-03T19:15:59] INFO    JSON for lat 40.1672 lon -105.1091: Ready
+[2026-09-03T19:15:59] INFO    City for lat 40.1672 lon -105.1091: Executing
+[2026-09-03T19:15:59] INFO    City for lat 40.1672 lon -105.1091: Ready
+[2026-09-03T19:15:59] INFO    State for lat 40.1672 lon -105.1091: Executing
+[2026-09-03T19:15:59] INFO    State for lat 40.1672 lon -105.1091: Ready
+[2026-09-03T19:15:59] INFO    Main: Executing
+[2026-09-03T19:15:59] INFO    Main: Location: Longmont, CO
+[2026-09-03T19:15:59] INFO    Main: Ready
 ```
 
 Here, both `city()` and `state()` yield `json(lat, lon)` as a requirement. Since the calls are identical, and because `json()` yields the same taskname for both calls, `iotaa` deduplicates the calls and executes a single `json` task, its assets made available to both callers. This avoids pointless duplicate network requests.
@@ -1031,18 +1029,18 @@ When run before the specified time:
 
 ```
 $ iotaa timegate file $(date -d@$(( $(date +%s) + 3600 )) +%Y-%m-%dT%H)
-[2026-07-26T20:50:28] WARNING Time 2026-07-26 21:00:00+00:00: Not ready [external asset]
-[2026-07-26T20:50:28] WARNING Touch file: Not ready
-[2026-07-26T20:50:28] WARNING Touch file: Requires:
-[2026-07-26T20:50:28] WARNING Touch file: ✖ Time 2026-07-26 21:00:00+00:00
+[2026-09-03T19:15:59] WARNING Time 2026-09-03 20:00:00+00:00: Not ready [external asset]
+[2026-09-03T19:15:59] WARNING Touch file: Not ready
+[2026-09-03T19:15:59] WARNING Touch file: Requires:
+[2026-09-03T19:15:59] WARNING Touch file: ✖ Time 2026-09-03 20:00:00+00:00
 ```
 
 When run after the specified time:
 
 ```
 $ iotaa timegate file $(date -d@$(( $(date +%s) - 3600 )) +%Y-%m-%dT%H)
-[2026-07-26T20:50:28] INFO    Touch file: Executing
-[2026-07-26T20:50:28] INFO    Touch file: Ready
+[2026-09-03T19:15:59] INFO    Touch file: Executing
+[2026-09-03T19:15:59] INFO    Touch file: Ready
 ```
 
 ### Upstream Resource
@@ -1079,16 +1077,16 @@ An attempt to download data related to tomorrow's 00:00 UTC weather forecast, wh
 
 ```
 $ iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "tomorrow 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx
-[2026-07-26T20:50:29] WARNING Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20260727/conus/hrrr.t00z.wrfnatf00.grib2.idx: Not ready [external asset]
-[2026-07-26T20:50:29] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: Not ready
-[2026-07-26T20:50:29] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: Requires:
-[2026-07-26T20:50:29] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: ✖ Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20260727/conus/hrrr.t00z.wrfnatf00.grib2.idx
+[2026-09-03T19:16:00] WARNING Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20260904/conus/hrrr.t00z.wrfnatf00.grib2.idx: Not ready [external asset]
+[2026-09-03T19:16:00] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: Not ready
+[2026-09-03T19:16:00] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: Requires:
+[2026-09-03T19:16:00] WARNING Local resource hrrr.t00z.wrfnatf00.grib2.idx: ✖ Upstream resource https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20260904/conus/hrrr.t00z.wrfnatf00.grib2.idx
 ```
 
 A successful download of data from yesterday's 00:00 UTC forecast, which is available:
 
 ```
 $ iotaa upstream file https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.$(date -d "yesterday 00:00" +%Y%m%d)/conus/hrrr.t00z.wrfnatf00.grib2.idx
-[2026-07-26T20:50:30] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Executing
-[2026-07-26T20:50:30] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Ready
+[2026-09-03T19:16:00] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Executing
+[2026-09-03T19:16:00] INFO    Local resource hrrr.t00z.wrfnatf00.grib2.idx: Ready
 ```
