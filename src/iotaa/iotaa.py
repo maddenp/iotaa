@@ -108,20 +108,32 @@ class Node(ABC):
     def req(self) -> _ReqT:
         return self._req
 
-    def _add_node_and_predecessors(self, g: TopologicalSorter, node: Node, level: int = 0) -> None:
+    def _add_node_and_predecessors(
+        self,
+        g: TopologicalSorter,
+        node: Node,
+        level: int = 0,
+        visited: set[Node] | None = None,
+    ) -> None:
         """
         Assemble the task graph based on this node and its children.
 
         :param g: The graph.
         :param node: The current task-graph node.
         :param level: The distance from the task-graph root node.
+        :param visited: Nodes whose predecessors have already been added.
         """
+        if visited is None:
+            visited = set()
+        if node in visited:
+            return
+        visited.add(node)
         log.debug("%s%s", "  " * level, str(node.taskname))
         predecessors: list[Node] = []
         if not node.ready:
             predecessors = _flatten(req(node))
             for predecessor in predecessors:
-                self._add_node_and_predecessors(g, predecessor, level + 1)
+                self._add_node_and_predecessors(g, predecessor, level + 1, visited)
         g.add(node, *predecessors)
 
     def _assemble(self) -> TopologicalSorter:
@@ -550,6 +562,8 @@ class _Graph:
 
         :param node: The root node of the current subgraph.
         """
+        if node in self._nodes:
+            return
         self._nodes.add(node)
         for r in _flatten(req(node)):
             self._edges.add((node, r))
