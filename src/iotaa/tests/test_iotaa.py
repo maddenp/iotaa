@@ -8,7 +8,7 @@ from abc import abstractmethod
 from argparse import Namespace
 from collections.abc import Iterator
 from contextvars import copy_context
-from graphlib import TopologicalSorter
+from graphlib import CycleError, TopologicalSorter
 from hashlib import sha256
 from importlib import import_module
 from itertools import chain
@@ -69,6 +69,25 @@ def graphkit():
     }}
     """.format(a=name("a"), b=name("b"), root=name("root"))
     return dedent(expected).strip(), graph, root
+
+
+@fixture
+def shared_dependendency_kit():
+    def node(taskname, requirements=None):
+        return iotaa.NodeTask(
+            taskname=taskname,
+            root=False,
+            threads=0,
+            asset=iotaa.Asset(None, lambda: False),
+            req=requirements,
+            continuation=Mock(),
+        )
+
+    leaf = node("leaf")
+    left = node("left", [leaf])
+    right = node("right", [leaf])
+    root = node("root", [left, right])
+    return root, left, right, leaf
 
 
 @fixture
@@ -366,6 +385,21 @@ def test_Node__add_node_and_predecessors(caplog, fakefs, test_ctxrun):
     assert logged(caplog, "  task bar dict %s" % Path(fakefs, "bar"))
 
 
+def test_Node__add_node_and_predecessors__shared_dependency(shared_dependendency_kit, test_ctxrun):
+    root, _, _, _ = shared_dependendency_kit
+    g: TopologicalSorter = TopologicalSorter()
+    with patch.object(iotaa, "req", wraps=iotaa.req) as req:
+        test_ctxrun(root._add_node_and_predecessors, g=g, node=root)
+    # NB: leaf is visited only once due to tracking of visited nodes:
+    assert [call.args[0].taskname for call in req.call_args_list] == [
+        "root",
+        "left",
+        "leaf",
+        "right",
+    ]
+    assert [node.taskname for node in g.static_order()] == ["leaf", "left", "right", "root"]
+
+
 def test_Node__assemble(caplog, fakefs, test_ctxrun):
     node = t_collection_baz(fakefs)
     with patch.object(iotaa.Node, "_add_node_and_predecessors") as _add_node_and_predecessors:
@@ -581,6 +615,31 @@ def test_external__ready(fakefs, test_ctxrun):
     assert node.ready
 
 
+@mark.parametrize("kind", ["collection", "external", "task"])
+def test_task_construction__existing_representative(kind):
+    events = []
+
+    @getattr(iotaa, kind)
+    def shared():
+        events.append("name")
+        yield "shared"
+        events.append("properties")
+        if kind == "collection":
+            yield None
+        else:
+            yield iotaa.Asset(None, lambda: False)
+            if kind == "task":
+                yield None
+
+    @iotaa.collection
+    def root():
+        yield "root"
+        yield [shared(), shared()]
+
+    root(dry_run=True)
+    assert events == ["name", "properties", "name"]
+
+
 def test_graph(graphkit):
     expected, _, root = graphkit
     graph = iotaa.graph(root)
@@ -782,6 +841,45 @@ def test__Graph(graphkit):
     assert str(graph).strip() == expected
 
 
+def test__Graph__shared_dependency(shared_dependendency_kit):
+    root, left, right, leaf = shared_dependendency_kit
+    with patch.object(iotaa, "req", wraps=iotaa.req) as req_:
+        graph = iotaa._Graph(root)
+    # NB: leaf is visited only once due to tracking of visited nodes:
+    assert [call.args[0].taskname for call in req_.call_args_list] == [
+        "root",
+        "left",
+        "leaf",
+        "right",
+    ]
+    assert graph._nodes == {root, left, right, leaf}
+    assert graph._edges == {(root, left), (root, right), (left, leaf), (right, leaf)}
+
+
+def test_graph_builders__cycle(test_ctxrun):
+    def node(taskname):
+        return iotaa.NodeTask(
+            taskname=taskname,
+            root=False,
+            threads=0,
+            asset=iotaa.Asset(None, lambda: False),
+            req=None,
+            continuation=Mock(),
+        )
+
+    left = node("left")
+    right = node("right")
+    left._req = [right]
+    right._req = [left]
+    graph = iotaa._Graph(left)
+    assert graph._nodes == {left, right}
+    assert graph._edges == {(left, right), (right, left)}
+    sorter: TopologicalSorter = TopologicalSorter()
+    test_ctxrun(left._add_node_and_predecessors, g=sorter, node=left)
+    with raises(CycleError):
+        sorter.prepare()
+
+
 def test__LoggerProxy():
     lp = iotaa._LoggerProxy()
     with raises(iotaa._IotaaError) as e:
@@ -795,6 +893,29 @@ def test_log():
 
 
 # Tests for private functions
+
+
+def test__existing_and_if_root_call__root(test_ctxrun):
+    closed = []
+
+    def task_iterator():
+        try:
+            yield "task"
+        finally:
+            closed.append(True)
+
+    iterator = task_iterator()
+    taskname = next(iterator)
+    node = Mock(root=True)
+    state = test_ctxrun(_STATE.get)
+    state.reps[taskname] = node
+
+    actual = iotaa._existing_and_if_root_call(test_ctxrun, iterator, taskname, dry_run=True)
+
+    assert actual is node
+    assert closed == [True]
+    assert state.count == 0
+    node.assert_called_once_with(True)
 
 
 def test__construct_and_call_if_root(test_ctxrun):
