@@ -925,7 +925,7 @@ def test_root__unmarked_action_call_warns(caplog, fakefs):
     t_root_unmarked_outer(fakefs, actions)
     assert actions == []
     assert not (fakefs / "root-inner").is_file()
-    msg = "root inner: Task called from action code without the root iotaa option will not execute"
+    msg = "root inner: Unyielded, non-root task call will not execute"
     assert logged(caplog, msg)
 
 

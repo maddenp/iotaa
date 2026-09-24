@@ -935,7 +935,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     # Run task function up to 2nd yield, obtaining task name:
     taskname = ctxrun(_next, iterator, "task name")
     if state is not None and state.executing and not options.get("root"):
-        msg = "%s: Task called from action code without the root iotaa option will not execute"
+        msg = "%s: Unyielded, non-root task call will not execute"
         state.logger.warning(msg, taskname)
     # Collect remaining task properties:
     dry_run = bool(options.get("dry_run"))
