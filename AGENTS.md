@@ -1,6 +1,7 @@
 # Agent Guide for iotaa
 
 ## Build, Lint, Test Commands
+
 - Format code: `make format` (runs ruff format, import sorting, docformatter, JSON formatting)
 - Lint: `make lint` or `recipe/run_test.sh lint` (runs ruff check)
 - Type check: `make typecheck` or `recipe/run_test.sh typecheck` (runs mypy)
@@ -9,6 +10,7 @@
 - Run single test: `cd src && pytest -k test_name iotaa/tests/test_iotaa.py`
 
 ## Code Style Guidelines
+
 - **Line length**: 100 characters max
 - **Formatting**: Use ruff format (black-compatible), enforced by `./format` script
 - **Imports**: Standard library first, then third-party, sorted via ruff (select I); use `from __future__ import annotations` at top

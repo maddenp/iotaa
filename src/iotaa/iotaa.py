@@ -828,6 +828,25 @@ def _not_ready(ctxrun: Callable, iterator: Iterator, taskname: str) -> _ReqT:
     return None if ok(req).ready else req
 
 
+def _options(kwargs: dict[str, Any]) -> dict:
+    """
+    Extract and validate iotaa options from task keyword arguments.
+
+    :param kwargs: Keyword arguments passed to a task.
+    :return: Validated iotaa options.
+    """
+    options = kwargs.pop("iotaa", {})
+    if not isinstance(options, dict):
+        msg = "The 'iotaa' argument must be a dict"
+        raise _IotaaError(msg)
+    valid_options = {"dry_run", "log", "root", "threads"}
+    unknown = sorted(str(key) for key in options if key not in valid_options)
+    if unknown:
+        msg = "Unknown iotaa option(s): %s"
+        raise _IotaaError(msg % ", ".join(unknown))
+    return options
+
+
 def _parse_args(raw: list[str]) -> Namespace:
     """
     Parse command-line arguments.
@@ -899,15 +918,7 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     :param func: A task function (receives the provided args & kwargs).
     :return: Items needed for task execution.
     """
-    options = kwargs.pop("iotaa", {})
-    if not isinstance(options, dict):
-        msg = "The 'iotaa' argument must be a dict"
-        raise _IotaaError(msg)
-    valid_options = {"dry_run", "log", "root", "threads"}
-    unknown = sorted(str(key) for key in options if key not in valid_options)
-    if unknown:
-        msg = "Unknown iotaa option(s): %s"
-        raise _IotaaError(msg % ", ".join(unknown))
+    options = _options(kwargs)
     # A function to run another in the correct context:
     ctxrun: Callable
     state = _STATE.get()

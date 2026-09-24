@@ -1192,6 +1192,26 @@ def test__not_ready__bad_req():
     assert str(e.value) == msg
 
 
+def test__options():
+    kwargs = {"iotaa": {"dry_run": True}, "task_arg": 42}
+    assert iotaa._options(kwargs) == {"dry_run": True}
+    assert kwargs == {"task_arg": 42}
+
+
+@mark.parametrize(
+    ("options", "message"),
+    [
+        (None, "The 'iotaa' argument must be a dict"),
+        ([], "The 'iotaa' argument must be a dict"),
+        ({1: True}, "Unknown iotaa option\\(s\\): 1"),
+        ({"thread": 2}, "Unknown iotaa option\\(s\\): thread"),
+    ],
+)
+def test__options__bad(options, message):
+    with raises(iotaa._IotaaError, match=message):
+        iotaa._options({"iotaa": options})
+
+
 @mark.parametrize("graph", [None, "-g", "--graph"])
 @mark.parametrize("show", [None, "-s", "--show"])
 @mark.parametrize("verbose", [None, "-v", "--verbose"])
@@ -1375,23 +1395,6 @@ def test__taskprops__former_reserved_names_forwarded():
     )
     assert dry_run is False
     assert threads == 1
-
-
-@mark.parametrize(
-    ("options", "message"),
-    [
-        (None, "The 'iotaa' argument must be a dict"),
-        ([], "The 'iotaa' argument must be a dict"),
-        ({1: True}, "Unknown iotaa option\\(s\\): 1"),
-        ({"thread": 2}, "Unknown iotaa option\\(s\\): thread"),
-    ],
-)
-def test__taskprops__bad_iotaa(options, message):
-    def f():
-        yield "task"
-
-    with raises(iotaa._IotaaError, match=message):
-        iotaa._taskprops(f, iotaa=options)
 
 
 def test__version():
