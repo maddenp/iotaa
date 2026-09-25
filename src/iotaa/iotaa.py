@@ -169,15 +169,21 @@ class Node(ABC):
         """
         g = self._assemble()
         g.prepare()
-        threads, todo, done, interrupt = self._exec_threads_startup(dry_run)
+        state = _STATE.get()
+        assert state is not None
+        state.executing = True
         try:
-            while g.is_active():
-                for node in g.get_ready():
-                    todo.put(node)
-                g.done(done.get())
-        except KeyboardInterrupt:
-            log.info("Interrupted, shutting down...")
-        self._exec_threads_shutdown(threads, todo, interrupt)
+            threads, todo, done, interrupt = self._exec_threads_startup(dry_run)
+            try:
+                while g.is_active():
+                    for node in g.get_ready():
+                        todo.put(node)
+                    g.done(done.get())
+            except KeyboardInterrupt:
+                log.info("Interrupted, shutting down...")
+            self._exec_threads_shutdown(threads, todo, interrupt)
+        finally:
+            state.executing = False
 
     def _exec_threads_shutdown(
         self, threads: list[Thread], todo: _QueueT, interrupt: Event
@@ -446,7 +452,7 @@ def main() -> None:
         _show_tasks_and_exit(args.module, modobj)
     task_func = getattr(modobj, args.function)
     task_args = [_reify(arg) for arg in args.args]
-    task_kwargs = {"dry_run": args.dry_run, "threads": args.threads}
+    task_kwargs = {"iotaa": {"dry_run": args.dry_run, "threads": args.threads}}
     try:
         node = task_func(*task_args, **task_kwargs)
     except _IotaaError as e:
@@ -615,6 +621,7 @@ class _State:
     count: int
     logger: Logger
     reps: _RepsT
+    executing: bool = False
 
 
 log = _LoggerProxy()
@@ -821,6 +828,25 @@ def _not_ready(ctxrun: Callable, iterator: Iterator, taskname: str) -> _ReqT:
     return None if ok(req).ready else req
 
 
+def _options(kwargs: dict[str, Any]) -> dict:
+    """
+    Extract and validate iotaa options from task keyword arguments.
+
+    :param kwargs: Keyword arguments passed to a task.
+    :return: Validated iotaa options.
+    """
+    options = kwargs.pop("iotaa", {})
+    if not isinstance(options, dict):
+        msg = "The 'iotaa' argument must be a dict"
+        raise _IotaaError(msg)
+    valid_options = {"dry_run", "log", "root", "threads"}
+    unknown = sorted(str(key) for key in options if key not in valid_options)
+    if unknown:
+        msg = "Unknown iotaa option(s): %s"
+        raise _IotaaError(msg % ", ".join(unknown))
+    return options
+
+
 def _parse_args(raw: list[str]) -> Namespace:
     """
     Parse command-line arguments.
@@ -892,26 +918,28 @@ def _taskprops(func: Callable, *args, **kwargs) -> tuple[Callable, Iterator, str
     :param func: A task function (receives the provided args & kwargs).
     :return: Items needed for task execution.
     """
+    options = _options(kwargs)
     # A function to run another in the correct context:
     ctxrun: Callable
     state = _STATE.get()
-    if state is None:
+    if state is None or options.get("root"):
         ctxrun = copy_context().run
-        new = _State(count=1, logger=kwargs.get("log") or getLogger(), reps={})
+        logger = options.get("log") or (state.logger if state else getLogger())
+        new = _State(count=1, logger=logger, reps={})
         ctxrun(_STATE.set, new)
     else:
         ctxrun = lambda f, *a, **k: f(*a, **k)
         state.count += 1
-    # Prepare arguments to task function:
-    filter_keys = ("dry_run", "log", "threads")
-    task_kwargs = {k: v for k, v in kwargs.items() if k not in filter_keys}
     # Run task function up to 1st yield:
-    iterator = ctxrun(func, *args, **task_kwargs)
+    iterator = ctxrun(func, *args, **kwargs)
     # Run task function up to 2nd yield, obtaining task name:
     taskname = ctxrun(_next, iterator, "task name")
+    if state is not None and state.executing and not options.get("root"):
+        msg = "%s: Unyielded, non-root task call will not execute"
+        state.logger.warning(msg, taskname)
     # Collect remaining task properties:
-    dry_run = bool(kwargs.get("dry_run"))
-    threads = kwargs.get("threads") or 1
+    dry_run = bool(options.get("dry_run"))
+    threads = options.get("threads") or 1
     return ctxrun, iterator, taskname, dry_run, threads
 
 

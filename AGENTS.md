@@ -1,21 +1,8 @@
-# Agent Guide for iotaa
+# Coding Agent Instructions
 
-## Build, Lint, Test Commands
-- Format code: `make format` (runs ruff format, import sorting, docformatter, JSON formatting)
-- Lint: `make lint` or `recipe/run_test.sh lint` (runs ruff check)
-- Type check: `make typecheck` or `recipe/run_test.sh typecheck` (runs mypy)
-- Run all tests: `make test` or `recipe/run_test.sh` (lint + typecheck + unittest + CLI test)
-- Run unit tests only: `make unittest` or `recipe/run_test.sh unittest` (pytest with coverage)
-- Run single test: `cd src && pytest -k test_name iotaa/tests/test_iotaa.py`
-
-## Code Style Guidelines
-- **Line length**: 100 characters max
-- **Formatting**: Use ruff format (black-compatible), enforced by `./format` script
-- **Imports**: Standard library first, then third-party, sorted via ruff (select I); use `from __future__ import annotations` at top
-- **Type hints**: Required for public APIs (mypy enforced); use `TYPE_CHECKING` for import-only types to avoid circular imports
-- **Docstrings**: Google/numpy style, formatted with docformatter; multi-line summaries allowed; not required for all methods
-- **Naming**: Standard Python conventions (snake_case for functions/vars, PascalCase for classes)
-- **Linting**: Ruff with "ALL" rules enabled except specific ignores (see pyproject.toml); no line-too-long, use-lambda-assignment
-- **Testing**: Pytest with 100% coverage requirement (excludes tests/, demo.py, pylint.py); use fixtures for setup
-- **Error handling**: Prefer exceptions over errors; asserts allowed in tests
-- **JSON**: Alphabetically sorted keys (via jq -S)
+- Consider your work incomplete until the command `make format && make test` succeeds. The developer will start the agent in an environment in which those commands are available; if you find that not to be the case, report it to the developer.
+- Follow existing conventions, idioms, styles, etc. in the codebase. If you see a reasio to deviate from existing conventions, discuss it with the developer.
+- If test failures appear to be caused by sandboxing or environment limitations, report them to the developer instead of adding workaround code. Developers will run tests independently and inform you about any outstanding issues.
+- Never issue state-changing `git` commands without authorization from the developer.
+- Order functions in modules, methods in classes, keys in dictionaries, items in lists, etc. lexicographically unless another ordering is required, in which case you should add a comment explaining the alternative ordering.
+- When writing unit tests, prefer use of the `@mark.parametrize` decorator from `pytest` to writing multiple, largely identical tests.

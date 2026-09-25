@@ -162,6 +162,10 @@ def badtask() -> Iterator:
     yield "Bad task yields no asset"
 
 
+def logged(caplog, msg):
+    return any(re.match(r"^.*%s.*$" % re.escape(msg), line) for line in caplog.messages)
+
+
 @iotaa.task
 def memval(n) -> Iterator:
     assert n != 1
@@ -184,19 +188,6 @@ def memval_req(n) -> Iterator:
     yield iotaa.Asset(val, lambda: bool(val))
     yield None
     val.append(n)
-
-
-def logged(caplog, msg):
-    return any(re.match(r"^.*%s.*$" % re.escape(msg), line) for line in caplog.messages)
-
-
-def simple_assets():
-    return [
-        None,
-        iotaa.Asset("foo", lambda: True),
-        [iotaa.Asset("foo", lambda: True), iotaa.Asset("bar", lambda: True)],
-        {"baz": iotaa.Asset("foo", lambda: True), "qux": iotaa.Asset("bar", lambda: True)},
-    ]
 
 
 @iotaa.collection
@@ -258,6 +249,85 @@ def t_task_bar_scalar(path) -> Iterator:
     f.touch()
 
 
+@iotaa.task
+def t_task_root_inner(path, actions, seen) -> Iterator:
+    f = path / "root-inner"
+    yield "root inner"
+    yield iotaa.Asset(f, f.is_file)
+    yield t_task_root_inner_req(path, seen)
+    seen["inner_logger"] = iotaa.log.logger()
+    actions.append("inner action")
+    f.touch()
+
+
+@iotaa.task
+def t_task_root_inner_req(path, seen) -> Iterator:
+    f = path / "root-inner-req"
+    yield "root inner req"
+    yield iotaa.Asset(f, f.is_file)
+    yield None
+    seen["inner_req_logger"] = iotaa.log.logger()
+    f.touch()
+
+
+@iotaa.task
+def t_task_root_outer(path, actions, seen=None, inner_log=None) -> Iterator:
+    f = path / "root-outer"
+    yield "root outer"
+    yield iotaa.Asset(f, f.is_file)
+    yield None
+    seen = {} if seen is None else seen
+    actions.append("outer: before")
+    options = {"root": True}
+    if inner_log:
+        options["log"] = inner_log
+    seen["inner"] = t_task_root_inner(path, actions, seen, iotaa=options)
+    seen["outer_logger_after"] = iotaa.log.logger()
+    actions.append("outer: after")
+    f.touch()
+
+
+@iotaa.task
+def t_task_root_shared(path) -> Iterator:
+    f = path / "root-shared"
+    yield "root shared"
+    yield iotaa.Asset(f, f.is_file)
+    yield None
+    f.touch()
+
+
+@iotaa.task
+def t_task_root_shared_inner(path, seen) -> Iterator:
+    f = path / "root-shared-inner"
+    yield "root shared inner"
+    yield iotaa.Asset(f, f.is_file)
+    seen["shared_inner"] = t_task_root_shared(path)
+    yield seen["shared_inner"]
+    f.touch()
+
+
+@iotaa.task
+def t_task_root_shared_outer(path, seen) -> Iterator:
+    f = path / "root-shared-outer"
+    yield "root shared outer"
+    yield iotaa.Asset(f, f.is_file)
+    seen["shared_outer"] = t_task_root_shared(path)
+    yield seen["shared_outer"]
+    seen["outer"] = None
+    seen["inner"] = t_task_root_shared_inner(path, seen, iotaa={"root": True})
+    f.touch()
+
+
+@iotaa.task
+def t_task_root_unmarked_outer(path, actions) -> Iterator:
+    f = path / "root-unmarked-outer"
+    yield "root unmarked outer"
+    yield iotaa.Asset(f, f.is_file)
+    yield None
+    t_task_root_inner(path, actions, {})
+    f.touch()
+
+
 class TaskClass:
     """
     Class TaskClass.
@@ -315,7 +385,7 @@ def test_Asset(asset):
 def test_Node___call___dry_run(caplog, fakefs):
     caplog.set_level(logging.INFO)
     (fakefs / "foo").touch()
-    node = t_task_bar_scalar(fakefs, dry_run=True)
+    node = t_task_bar_scalar(fakefs, iotaa={"dry_run": True})
     assert logged(caplog, "%s: SKIPPING (DRY RUN)" % node.taskname)
 
 
@@ -426,7 +496,7 @@ def test_Node__debug_header(caplog, fakefs, test_ctxrun):
 @mark.parametrize("n", [2, -1])
 @mark.parametrize("threads", [1, 2])
 def test_Node__exec(caplog, n, test_logger, threads):
-    node = memval(n, log=test_logger, threads=threads)
+    node = memval(n, iotaa={"log": test_logger, "threads": threads})
     success = "Task completed"
     assert logged(caplog, f"b 1: {success}")
     assert logged(caplog, f"b {n}: {success}")
@@ -444,7 +514,7 @@ def test_Node__exec(caplog, n, test_logger, threads):
 
 def test_Node__exec__interrupt(caplog, test_logger):
     with patch.object(iotaa.TopologicalSorter, "is_active", side_effect=KeyboardInterrupt):
-        node = memval(2, log=test_logger)
+        node = memval(2, iotaa={"log": test_logger})
     assert not iotaa.ready(node)
     assert logged(caplog, "Interrupted, shutting down...")
 
@@ -569,7 +639,7 @@ def test_collection__ready(caplog, fakefs, test_logger):
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = t_collection_baz(fakefs, log=test_logger)
+    node = t_collection_baz(fakefs, iotaa={"log": test_logger})
     req = cast(list[iotaa.Node], iotaa.req(node))
     assert len(req) == 1  # ready requirement foo was filtered out
     assert iotaa.ref(req[0]) == {"path": f_bar}
@@ -636,7 +706,7 @@ def test_task_construction__existing_representative(kind):
         yield "root"
         yield [shared(), shared()]
 
-    root(dry_run=True)
+    root(iotaa={"dry_run": True})
     assert events == ["name", "properties", "name"]
 
 
@@ -701,7 +771,7 @@ def test_main__mocked_up(capsys, fakefs, g):
             mocks["import_module"].assert_called_once_with("a")
             getattr_.assert_any_call(mocks["import_module"](), "a_function")
             task_args = ["foo", 42, 3.14, True]
-            task_kwargs = {"dry_run": True, "threads": None}
+            task_kwargs = {"iotaa": {"dry_run": True, "threads": None}}
             getattr_().assert_called_once_with(*task_args, **task_kwargs)
         mocks["_parse_args"].assert_called_once()
         mocks["logcfg"].assert_called_once_with(verbose=True)
@@ -799,7 +869,7 @@ def test_task__docstring():
 def test_task__not_ready(caplog, fakefs, func, test_logger, test_ctxrun, val):
     f_foo, f_bar = (fakefs / x for x in ["foo", "bar"])
     assert not any(x.is_file() for x in [f_foo, f_bar])
-    node = func(fakefs, log=test_logger)
+    node = func(fakefs, iotaa={"log": test_logger})
     test_ctxrun(node)
     assert val(iotaa.ref(node)) == f_bar
     assert not val(node._asset).ready()
@@ -821,12 +891,68 @@ def test_task__ready(caplog, fakefs, func, test_logger, val):
     f_foo.touch()
     assert f_foo.is_file()
     assert not f_bar.is_file()
-    node = func(fakefs, log=test_logger)
+    node = func(fakefs, iotaa={"log": test_logger})
     assert val(iotaa.ref(node)) == f_bar
     assert val(node._asset).ready()
     assert all(x.is_file for x in [f_foo, f_bar])
     for msg in ["Executing", "Ready"]:
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
+
+
+def test_task__root_dry_run_never_reached(fakefs):
+    # In dry-run mode the enclosing action code never runs, so the root call is not reached.
+    actions: list[str] = []
+    t_task_root_outer(fakefs, actions, iotaa={"dry_run": True})
+    assert actions == []
+    assert not (fakefs / "root-inner").is_file()
+
+
+def test_task__root_executes_new_tree(fakefs):
+    # A root option in the action code of an enclosing task assembles and executes a new task
+    # graph, then returns control.
+    actions: list[str] = []
+    outer_node = t_task_root_outer(fakefs, actions)
+    assert actions == ["outer: before", "inner action", "outer: after"]
+    assert (fakefs / "root-inner").is_file()
+    assert iotaa.ready(outer_node)
+
+
+def test_task__root_is_root_and_isolated(fakefs):
+    # The new root node is marked root, and its tree has its own node cache, so a task shared with
+    # the enclosing tree is represented by a distinct node object in each.
+    seen: dict = {}
+    t_task_root_shared_outer(fakefs, seen)
+    assert seen["inner"].root is True
+    assert seen["shared_inner"] is not seen["shared_outer"]
+    assert seen["shared_inner"].taskname == seen["shared_outer"].taskname
+
+
+def test_task__root_logger_inherited(fakefs, test_logger):
+    # The new tree inherits the enclosing tree's logger.
+    seen: dict = {}
+    t_task_root_outer(fakefs, [], seen=seen, iotaa={"log": test_logger})
+    assert seen["inner_logger"] is test_logger
+    assert seen["outer_logger_after"] is test_logger
+
+
+def test_task__root_logger_override(fakefs, test_logger):
+    # An explicit log option alongside root is used by the new root task and its requirements, and
+    # the enclosing tree's logger is restored when control returns.
+    other = iotaa._mark(logging.getLogger("iotaa-test-other"))
+    seen: dict = {}
+    t_task_root_outer(fakefs, [], seen=seen, inner_log=other, iotaa={"log": test_logger})
+    assert seen["inner_logger"] is other
+    assert seen["inner_req_logger"] is other
+    assert seen["outer_logger_after"] is test_logger
+
+
+def test_task__root_unmarked_action_call_warns(caplog, fakefs):
+    actions: list[str] = []
+    t_task_root_unmarked_outer(fakefs, actions)
+    assert actions == []
+    assert not (fakefs / "root-inner").is_file()
+    msg = "root inner: Unyielded, non-root task call will not execute"
+    assert logged(caplog, msg)
 
 
 def test_tasknames():
@@ -1048,6 +1174,26 @@ def test__not_ready__bad_req():
     assert str(e.value) == msg
 
 
+def test__options():
+    kwargs = {"iotaa": {"dry_run": True}, "task_arg": 42}
+    assert iotaa._options(kwargs) == {"dry_run": True}
+    assert kwargs == {"task_arg": 42}
+
+
+@mark.parametrize(
+    ("options", "message"),
+    [
+        (None, "The 'iotaa' argument must be a dict"),
+        ([], "The 'iotaa' argument must be a dict"),
+        ({1: True}, "Unknown iotaa option\\(s\\): 1"),
+        ({"thread": 2}, "Unknown iotaa option\\(s\\): thread"),
+    ],
+)
+def test__options__bad(options, message):
+    with raises(iotaa._IotaaError, match=message):
+        iotaa._options({"iotaa": options})
+
+
 @mark.parametrize("graph", [None, "-g", "--graph"])
 @mark.parametrize("show", [None, "-s", "--show"])
 @mark.parametrize("verbose", [None, "-v", "--verbose"])
@@ -1117,7 +1263,9 @@ def test__taskprops(test_logger):
         yield n
 
     tn = "task"
-    ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, threads=1)
+    ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(
+        f, tn, n=42, iotaa={"threads": 1}
+    )
     state = ctxrun(_STATE.get)
     assert state is not None
     assert state.reps == {}
@@ -1129,16 +1277,15 @@ def test__taskprops(test_logger):
     assert threads == 1
 
 
-def test__taskprops__extras(test_logger):
+def test__taskprops__options(test_logger):
     def f(taskname, n):
         yield taskname
         yield n
         iotaa.log.info("testing")
 
     tn = "task"
-    ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(
-        f, tn, n=42, dry_run=True, log=test_logger
-    )
+    options = {"dry_run": True, "log": test_logger}
+    ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(f, tn, n=42, iotaa=options)
     state = ctxrun(_STATE.get)
     assert state is not None
     assert state.reps == {}
@@ -1146,6 +1293,89 @@ def test__taskprops__extras(test_logger):
     assert state.logger is test_logger
     assert taskname == tn
     assert dry_run is True
+    assert threads == 1
+    assert options == {"dry_run": True, "log": test_logger}
+
+
+def test__taskprops__root(test_ctxrun, test_logger):
+    def f(taskname, n):
+        yield taskname
+        yield n
+
+    def go():
+        outer = _STATE.get()
+        assert outer is not None
+        outer.reps["preexisting"] = cast(iotaa.Node, object())
+        ctxrun, iterator, taskname, dry_run, threads = iotaa._taskprops(
+            f, "task", n=42, iotaa={"root": True}
+        )
+        inner = ctxrun(_STATE.get)
+        assert inner is not None
+        assert inner is not outer
+        assert inner.count == 1
+        assert inner.reps == {}  # isolated from the enclosing tree's node cache
+        assert inner.logger is test_logger  # inherited
+        assert outer.reps == {"preexisting": ANY}  # enclosing tree untouched
+        assert next(iterator) == 42
+        assert taskname == "task"
+        assert dry_run is False
+        assert threads == 1
+
+    test_ctxrun(go)
+
+
+def test__taskprops__root_log(test_ctxrun, test_logger):
+    def f(taskname, n):
+        yield taskname
+        yield n
+
+    other = iotaa._mark(logging.getLogger("iotaa-test-other"))
+
+    def go():
+        outer = _STATE.get()
+        assert outer is not None
+        ctxrun, _, _, _, _ = iotaa._taskprops(f, "task", n=42, iotaa={"root": True, "log": other})
+        inner = ctxrun(_STATE.get)
+        assert inner is not None
+        assert inner.logger is other  # explicit log= wins over inheritance
+        assert outer.logger is test_logger  # enclosing tree's logger unchanged
+
+    test_ctxrun(go)
+
+
+def test__taskprops__iotaa_filtered(test_ctxrun):
+    # The reserved iotaa kwarg is consumed, not forwarded to the task function.
+    def f(taskname, n):
+        yield taskname
+        yield n
+
+    def go():
+        _, iterator, _, _, _ = iotaa._taskprops(f, "task", n=42, iotaa={"root": True})
+        assert next(iterator) == 42
+
+    test_ctxrun(go)
+
+
+def test__taskprops__former_reserved_names_forwarded():
+    def f(taskname, dry_run, log, root, threads):
+        yield taskname
+        yield (dry_run, log, root, threads)
+
+    _, iterator, _, dry_run, threads = iotaa._taskprops(
+        f,
+        "task",
+        dry_run="application dry run",
+        log="application log",
+        root="application root",
+        threads="application threads",
+    )
+    assert next(iterator) == (
+        "application dry run",
+        "application log",
+        "application root",
+        "application threads",
+    )
+    assert dry_run is False
     assert threads == 1
 
 
