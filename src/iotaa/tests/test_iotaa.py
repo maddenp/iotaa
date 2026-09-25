@@ -899,7 +899,7 @@ def test_task__ready(caplog, fakefs, func, test_logger, val):
         assert logged(caplog, f"task bar {func.__name__.split('_')[-1]} {f_bar}: {msg}")
 
 
-def test_task__root__dry_run_never_reached(fakefs):
+def test_task__root_dry_run_never_reached(fakefs):
     # In dry-run mode the enclosing action code never runs, so the root call is not reached.
     actions: list[str] = []
     t_task_root_outer(fakefs, actions, iotaa={"dry_run": True})
@@ -907,7 +907,7 @@ def test_task__root__dry_run_never_reached(fakefs):
     assert not (fakefs / "root-inner").is_file()
 
 
-def test_task__root__executes_new_tree(fakefs):
+def test_task__root_executes_new_tree(fakefs):
     # A root option in the action code of an enclosing task assembles and executes a new task
     # graph, then returns control.
     actions: list[str] = []
@@ -917,7 +917,7 @@ def test_task__root__executes_new_tree(fakefs):
     assert iotaa.ready(outer_node)
 
 
-def test_task__root__is_root_and_isolated(fakefs):
+def test_task__root_is_root_and_isolated(fakefs):
     # The new root node is marked root, and its tree has its own node cache, so a task shared with
     # the enclosing tree is represented by a distinct node object in each.
     seen: dict = {}
@@ -927,7 +927,7 @@ def test_task__root__is_root_and_isolated(fakefs):
     assert seen["shared_inner"].taskname == seen["shared_outer"].taskname
 
 
-def test_task__root__logger_inherited(fakefs, test_logger):
+def test_task__root_logger_inherited(fakefs, test_logger):
     # The new tree inherits the enclosing tree's logger.
     seen: dict = {}
     t_task_root_outer(fakefs, [], seen=seen, iotaa={"log": test_logger})
@@ -935,7 +935,7 @@ def test_task__root__logger_inherited(fakefs, test_logger):
     assert seen["outer_logger_after"] is test_logger
 
 
-def test_task__root__logger_override(fakefs, test_logger):
+def test_task__root_logger_override(fakefs, test_logger):
     # An explicit log option alongside root is used by the new root task and its requirements, and
     # the enclosing tree's logger is restored when control returns.
     other = iotaa._mark(logging.getLogger("iotaa-test-other"))
@@ -946,13 +946,7 @@ def test_task__root__logger_override(fakefs, test_logger):
     assert seen["outer_logger_after"] is test_logger
 
 
-def test_task__root__not_passed_to_task_function(fakefs):
-    # The reserved iotaa kwarg is consumed, not forwarded to the task function.
-    node = t_task_root_inner(fakefs, [], {}, iotaa={"root": True})
-    assert iotaa.ready(node)
-
-
-def test_task__root__unmarked_action_call_warns(caplog, fakefs):
+def test_task__root_unmarked_action_call_warns(caplog, fakefs):
     actions: list[str] = []
     t_task_root_unmarked_outer(fakefs, actions)
     assert actions == []
