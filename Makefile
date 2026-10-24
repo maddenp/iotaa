@@ -1,6 +1,6 @@
 CHANNELS = $(addprefix -c ,$(shell tr '\n' ' ' <$(RECIPE_DIR)/channels)) -c local
 DEMO     = $(SRCDIR)/demo.py
-METADEPS = $(RECIPE_DIR)/meta.yaml src/*/resources/info.json
+METADEPS = $(RECIPE_DIR)/meta.yaml src/iotaa/resources/info.json
 METAJSON = $(RECIPE_DIR)/meta.json
 PYSRCS   = $(shell find $(SRCDIR) -type f -name "*.py" | grep -v $(DEMO))
 SRCDIR   = src/iotaa
@@ -25,7 +25,7 @@ env: package
 	conda create -y -n $(call spec,buildnum,-) $(CHANNELS) $(call spec,build,=)
 
 format: $(DEMO)
-	@./format
+	@bin/format
 
 lint: $(DEMO)
 	recipe/run_test.sh lint
