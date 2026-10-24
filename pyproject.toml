@@ -25,6 +25,9 @@ warn_return_any = true
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.format]
+exclude = ["*.md"]
+
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
