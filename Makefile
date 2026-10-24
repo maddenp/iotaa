@@ -8,7 +8,6 @@ TARGETS  = demo devshell env format lint meta package render test typecheck unit
 
 export RECIPE_DIR := $(shell cd ./recipe && pwd)
 
-spec = $(call val,name)$(2)$(call val,version)$(2)$(call val,$(1))
 val  = $(shell jq -r .$(1) $(METAJSON))
 
 .PHONY: $(TARGETS)
@@ -22,7 +21,7 @@ devshell:
 	condev-shell || true
 
 env: package
-	conda create -y -n $(call spec,buildnum,-) $(CHANNELS) $(call spec,build,=)
+	conda create -y -n $(call val,name)-$(call val,version) $(CHANNELS) $(call val,name)=$(call val,version)=$(call val,build)
 
 format: $(DEMO)
 	@bin/format

@@ -949,7 +949,7 @@ def _version() -> str:
     """
     with resources.files("iotaa.resources").joinpath("info.json").open("r", encoding="utf-8") as f:
         info = json.load(f)
-        return "version %s build %s" % (info["version"], info["buildnum"])
+        return "version %s" % info["version"]
 
 
 # Private types
