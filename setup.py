@@ -1,3 +1,7 @@
+"""
+Configuration for setuptools.
+"""
+
 import json
 import os
 from pathlib import Path
@@ -23,7 +27,10 @@ setup(
     description="A simple workflow engine",
     entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
     include_package_data=True,
-    long_description="A simple workflow engine with semantics inspired by Luigi and tasks expressed as decorated Python functions",
+    long_description=(
+        "A simple workflow engine with semantics inspired by Luigi and tasks expressed"
+        "as decorated Python functions"
+    ),
     name=name_conda,
     package_data={f"{name_py}.resources": ["*"]},
     packages=find_packages(include=[name_py, "%s.*" % name_py]),

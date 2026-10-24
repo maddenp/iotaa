@@ -13,7 +13,7 @@ lint() {
   msg Running linter
   (
     set -eux
-    ruff check .
+    ruff check --exclude=m4 .
   )
   msg OK
 }
