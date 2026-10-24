@@ -4,7 +4,11 @@ from pathlib import Path
 
 from setuptools import find_packages, setup
 
-meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")} if os.environ.get("CONDA_BUILD") else json.load(Path("../recipe/meta.json").read_text())
+meta = (
+    {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")}
+    if os.environ.get("CONDA_BUILD")
+    else json.loads(Path("recipe/meta.json").read_text())
+)
 name_conda = meta["name"]
 name_py = name_conda.replace("-", "_")
 
