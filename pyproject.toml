@@ -1,11 +1,12 @@
 [tool.coverage.report]
-exclude_also = [
-  "if TYPE_CHECKING:"
-]
 fail_under = 100
 omit = ["*/tests/*", "demo.py", "pylint.py"]
 show_missing = true
 skip_covered = true
+
+[tool.coverage.run]
+branch = true
+source_pkgs = ["iotaa"]
 
 [tool.docformatter]
 black = true
@@ -70,7 +71,7 @@ ignore = [
   "DTZ005", # call-datetime-now-without-tzinfo
   "DTZ006", # call-datetime-fromtimestamp
 ]
-"iotaa/tests/*" = [
+"tests/*" = [
   "N802",    # invalid-function-name
   "PLR2004", # magic-value-comparison
   "PT013",   # pytest-incorrect-pytest-import

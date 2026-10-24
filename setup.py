@@ -1,25 +1,16 @@
-"""
-Basic setuptools configuration.
-"""
-
 import json
 import os
 from pathlib import Path
 
-from setuptools import find_packages, setup  # type: ignore[import-untyped]
+from setuptools import find_packages, setup
 
-if os.environ.get("CONDA_BUILD"):
-    meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")}
-else:
-    with Path("../recipe/meta.json").open() as f:
-        meta = json.load(f)
-
+meta = {x: os.environ["PKG_%s" % x.upper()] for x in ("name", "version")} if os.environ.get("CONDA_BUILD") else json.load(Path("../recipe/meta.json").read_text())
 name_conda = meta["name"]
 name_py = name_conda.replace("-", "_")
 
 setup(
     author="Paul Madden",
-    author_email="maddenp@colorado.edu",
+    author_email="o8ixi8o@gmail.com",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
@@ -28,10 +19,9 @@ setup(
     description="A simple workflow engine",
     entry_points={"console_scripts": ["iotaa = %s:main" % name_py]},
     include_package_data=True,
-    long_description="A simple workflow engine"
-    " with semantics inspired by Luigi"
-    " and tasks expressed as decorated Python functions",
+    long_description="A simple workflow engine with semantics inspired by Luigi and tasks expressed as decorated Python functions",
     name=name_conda,
+    package_data={f"{name_py}.resources": ["*"]},
     packages=find_packages(include=[name_py, "%s.*" % name_py]),
     url="https://github.com/maddenp/iotaa",
     version=meta["version"],
