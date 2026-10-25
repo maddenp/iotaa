@@ -27,7 +27,6 @@ test:
     - pytest 9.1.*
     - pytest-cov 7.1.*
     - pytest-randomly 4.1.*
-    - pytest-xdist 3.8.*
     - python {{ minpy }}
     - requests 2.34.*
     - ruff 0.16.*
