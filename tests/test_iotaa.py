@@ -1380,4 +1380,4 @@ def test__taskprops__former_reserved_names_forwarded():
 
 
 def test__version():
-    assert re.match(r"^version \d+\.\d+\.\d+ build \d+$", iotaa._version())
+    assert re.match(r"^version \d+\.\d+\.\d+$", iotaa._version())
