@@ -1022,7 +1022,6 @@ def test_log():
 
 
 def test__existing_and_if_root_call__root(test_ctxrun):
-    closed = []
 
     def task_iterator():
         try:
@@ -1030,6 +1029,7 @@ def test__existing_and_if_root_call__root(test_ctxrun):
         finally:
             closed.append(True)
 
+    closed: list[bool] = []
     iterator = task_iterator()
     taskname = next(iterator)
     node = Mock(root=True)
