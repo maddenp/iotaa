@@ -31,7 +31,7 @@ lint: $(DEMO)
 
 meta: $(METAJSON)
 
-package: meta $(DEMO)
+package: meta
 	conda build $(CHANNELS) --error-overlinking --override-channels $(RECIPE_DIR)
 
 render: $(DEMO) README.md

@@ -11,6 +11,8 @@ build:
   noarch: python
   number: 0 # do not increment
 requirements:
+  build:
+    - m4 1.4.*
   host:
     - pip
     - python {{ minpy }}
@@ -21,7 +23,6 @@ test:
   requires:
     - docformatter 1.7.7.* # 1.7.8 is buggy
     - jq 1.8.*
-    - m4 1.4.*
     - mypy 2.3.*
     - pyfakefs 6.2.*
     - pytest 9.1.*
