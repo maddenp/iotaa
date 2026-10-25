@@ -1098,6 +1098,14 @@ def test__do__bad_node(caplog, test_ctxrun):
     assert not done.empty()
 
 
+def test__do__no_op(test_ctxrun):
+    queue = Mock()
+    interrupt = Event()
+    interrupt.set()
+    test_ctxrun(iotaa._do, todo=queue, done=queue, interrupt=interrupt, dry_run=False)
+    queue.get.assert_not_called()
+
+
 def test__flatten():
     a = iotaa.Asset(ref=None, ready=lambda: True)
     assert iotaa._flatten(None) == []
