@@ -1064,6 +1064,28 @@ def test__construct_and_call_if_root(test_ctxrun):
     assert val is node
 
 
+def test__construct_and_call_if_root__duplicate_task(test_ctxrun):
+
+    # The node created by the call to _construct_and_call_if_root() is registered in the .reps attr
+    # of the state object during the first call to f(). The second call finds the already registered
+    # node and skips that step, so .reps does not grow.
+
+    def f():
+        iotaa._construct_and_if_root_call(
+            node_class=iotaa.NodeExternal,
+            taskname="foo",
+            threads=1,
+            ctxrun=test_ctxrun,
+            dry_run=False,
+            root=False,
+            asset=iotaa.Asset(42, lambda: True),
+        )
+
+    for _ in range(2):
+        f()
+        assert len(test_ctxrun(_STATE.get).reps) == 1
+
+
 def test__continuation(caplog, rungen, test_ctxrun):
     continuation = iotaa._continuation(iterator=rungen, taskname="task")
     test_ctxrun(continuation)
