@@ -727,7 +727,7 @@ def test_logcfg(vals):
 
 @mark.parametrize("verbose", [True, False])
 def test_main__error(caplog, verbose):
-    argv = ["prog", "iotaa.tests.test_iotaa", "badtask"]
+    argv = ["prog", __file__, "badtask"]
     if verbose:
         argv.append("--verbose")
     with (
