@@ -4,4 +4,4 @@ set +ux
 source conda/etc/profile.d/conda.sh
 conda activate
 set -ux
-twine upload --repository pypi --username __token__ --password $PYPI_TOKEN src/dist/*.whl
+twine upload --repository pypi --username __token__ --password $PYPI_TOKEN dist/*.whl
