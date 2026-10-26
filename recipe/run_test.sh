@@ -1,7 +1,7 @@
 #!/bin/bash -eu
 
 cli() {
-  msg Testing CLI program
+  msg Testing CLI
   (
     set -eux
     iotaa --version
@@ -35,17 +35,16 @@ unittest() {
   msg Running unit tests
   (
     set -eux
-    pytest --cov=iotaa -n 4 .
+    pytest --cov=iotaa tests/
   )
   msg OK
 }
 
-test "${CONDEV_SHELL:-}" = 1 && cd $(dirname $0)/../src || cd ../test_files
-if [[ -n "${1:-}" ]]; then
-  # Run single specified code-quality tool.
+test -v CONDA_BUILD && cd ../test_files
+
+if [[ -v 1 ]]; then # run single specified code-quality tool.
   $1
-else
-  # Run all code-quality tools.
+else # run all code-quality tools.
   lint
   typecheck
   unittest

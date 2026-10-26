@@ -1,5 +1,5 @@
 {% set info = load_file_data("iotaa/resources/info.json") %}
-{% set minpy = "3.10" %}
+{% set minpy = "3.11" %}
 
 package:
   name: iotaa
@@ -9,8 +9,10 @@ source:
 build:
   include_recipe: false
   noarch: python
-  number: {{ info["buildnum"] }}
+  number: 0 # do not increment
 requirements:
+  build:
+    - m4 1.4.*
   host:
     - pip
     - python {{ minpy }}
@@ -21,16 +23,15 @@ test:
   requires:
     - docformatter 1.7.7.* # 1.7.8 is buggy
     - jq 1.8.*
-    - m4 1.4.*
     - mypy 2.3.*
     - pyfakefs 6.2.*
     - pytest 9.1.*
     - pytest-cov 7.1.*
     - pytest-randomly 4.1.*
-    - pytest-xdist 3.8.*
     - python {{ minpy }}
     - requests 2.34.*
     - ruff 0.16.*
+    - types-setuptools
 about:
   home: https://github.com/maddenp/iotaa
   license: APACHE

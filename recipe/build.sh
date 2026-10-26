@@ -1,10 +1,12 @@
 set -eux
+root=$(readlink -f $RECIPE_DIR/..)
 # Install Python code:
-$PYTHON -m pip install -vv .
-# Copy files needed during test phase:
+cp -v $root/setup.py .
+python -m pip install -vvv .
+# Stage files needed during test phase:
 dst=../test_files
 rm -fr $dst
 mkdir -pv $dst
 mv -v $PKG_NAME $dst/
-ln -s $dst/$PKG_NAME
-cp -v $SRC_DIR/pyproject.toml $dst/
+ln -sv $dst/$PKG_NAME
+cp -rv $root/{pyproject.toml,tests} $dst/

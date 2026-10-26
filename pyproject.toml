@@ -1,11 +1,12 @@
 [tool.coverage.report]
-exclude_also = [
-  "if TYPE_CHECKING:"
-]
 fail_under = 100
 omit = ["*/tests/*", "demo.py", "pylint.py"]
 show_missing = true
 skip_covered = true
+
+[tool.coverage.run]
+branch = true
+source_pkgs = ["iotaa"]
 
 [tool.docformatter]
 black = true
@@ -18,11 +19,16 @@ wrap-summaries = 100
 
 [tool.mypy]
 check_untyped_defs = true
+exclude = ["m4"]
 pretty = true
 warn_return_any = true
 
 [tool.ruff]
+exclude = ["m4"]
 line-length = 100
+
+[tool.ruff.format]
+exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -70,7 +76,7 @@ ignore = [
   "DTZ005", # call-datetime-now-without-tzinfo
   "DTZ006", # call-datetime-fromtimestamp
 ]
-"iotaa/tests/*" = [
+"tests/*" = [
   "N802",    # invalid-function-name
   "PLR2004", # magic-value-comparison
   "PT013",   # pytest-incorrect-pytest-import

@@ -3,7 +3,7 @@ changequote(`«', `»')dnl
 iotaa.demo.
 """
 
-import datetime as dt
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from iotaa import Asset, collection, external, log, task

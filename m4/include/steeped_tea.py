@@ -9,9 +9,9 @@ def steeped_tea(basedir):
     steep_time = lambda x: Asset("elapsed time", lambda: x)
     t = 10  # seconds
     if water.exists():
-        water_poured_time = dt.datetime.fromtimestamp(water.stat().st_mtime)
-        ready_time = water_poured_time + dt.timedelta(seconds=t)
-        now = dt.datetime.now()
+        water_poured_time = datetime.fromtimestamp(water.stat().st_mtime, tz=timezone.utc)
+        ready_time = water_poured_time + timedelta(seconds=t)
+        now = datetime.now(tz=timezone.utc)
         ready = now >= ready_time
         remaining = int((ready_time - now).total_seconds())
         yield steep_time(ready)

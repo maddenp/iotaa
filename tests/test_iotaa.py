@@ -73,6 +73,7 @@ def graphkit():
 
 @fixture
 def shared_dependendency_kit():
+
     def node(taskname, requirements=None):
         return iotaa.NodeTask(
             taskname=taskname,
@@ -128,11 +129,11 @@ def module_for_main(tmpdir_factory):
 
 @fixture
 def rungen():
-    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
 
     def f():
         yield None
 
+    iotaa.logging.getLogger().setLevel(iotaa.logging.INFO)
     g = f()
     _ = next(g)  # Exhaust generator
     return g
@@ -416,6 +417,7 @@ def test_Node_ready(fakefs):
 
 
 def test_Node_ready__type_error(caplog):
+
     @iotaa.external
     def t0():
         yield "t0"
@@ -653,8 +655,6 @@ def test_external__docstring():
 
 
 def test_external__early_logging(caplog):
-    caplog.set_level(logging.DEBUG)
-    msg = "SHOULD BE LOGGED"
 
     @iotaa.external
     def foo():
@@ -662,6 +662,8 @@ def test_external__early_logging(caplog):
         yield "foo"
         yield iotaa.Asset(None, lambda: True)
 
+    caplog.set_level(logging.DEBUG)
+    msg = "SHOULD BE LOGGED"
     foo()
     assert logged(caplog, msg)
 
@@ -687,7 +689,11 @@ def test_external__ready(fakefs, test_ctxrun):
 
 @mark.parametrize("kind", ["collection", "external", "task"])
 def test_task_construction__existing_representative(kind):
-    events = []
+
+    @iotaa.collection
+    def root():
+        yield "root"
+        yield [shared(), shared()]
 
     @getattr(iotaa, kind)
     def shared():
@@ -701,11 +707,7 @@ def test_task_construction__existing_representative(kind):
             if kind == "task":
                 yield None
 
-    @iotaa.collection
-    def root():
-        yield "root"
-        yield [shared(), shared()]
-
+    events: list[str] = []
     root(iotaa={"dry_run": True})
     assert events == ["name", "properties", "name"]
 
@@ -727,7 +729,7 @@ def test_logcfg(vals):
 
 @mark.parametrize("verbose", [True, False])
 def test_main__error(caplog, verbose):
-    argv = ["prog", "iotaa.tests.test_iotaa", "badtask"]
+    argv = ["prog", __file__, "badtask"]
     if verbose:
         argv.append("--verbose")
     with (
@@ -808,6 +810,7 @@ def test_ready(fakefs):
 
 
 def test_ready__collection():
+
     @iotaa.task
     def shared() -> Iterator:
         val: list[bool] = []
@@ -983,6 +986,7 @@ def test__Graph__shared_dependency(shared_dependendency_kit):
 
 
 def test_graph_builders__cycle(test_ctxrun):
+
     def node(taskname):
         return iotaa.NodeTask(
             taskname=taskname,
@@ -1022,7 +1026,6 @@ def test_log():
 
 
 def test__existing_and_if_root_call__root(test_ctxrun):
-    closed = []
 
     def task_iterator():
         try:
@@ -1030,14 +1033,13 @@ def test__existing_and_if_root_call__root(test_ctxrun):
         finally:
             closed.append(True)
 
+    closed: list[bool] = []
     iterator = task_iterator()
     taskname = next(iterator)
     node = Mock(root=True)
     state = test_ctxrun(_STATE.get)
     state.reps[taskname] = node
-
     actual = iotaa._existing_and_if_root_call(test_ctxrun, iterator, taskname, dry_run=True)
-
     assert actual is node
     assert closed == [True]
     assert state.count == 0
@@ -1060,6 +1062,28 @@ def test__construct_and_call_if_root(test_ctxrun):
     node_class.assert_called_once_with(taskname=taskname, threads=threads)
     node.assert_called_once_with(dry_run)
     assert val is node
+
+
+def test__construct_and_call_if_root__duplicate_task(test_ctxrun):
+
+    # The node created by the call to _construct_and_call_if_root() is registered in the .reps attr
+    # of the state object during the first call to f(). The second call finds the already registered
+    # node and skips that step, so .reps does not grow.
+
+    def f():
+        iotaa._construct_and_if_root_call(
+            node_class=iotaa.NodeExternal,
+            taskname="foo",
+            threads=1,
+            ctxrun=test_ctxrun,
+            dry_run=False,
+            root=False,
+            asset=iotaa.Asset(42, lambda: True),
+        )
+
+    for _ in range(2):
+        f()
+        assert len(test_ctxrun(_STATE.get).reps) == 1
 
 
 def test__continuation(caplog, rungen, test_ctxrun):
@@ -1098,6 +1122,14 @@ def test__do__bad_node(caplog, test_ctxrun):
     assert not done.empty()
 
 
+def test__do__no_op(test_ctxrun):
+    queue = Mock()
+    interrupt = Event()
+    interrupt.set()
+    test_ctxrun(iotaa._do, todo=queue, done=queue, interrupt=interrupt, dry_run=False)
+    queue.get.assert_not_called()
+
+
 def test__flatten():
     a = iotaa.Asset(ref=None, ready=lambda: True)
     assert iotaa._flatten(None) == []
@@ -1116,6 +1148,7 @@ def test__formatter():
 
 
 def test__mark():
+
     def f():
         pass
 
@@ -1161,6 +1194,7 @@ def test__not_ready():
 
 
 def test__not_ready__bad_req():
+
     @iotaa.collection
     def f():
         yield "f"
@@ -1258,6 +1292,7 @@ def test__show_tasks_and_exit(capsys):
 
 
 def test__taskprops(test_logger):
+
     def f(taskname, n):
         yield taskname
         yield n
@@ -1278,6 +1313,7 @@ def test__taskprops(test_logger):
 
 
 def test__taskprops__options(test_logger):
+
     def f(taskname, n):
         yield taskname
         yield n
@@ -1298,6 +1334,7 @@ def test__taskprops__options(test_logger):
 
 
 def test__taskprops__root(test_ctxrun, test_logger):
+
     def f(taskname, n):
         yield taskname
         yield n
@@ -1325,11 +1362,10 @@ def test__taskprops__root(test_ctxrun, test_logger):
 
 
 def test__taskprops__root_log(test_ctxrun, test_logger):
+
     def f(taskname, n):
         yield taskname
         yield n
-
-    other = iotaa._mark(logging.getLogger("iotaa-test-other"))
 
     def go():
         outer = _STATE.get()
@@ -1340,11 +1376,14 @@ def test__taskprops__root_log(test_ctxrun, test_logger):
         assert inner.logger is other  # explicit log= wins over inheritance
         assert outer.logger is test_logger  # enclosing tree's logger unchanged
 
+    other = iotaa._mark(logging.getLogger("iotaa-test-other"))
     test_ctxrun(go)
 
 
 def test__taskprops__iotaa_filtered(test_ctxrun):
+
     # The reserved iotaa kwarg is consumed, not forwarded to the task function.
+
     def f(taskname, n):
         yield taskname
         yield n
@@ -1357,6 +1396,7 @@ def test__taskprops__iotaa_filtered(test_ctxrun):
 
 
 def test__taskprops__former_reserved_names_forwarded():
+
     def f(taskname, dry_run, log, root, threads):
         yield taskname
         yield (dry_run, log, root, threads)
@@ -1380,4 +1420,4 @@ def test__taskprops__former_reserved_names_forwarded():
 
 
 def test__version():
-    assert re.match(r"^version \d+\.\d+\.\d+ build \d+$", iotaa._version())
+    assert re.match(r"^version \d+\.\d+\.\d+$", iotaa._version())

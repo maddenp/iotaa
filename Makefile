@@ -1,6 +1,6 @@
 CHANNELS = $(addprefix -c ,$(shell tr '\n' ' ' <$(RECIPE_DIR)/channels)) -c local
 DEMO     = $(SRCDIR)/demo.py
-METADEPS = $(RECIPE_DIR)/meta.yaml src/*/resources/info.json
+METADEPS = $(RECIPE_DIR)/meta.yaml src/iotaa/resources/info.json
 METAJSON = $(RECIPE_DIR)/meta.json
 PYSRCS   = $(shell find $(SRCDIR) -type f -name "*.py" | grep -v $(DEMO))
 SRCDIR   = src/iotaa
@@ -8,7 +8,6 @@ TARGETS  = demo devshell env format lint meta package render test typecheck unit
 
 export RECIPE_DIR := $(shell cd ./recipe && pwd)
 
-spec = $(call val,name)$(2)$(call val,version)$(2)$(call val,$(1))
 val  = $(shell jq -r .$(1) $(METAJSON))
 
 .PHONY: $(TARGETS)
@@ -22,17 +21,17 @@ devshell:
 	condev-shell || true
 
 env: package
-	conda create -y -n $(call spec,buildnum,-) $(CHANNELS) $(call spec,build,=)
+	conda create -y -n $(call val,name)-$(call val,version) $(CHANNELS) $(call val,name)=$(call val,version)=$(call val,build)
 
 format: $(DEMO)
-	@./format
+	@bin/format
 
 lint: $(DEMO)
 	recipe/run_test.sh lint
 
 meta: $(METAJSON)
 
-package: meta $(DEMO)
+package: meta
 	conda build $(CHANNELS) --error-overlinking --override-channels $(RECIPE_DIR)
 
 render: $(DEMO) README.md
