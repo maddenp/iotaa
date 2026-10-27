@@ -2,7 +2,7 @@
 
 **It's One Thing After Another**
 
-`iotaa` is a simple workflow engine with semantics inspired by [Luigi](https://github.com/spotify/luigi) and tasks expressed as decorated Python functions (or methods). It is pure Python, depends on no third-party packages, and is contained in a single module.
+`iotaa` is a simple workflow engine expressing tasks as decorated Python functions (or methods). It is pure Python, depends on no third-party packages, and is contained in a single module.
 
 ## Workflows
 
